@@ -46,15 +46,25 @@ There aren't many settings to worry about in the vpcb-config file and most are s
 MAIN EXECUTABLE SCRIPTS
 #
 AWSVPCB.CONFIGURE - Reads vpcb-config and configures the base settings within the "procs" directory. Can be rerun as often as needed, but does not need to be run unless a change is made to the vpcb-config file.
+
 AWSVPCB.TEST – Simply tests basic connectivity to AWS.
+
 AWSVPCB.VPC.CREATE – This script optionally accepts a numeric parameter (the VPC number; 0 is the default if no number is provided). The script expects a vpc# directory (where # is the VPC number) to exist in the "secfiles" directory or AWS manifest S3bucket where the vpc.json file can be found and loaded. Using this vpc.json file, this script creates a VPC with associate Internet Gateway, NAT instance, route tables, subnets, security groups, S3Bucket for ELB logs, Client VPN endpoint, OVPN file for the OpenVPN client and registers all AWS unique IDs. This script will fail if a “AWS-VPCB” tagged VPC already exists in the target AWS account. In order to rerun this script, the AWSVPCB.VPC.DESTROY must be run first.
+
 AWSVPCB.VPC.DESTROY – This script will destroy the registered VPC and everything in it.
+
 AWSVPCB.VPC.REGISTER – This script compares the AWS object IDs registered with what exists in AWS to adjust the registry files in the "procs" directory appropriately. The script requests the user to provide an optional assignment number such that all of the assignment components are also registered properly.
+
 AWSVPCB.ASSIGNMENT.CREATE # – This script accepts a mandatory assignment number (no default). The script then stops and destroys existing assignment instances, DNS entries and ELB targets if any exist. The script then expects an assignment# directory (where # is the assignment number)to exist in the "secfiles" directory or AWS manifest S3bucket where the awsvpcb.assignment#.json can be found and loaded. The script then creates assignment instances and firewall rules.
+
 AWSVPCB.ASSIGNMENT.START – Starts instances, Creates ELB (if applicable and just during the first start), Associates Client VPN endpoint to subnet, Creates Route 53 DNS zone and entries, Creates Route 53 Inbound endpoints. This scripts can run multiple times without destroying any work.
+
 AWSVPCB.ASSIGNMENT.STOP – Stops instances, Saves Route 53 DNS entries, Destroys Route 53 DNS zone, Disassociate Client VPN endpoint from subnet, Deletes Route 53 Inbound Endpoints. This script can run multiple times without destroying work.
+
 AWSVPCB.ASSIGNMENT.DESTROY – Destroys existing assignment ELB and instances. This script is called by AWSVPCB.ASSIGNMENT.CREATE and destroys all the work done on assignment.
+
 AWSVPCB.DIAGLOG - This script gathers all the relevant information from the students AWSVPCB directories and AWS VPC and sends it to an S3 bucket for review. All the files are placed in the S3Bucket defined in the vpcb-config file.
+
 AWSVPCB.MANIFEST.DISPLAY - This script pormpts the user for which manifest to display (VPC or Assignment and the relevant #). The script then reads the designated manifest and displays what was extracted and would be loaded into the registry of the awsvpcb-scripts.  This is a good way to test whether your json is properly formatted and accepted. Note that this does not validate the json, just displays what loading it would do.
 #
 #
