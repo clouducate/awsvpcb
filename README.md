@@ -41,11 +41,73 @@ There aren't many settings to worry about in the vpcb-config file and most are s
 # 
 #
 #
-GETTING STARTED
-1) CREATE 2 AWS accounts - One for the instructor (needed for AMIs, manifest files, logging, etc.) and another to test how this would work for a student 
-2) DECIDE where you are going to run the scripts (must be a Linux or MAC machine)
-3) INSTALL the AWS CLI (version 2) on the chosen machine - follow instructions provided by AWS (https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2.html)
-4) DOWNLOAD & EXTRACT the awsvpcb-scripts file onto the machine where the AWS CLI is installed 
+VPC JSON FILES
+#
+The awsvpcb-scripts.zip file includes a sample json configuration file in the "secfiles/vpc0" directory. AWSVPCB allows for the definition of multiple VPCs (default is vpc0), however, there could only be one defined in AWS for a given AWS account at one time. In addition due to the fact the each time you create a VPC a new OVPN file is generated, it's recommended that you limit the number of VPCs used in one course.  For CTS-4743, for exampe, we only use one VPC for the entire semester and use the assignment json files to adjust the environment. VPCs can be created, registered and destroyed. Registering a VPC entails comparing the dynamic files within the "procs" directory with what is actually in AWS. All VPC json parameters are required, albeit the number of subnets, possibleInstanceNames and PossibleELBs is variable. The sample VPC json file includes all the parameters currently available. The below is a summary of these parameters:
+VPC-VPCCIDR(required): The range of IPs availabel for the VPC in CIDR notation
+
+Subnets(required): The number of subnets is flexible, but the DEFAULT and PUBLIC subnets are required and should not be touched
+Subnets-SubnetName(required): The name of the subnet
+Subnets-SubnetCIDR(required): The IP range for the subnet in CIDR notation
+Subnets-SecurityGroup(required): "yes" or "no" as to whether this subnet have an equivalently named Security group controlling it's inbound and outbound traffic
+Subnets-RoutingTable(required): "DEFAULT" or "PUBLIC" - all subnets other than the PUBLIC, should use the DEFAULT routing table
+
+PossibleInstanceNames(required): This is necessary to allow the AWSVPCB.VPC.REGISTER script to re-calibrate the scripts registry with what exists in AWS. Simply list the possible instance names that may exist in any assignment to be used with this VPC.
+
+PossibleELBs(required): This is necessary to allow the AWSVPCB.VPC.REGISTER script to re-calibrate the scripts registry with what exists in AWS. Simply list the possible ELB names that may exist in any assignment to be used with this VPC.
+
+DNSIPAddresses(required): This is a list of the IP addresses that will be defined in the AWS Route 53 resolver (DNS server). All AMIs should have these IPs in their config in order to appropriately resolve your private domain's DNS names to IPs.
+
+NATDefinition(required): This is unlikely to need to be changed as this is simply defined to allow Internet access from within the VPC.
+NATDefinition-IPAddress(required): IP address for the NAT instance.
+NATDefinition-Subnet(required): Subnet for the NAT instance.
+NATDefinition-AMI: AMI (AWS Machine Image) for the NAT instance.
+#
+#
+#
+ASSIGNMENT JSON FILES
+#
+The awsvpcb-scripts.zip file includes sample assignment json configuration files in the "secfiles/assignment#" directories (#=1-3). AWSVPCB allows for the definition of multiple assignments (there is no default). Assignments can be created, started, stopped and destoyed. Starting and stopping an assignment preserves all changes made. The option to start and stop an assignment is necessary to allow a student to step away and not unnecessarily use up their allotted AWS credits. The 3 sample assignment json files include all the parameters currently available. Some of these parameters are optional.  The below is a summary of these parameters:
+
+WHAT THE POC TEST BELOW DOES
+#
+The below "GETTING STARTED - POC TEST" section will use the default awsvpcb-scripts provided to build a VPC with VPN connectivity that includes publicly available Havic Circus AMIs with one or two applications loaded.  This will use static json files pre-loaded in the awsvpcb "secfiles" directory for the VPC and Assignments (1-3 are included) to provide you with examples of what can be configured with AWSVPCB.  This will also use static assignment json files loaded on the Havic Circus AMIs that provide examples of what you can do with Havoc Circus (more info on that within the Havoc Circus Readme). 
+#
+#
+#
+GETTING STARTED - POC TEST
+1) CREATE TEST STUDENT AWS ACCOUNT - This will be where the VPC is created
+  - NOTE: Credit must be provided.  AWS credits should be obtained and added to this account to avoid unnecessary charges.  However, the charges for going through this POC are minimal (under $10) as long as everything is destroyed in the end and it is not kept up and running for hours.
+2) DECIDE which PC you are planning to use to access your VPC (Linux, MAC or Windows)
+3) INSTALL OPENVPN - This will be used later when the OVPN file is created
+  - ON MAC: OpenVPN Connect version 3.1 or higher from the MAC App Store 
+  - ON WINDOWS: https://www.ovpn.com/en/guides/windows-openvpn-gui 
+4) DECIDE where you are going to run the scripts (must be a Linux or MAC machine) - if using MAC or Linux for the PC where OpenVPN is installed, then it can be the same machine.
+5) INSTALL the AWS CLI (version 2) on the chosen machine - follow instructions provided by AWS (https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2.html) and test with following command to make sure you have the proper access: aws ec2 describe-instances
+6) DOWNLOAD & EXTRACT the awsvpcb-scripts file onto the machine where the AWS CLI is installed 
+7) CD to the root of awsvpcb-scripts directory
+6) RUN ./AWSVPCB.CONFIGURE
+8) RUN ./AWSVPCB.VPC.CREATE
+9) IF NECESSARY, DOWNLOAD the AWSVPCB-client-config.ovpn file created in the "secfiles" directory to the PC you installed the OpenVPN client
+10) IMPORT the AWSVPCB-client-config.ovpn into the OpenVPN client
+11) IF NECESSARY, DOWNLOAD the ca.crt file in the "secfiles" directory to the PC you installed the OpenVPN client
+12) ADD the ca.crt root certificate to the trusted store on your PC (Windows, MAC or Linux)
+13) IF NECESSARY, DOWNLOAD other support files from the "secfiles" directory to the PC including:
+  - iis1.rdp, iis1.password, iis2.rdp, iis2.password, mssql.rdp, mssql.password, mssql.sa.password, privkey.ppk (if you plan to use putty), privkey.pem (if you plan to use SSH)
+13) RUN ./AWSVPCB.ASSIGNMENT.CREATE 1
+14) RUN ./AWSVPCB.ASSIGNMENT.START
+15) CONNECT with OpenVPN to your AWS VPC using the OVPN connection you just imported
+16) TEST the following:
+  - RDP to the iis1.awsvpcb.edu server using the iis1.rdp file in the "secfiles" directory
+  - RDP to the mssql.awsvpcb.edu server using the mssql.rdp file in the "secfiles" directory
+  - SSH to the linux1.awsvpcb.edu server using the privkey.pem file (password is hardcoded to cts4743) or use putty (need to add privkey.ppk to the definition - same password of cts4743)
+  - Use SSMS (Windows) or Azure Data Studio (MAC) to connect to the SQL Server instance onn mssql.awsvpcb.edu
+  - Use a browser to connect to http://myfiu.awsvpcb.edu and/or http://rainforest.awsvpcb.edu
+17) RUN ./AWSVPCB.ASSIGNMENT.STOP  # this would only be necessary if you wanted to get back to this later, else you can run ./AWSVPCB.ASSIGNMENT.DESTROY
+#
+#
+#
+
 5) CHOOSE DOMAIN 
    - Use default awsvpcb.edu domain - This limits you to two ELB names (myfiu and rainforest), but other than that, there are now other limitations
    OR
