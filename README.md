@@ -1,1 +1,4 @@
-# awsvpcb
+INTRODUCTION
+
+AWSVPCB (AWS Virtual Private Cloud Builder) is a set of BASH Shell scripts designed to create a small enterprise IT-like environment in AWS for college-level students to individually work on IT problems. These scripts work in conjunction with the Havoc Circus utility which provides a method for automatically changing the environment for assignment purposes. These scripts were originally developed  by Norbert Monfort and Robert Fortunato for the CTS-4743 Enterprise IT Troubleshooting course taught at FIU (Florida International University) in Miami, Florida.  However, these scripts and the associated Havoc Circus C#.Net packages are open source and free to be used for any purpose. These two components make up what is called the "Clouducate Suite", which we would like to see expand to include additional tools in the future.
+
