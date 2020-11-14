@@ -1,8 +1,11 @@
 INTRODUCTION
+#
 AWSVPCB (AWS Virtual Private Cloud Builder) is a set of BASH Shell scripts designed to create a small enterprise IT-like environment in AWS to provide college-level students with hands-on experience individually working on IT problems. These scripts work in conjunction with the Havoc Circus utility which provides AWS images (AMIs) with pre-loaded applications and a method for automatically changing the environment for assignment purposes. These scripts were originally developed by Norbert Monfort and Robert Fortunato for the CTS-4743 Enterprise IT Troubleshooting course taught at FIU (Florida International University) in Miami, Florida.  However, these scripts and the associated Havoc Circus C#.Net packages are open source and free to be used for any purpose. These two components make up what is called the "Clouducate Suite", which we would like to see expand to include additional tools in the future. Included in this repository is a presentation (Clouducate.pdf) which explains and provides an introduction to AWSVPCB and Havoc Circus.  The rest of this document will focus on AWSVPCB.
 #
 #
+#
 STRUCTURE OF AWSVPCB
+#
 The AWSVPCB scripts require a specific directory structure. You can simply download the awsvpcb-scripts.zip file to install this directory structure to get started. The following is an explanation of the directories:
 1) Root directory of the scripts - All the scripts that are meant to be executed by the students reside in this directory and are all fully CAPITALIZED. All the other directories are support directories relevant to the instructor, but not to the students. The root directory also includes the the vpcb-config file which provides for a few configuration settings for the scripts.
 2) The "procs" directory includes all of the detail code for the scripts as well as some dynamic variable files that start off empty, but are modified as the scripts execute and load the json files as well as build the AWS components.  All "code" resides in this directory and the root directory.
@@ -21,6 +24,7 @@ The AWSVPCB scripts require a specific directory structure. You can simply downl
 #
 #
 CONFIG FILE (vpcb-config) SETTINGS
+#
 There aren't many settings to worry about in the vpcb-config file and most are self-explantory, but here's the list:
   - COURSE & SEMESTER - These two parameters go hand in hand to determine the name of the log group to be created in Cloudwatch.  If you happen to have multiple sections for a particular course within a semester, then it's recommended that you add the section number to the COURSE parameter.  
   - DOMAIN - This is used to append to all of your server and ELB names.  Consider this your fake companies domain name.  The default is "awsvpcb.edu" and certificates for the VPN, and a couple of ELB (load balancer) names are provided for this domain as well as the CA cert (ca.crt) which is all used to build the VPC and ELBs. However, if you wish to create new ELB names or use a different domain, then you would need to create your own CA and replace all the relevant files in the "secfiles" directory. 
@@ -35,6 +39,7 @@ There aren't many settings to worry about in the vpcb-config file and most are s
   - MANIFEST_SECRET_KEY - The AWS secret key to be used to download VPC and assignment manifest json files from AWS
   - MANIFEST_S3BUCKET - The AWS S3Bucket where the VPC and assignment manifest json files are located in AWS
 # 
+#
 #
 GETTING STARTED
 1) CREATE 2 AWS accounts - One for the instructor (needed for AMIs, manifest files, logging, etc.) and another to test how this would work for a student 
