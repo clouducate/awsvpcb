@@ -23,6 +23,7 @@ The AWSVPCB scripts require a specific directory structure. You can simply downl
  5) The "logs" directory includes all of the output for all the scripts run 
 #
 #
+#
 CONFIG FILE (vpcb-config) SETTINGS
 #
 There aren't many settings to worry about in the vpcb-config file and most are self-explantory, but here's the list:
@@ -38,23 +39,40 @@ There aren't many settings to worry about in the vpcb-config file and most are s
   - MANIFEST_ACCESS_KEY - The AWS access key to be used to download VPC and assignment manifest json files from AWS
   - MANIFEST_SECRET_KEY - The AWS secret key to be used to download VPC and assignment manifest json files from AWS
   - MANIFEST_S3BUCKET - The AWS S3Bucket where the VPC and assignment manifest json files are located in AWS
+  - DIAGLOG_S3BUCKET - The AWS S3Bucket where diagnostic information will be placed; the LOGGING_ACCESS_KEY must have access to write to this S3Bucket
 # 
+#
+#
+MAIN EXECUTABLE SCRIPTS
+#
+AWSVPCB.CONFIGURE - Reads vpcb-config and configures the base settings within the "procs" directory. Can be rerun as often as needed, but does not need to be run unless a change is made to the vpcb-config file.
+AWSVPCB.TEST – Simply tests basic connectivity to AWS
+AWSVPCB.VPC.CREATE – This script optionally accepts a numeric parameter (the VPC number; 0 is the default if no number is provided). The script expects a vpc# directory (where # is the VPC number) to exist in the "secfiles" directory or AWS manifest S3bucket where the vpc.json file can be found and loaded. Using this vpc.json file, this script creates a VPC with associate Internet Gateway, NAT instance, route tables, subnets, security groups, S3Bucket for ELB logs, Client VPN endpoint, OVPN file for the OpenVPN client and registers all AWS unique IDs. This script will fail if a “AWS-VPCB” tagged VPC already exists in the target AWS account. In order to rerun this script, the AWSVPCB.VPC.DESTROY must be run first.
+AWSVPCB.VPC.DESTROY – This script will destroy the registered VPC and everything in it.
+AWSVPCB.VPC.REGISTER – This script compares the AWS object IDs registered with what exists in AWS to adjust the registry files in the "procs" directory appropriately. The script requests the user to provide an optional assignment number such that all of the assignment components are also registered properly.
+AWSVPCB.ASSIGNMENT.CREATE # – This script accepts a mandatory assignment number (no default). The script then stops and destroys existing assignment instances, DNS entries and ELB targets if any exist. The script then expects an assignment# directory (where # is the assignment number)to exist in the "secfiles" directory or AWS manifest S3bucket where the awsvpcb.assignment#.json can be found and loaded. The script then creates assignment instances and firewall rules.
+AWSVPCB.ASSIGNMENT.START – Starts instances, Creates ELB (if applicable and just during the first start), Associates Client VPN endpoint to subnet, Creates Route 53 DNS zone and entries, Creates Route 53 Inbound endpoints. This scripts can run multiple times without destroying any work.
+AWSVPCB.ASSIGNMENT.STOP – Stops instances, Saves Route 53 DNS entries, Destroys Route 53 DNS zone, Disassociate Client VPN endpoint from subnet, Deletes Route 53 Inbound Endpoints. This script can run multiple times without destroying work.
+AWSVPCB.ASSIGNMENT.DESTROY – Destroys existing assignment ELB and instances. This script is called by AWSVPCB.ASSIGNMENT.CREATE and destroys all the work done on assignment.
+AWSVPCB.DIAGLOG - This script gathers all the relevant information from the students AWSVPCB directories and AWS VPC and sends it to an S3 bucket for review. All the files are placed in the S3Bucket defined in the vpcb-config file.
+AWSVPCB.MANIFEST.DISPLAY - This script pormpts the user for which manifest to display (VPC or Assignment and the relevant #). The script then reads the designated manifest and displays what was extracted and would be loaded into the registry of the awsvpcb-scripts.  This is a good way to test whether your json is properly formatted and accepted. Note that this does not validate the json, just displays what loading it would do.
+#
 #
 #
 VPC JSON FILES
 #
 The awsvpcb-scripts.zip file includes a sample json configuration file in the "secfiles/vpc0" directory. AWSVPCB allows for the definition of multiple VPCs (default is vpc0), however, there could only be one defined in AWS for a given AWS account at one time. In addition due to the fact the each time you create a VPC a new OVPN file is generated, it's recommended that you limit the number of VPCs used in one course.  For CTS-4743, for exampe, we only use one VPC for the entire semester and use the assignment json files to adjust the environment. VPCs can be created, registered and destroyed. Registering a VPC entails comparing the dynamic files within the "procs" directory with what is actually in AWS. All VPC json parameters are required, albeit the number of subnets, possibleInstanceNames and PossibleELBs is variable. The sample VPC json file includes all the parameters currently available. The below is a summary of these parameters:
-VPC-VPCCIDR(required): The range of IPs availabel for the VPC in CIDR notation
+VPC-VPCCIDR(required): The range of IPs available for the VPC in CIDR notation
 
-Subnets(required): The number of subnets is flexible, but the DEFAULT and PUBLIC subnets are required and should not be touched
-Subnets-SubnetName(required): The name of the subnet
+Subnets(required): The number of subnets is variable, but the DEFAULT and PUBLIC subnets are required and should not be touched
+Subnets-SubnetName(required): The name of the subnet (no spaces allowed)
 Subnets-SubnetCIDR(required): The IP range for the subnet in CIDR notation
 Subnets-SecurityGroup(required): "yes" or "no" as to whether this subnet have an equivalently named Security group controlling it's inbound and outbound traffic
 Subnets-RoutingTable(required): "DEFAULT" or "PUBLIC" - all subnets other than the PUBLIC, should use the DEFAULT routing table
 
-PossibleInstanceNames(required): This is necessary to allow the AWSVPCB.VPC.REGISTER script to re-calibrate the scripts registry with what exists in AWS. Simply list the possible instance names that may exist in any assignment to be used with this VPC.
+PossibleInstanceNames(required): The number of PossibleInstanceNames is variable, but at least one must exist. This is necessary to allow the AWSVPCB.VPC.REGISTER script to re-calibrate the scripts registry with what exists in AWS. Simply list the possible instance names that may exist in any assignment to be used with this VPC.
 
-PossibleELBs(required): This is necessary to allow the AWSVPCB.VPC.REGISTER script to re-calibrate the scripts registry with what exists in AWS. Simply list the possible ELB names that may exist in any assignment to be used with this VPC.
+PossibleELBs(required): The number of PossibleELBs is variable, but at least one must exist. This is necessary to allow the AWSVPCB.VPC.REGISTER script to re-calibrate the scripts registry with what exists in AWS. Simply list the possible ELB names that may exist in any assignment to be used with this VPC.
 
 DNSIPAddresses(required): This is a list of the IP addresses that will be defined in the AWS Route 53 resolver (DNS server). All AMIs should have these IPs in their config in order to appropriately resolve your private domain's DNS names to IPs.
 
@@ -65,10 +83,50 @@ NATDefinition-AMI: AMI (AWS Machine Image) for the NAT instance.
 #
 #
 #
-ASSIGNMENT JSON FILES
+ASSIGNMENT MANIFEST JSON FILES
 #
 The awsvpcb-scripts.zip file includes sample assignment json configuration files in the "secfiles/assignment#" directories (#=1-3). AWSVPCB allows for the definition of multiple assignments (there is no default). Assignments can be created, started, stopped and destoyed. Starting and stopping an assignment preserves all changes made. The option to start and stop an assignment is necessary to allow a student to step away and not unnecessarily use up their allotted AWS credits. The 3 sample assignment json files include all the parameters currently available. Some of these parameters are optional.  The below is a summary of these parameters:
+Instances(required): The number of instances is variable, but at least one must exist
+Instances-InstanceName(required): The name of the instance (no spaces allowed)
+Instances-InstanceIP(required): The IP address for this instance.  Must be within the IP range of the subnet
+Instances-InstanceSubnet(required): The subnet for the instance. Must be a subnet defined in the VPC.json file
+Instances-InstanceAMI(required): The AMI (AWS Machine Image) for this instance. If the AMI is private, then it must be shared with the student's AWS account
+Instances-InstanceType(required): The type/size of the instance. While anything can be chosen here, please be aware that only type t2.micro is currently covered by the AWS "free tier", which allows for many more hours of usage without chewing up a lot of AWS credits.
+Instances-StartPreference(optional): Although this can be used for any purpose, it is only necessary for the server that executes the Havoc Circus service and should be set to "first" ("last" is also an available option, but will cause problems if used for the instance running the Havoc Circus service)
+Instances-StopPreference(optional): Although this can be used for any purpose, it is only necessary for the server that executes the Havoc Circus service and should be set to "last" ("first" is also an available option, but will cause problems if used for the instance running the Havoc Circus service)
 
+FirewallRules(optional): Syntactically, Firewall Rules do not need to be provided and there is no limit as to how many are provided. However, if rules are not provided, then no access will be allowed into a security group, so generally at least one inbound and one outbound rule per security group is needed to make things functional.
+FirewallRules-SecurityGroup(required): The security group to which this particular firewall rule applies
+FirewallRules-RuleType(required): Must be "inbound" or "outbound"
+FirewallRules-Protocol(required): Can be "all", "udp", "tcp" or "icmp"
+FirewallRules-Port(required): Can be "all" or specific port number or port range with hyphen in between (e.g. "137-139")
+FirewallRules-SourceGroup(required): The source (for "inbound" rules) or destination (for "outbound" rules) for this firewall rule in CIDR notation 
+
+DNSEntriesFile(required): This is the location of the json file that includes the DNS entries to apply to Route 53 when the assignment is created.  The path is relative to the "secfiles" directory and/or the AWS S3 bucket where the manifest exists
+
+ELBs(optional): Only required if ELBs are defined.  NOTE: There is a log automatically created for each ELB within an S3Bucket within the student's AWS account that will include all the requests into that ELB (equivalent to a web access log). There is also a DNS entry automatically created for the ELB.
+ELBs-ELBName(required): The name of the ELB. There should be an SSL certificate (.crt file) and private key (.pkey file) in the "secfiles" directory with this name and the chosen domain appended (e.g. rainforest.awsvpcb.edu.crt and rainforest.awsvpcb.edu.pkey where rainforest is the ELBName and awsvpcb.edu is the DOMAIN).
+ELBs-ListenerProtocol(optional): The default is HTTPS. At this time, no other option is supported, although support for HTTP is being built to avoid need for certificates.
+ELBs-ListenerPort(optional): The default is 443. Any value recognized by AWS is accepted.
+ELBs-InstanceProtocol(optional): The default is HTTP. Any value recognized by AWS is accepted.
+ELBs-InstancePort(optional): The default is 80. Any value recognized by AWS is accepted.
+ELBs-ELBSubnet(optional): The default is ELB. The name chosen must be a valid subnet as defined in the VPC json file
+ELBs-HealthCheckTarget(optional): The default is TCP:80. This will be what AWS uses to validate that the target instances are active. Any value recognized by AWS is accepted.
+ELBs-HealthCheckInterval(optional): The default is 5. This indicates how often AWS will execute the Health Check (in secs). Any value recognized by AWS is accepted.
+ELBs-HealthCheckTimeout(optional): The default is 3. This indicates how long (in secs) before AWS considers a health check as timed out (failed). Any value recognized by AWS is accepted.
+ELBs-HealthCheckUnhealthyThreshold(optional): The default is 2. This indicates how many health checks must fail for the target instance to be taken out offline. Any value recognized by AWS is accepted.
+ELBs-HealthCheckHealthyThreshold(optinal): The default is 2. This indicates how many health checks must succeed for the target instance to be brought back online. Any value recognized by AWS is accepted.
+ELBs-ELBInstances(required): The number of instances is variable, but at least one instance is required.
+ELBs-ELBInstances-InstanceName(required): The name of a target instance for the ELB.  Must be an instance defined in the assignment.
+#
+#
+#
+ASSIGNMENT DNS JSON FILES
+#
+The awsvpcb-scripts.zip file includes sample assignment DNS json configuration files in the "secfiles/assignment#" directories (#=1-3). AWSVPCB allows for each assignment to include it's own set of DNS entries for the servers and or other components. The DNS json file must be configured within the assignment json file.  Thus, there could be one centralized DNS json config file used for multiple assignments, if desired. The format of the DNS json configuration file is dictated by AWS as it is loaded directyly without modification. Any parameters accepted by AWS would be accepted in this file.  Please refer to https://docs.aws.amazon.com/cli/latest/reference/route53/change-resource-record-sets.html for available json elements.
+#
+#
+#
 WHAT THE POC TEST BELOW DOES
 #
 The below "GETTING STARTED - POC TEST" section will use the default awsvpcb-scripts provided to build a VPC with VPN connectivity that includes publicly available Havic Circus AMIs with one or two applications loaded.  This will use static json files pre-loaded in the awsvpcb "secfiles" directory for the VPC and Assignments (1-3 are included) to provide you with examples of what can be configured with AWSVPCB.  This will also use static assignment json files loaded on the Havic Circus AMIs that provide examples of what you can do with Havoc Circus (more info on that within the Havoc Circus Readme). 
@@ -107,8 +165,14 @@ GETTING STARTED - POC TEST
 #
 #
 #
-
-5) CHOOSE DOMAIN 
+NEXT STEPS FOR YOUR COURSE
+1) MAP OUT TARGET ENVIRONMENT 
+  - What AMIs do you plan to use? Are the default AMIs provided sufficient or do you want to take those and create custom AMIs? 
+  - What applications will the students be testing? Are the default rainforest and myfiu applications sufficient or do I want to build.use others? 
+  - What do you want your VPC to look like (IP range, subnets, possible instances, possible ELBs)?  
+  - What do you want your assignments to look like (instances, firewall rules, DNS entries, ELBs)? NOTE: In order to use Havoc Circus, at least one of the AMIs must be Windows with the Havoc Circus service pre-loaded and pointing to your Havoc Circus manifest location locally on the server or in AWS.
+  - What do you want your assignments to do (e.g. setup a security vulnerability or break the environment in some way)?
+2) CHOOSE DOMAIN 
    - Use default awsvpcb.edu domain - This limits you to two ELB names (myfiu and rainforest), but other than that, there are now other limitations
    OR
    - Create your own domain and provide the following:
@@ -116,16 +180,16 @@ GETTING STARTED - POC TEST
       - Client & Server VPN certs and private keys
       - ELB certs and private keys
       - All of these would need to be placed in the "secfiles" directory with the appropriate name (NOTE: the VPN server and client names are currently hardcoded, so you need to replace the files in the secfiles directory)
-6) IDENTIFY the AMIs to use:
-  - Optionally, create server AMIs to be used for assignments 
-  - Havoc Circus AMIs can be used OR publicly available AWS AMIs can be used, but at least one custom AMI is needed for the server that will run Havoc Circus as AWSVPCB DNS servers need to be configured on it. 
-  - Maintain any custom AMIs used for the assignments (at least one is needed as noted above)
-  - House Havoc Circus assignment dependency files and json files
-  - Optionally, house AWSVPCB VPC and assignment json files
-  - Optionally, if you wish to enable AWS logging, then IAM user with Cloudwatch access
-  - Optionally, if you wish to be able to gather diagnostic information, then same IAM user needs access to be able to create a new S3 bucket 
-3) Create VPC and assignment AWSVPCB json files
-4) Create Havoc Circus assignment json files
-5) Each student needs to create AWS account, be provided AWS credits and preferably a Linux server from which they can run the AWS CLI client
-6) Access to AMIs must be granted to students’ AWS accounts
+3) SETUP INSTRUCTOR AWS ACCOUNT (optional).  This would be needed if you wanted to do any of the following:
+  - Host custom AMIs for the assignments that will not be publicly available 
+  - House Havoc Circus assignment dependency files and manifest json files
+  - House AWSVPCB VPC and assignment json files
+  - If you wish to enable AWS logging, then IAM user with Cloudwatch access
+  - If you wish to be able to gather diagnostic information, then same IAM user needs access to be able to create a new S3 bucket 
+4) CREATE your VPC and assignment AWSVPCB json files
+5) CREATE Havoc Circus assignment json files
+6) TEST a lot
+7) CREATE instructions for students to create their own AWS account
+8) PROVIDE AWS credits and preferably a shared/University controlled Linux server from which the students can run the AWS CLI client
+9) IF USING CUSTOM/PRIVATE AMIs, the grant access to students’ AWS accounts
 
