@@ -1,0 +1,42 @@
+# Stop assignment Client VPN Endpoint associattion (delete)  
+#
+$AWSCLI_HOME/procs/log "Starting assignment Client VPN Endpoint target association delete process...."
+
+if [ "$AWSVPCB_CLIENTVPN_ASSOCID" == "" ]; then
+   $AWSCLI_HOME/procs/log "No Client VPN Endpoint association registered - moving on...."
+   exit 
+fi
+
+$AWSCLI_HOME/procs/clicall "ec2  disassociate-client-vpn-target-network --client-vpn-endpoint-id $AWSVPCB_CLIENTVPNID --association-id $AWSVPCB_CLIENTVPN_ASSOCID" "$AWSCLI_HOME/tempfiles/stop.assignment.clientvpnendpoint.1" "$AWSCLI_HOME/tempfiles/stop.assignment.clientvpnendpoint.1.error"
+if [ $? -ne 0 ]; then
+   $AWSCLI_HOME/procs/log "Error deleting Client VPN Endpoint target association in AWS -  please capture any output, zip up entire directory and send to professor for review...."
+   exit 1
+fi
+cat $AWSCLI_HOME/procs/aws-dynamic-vars | grep -v AWSVPCB_CLIENTVPN_ASSOCID > $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp
+cat $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp > $AWSCLI_HOME/procs/aws-dynamic-vars
+$AWSCLI_HOME/procs/log "Client VPN Endpoint target association $AWSVPCB_CLIENTVPN_ASSOCID deleted and unregistered - waiting for dissaciation to complete; This will take a few minutes...."
+disassociating=1
+count=0
+while [ $count -le 600 ]; do
+   $AWSCLI_HOME/procs/clicall "ec2 describe-client-vpn-target-networks --client-vpn-endpoint-id $AWSVPCB_CLIENTVPNID --association-ids $AWSVPCB_CLIENTVPN_ASSOCID" "$AWSCLI_HOME/tempfiles/stop.assignment.clientvpnendpoint.2" "$AWSCLI_HOME/tempfiles/stop.assignment.clientvpnendpoint.2.error"
+   if [ $? -ne 0 ]; then
+      $AWSCLI_HOME/procs/log "Error disassociating Client VPN Endpoint in AWS -  please capture any output, zip up entire directory and send to professor for review
+...."
+      exit 1
+   fi
+   export json=`cat $AWSCLI_HOME/tempfiles/stop.assignment.clientvpnendpoint.2`
+   export vpn_disassociating=`$AWSCLI_HOME/procs/json-read "Code:" | grep -i disassociating`
+   if [ "$vpn_disassociating" == "" ]; then
+      disassociating=0
+      break
+   else
+      let count=count+1
+      sleep 2
+      continue
+   fi
+done
+if [ $disassociating -eq 1 ]; then
+   $AWSCLI_HOME/procs/log "Did not see Client VPN Endpoint complete disassociation of $AWSVPCB_CLIENTVPN_ASSOCID - please retry...."
+   exit 1
+fi
+$AWSCLI_HOME/procs/log "Client VPN Endpoint target association $AWSVPCB_CLIENTVPN_ASSOCID disassociated successfully...."

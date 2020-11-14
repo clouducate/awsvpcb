@@ -1,0 +1,58 @@
+# Register VPN certificates if already exists
+#
+$AWSCLI_HOME/procs/log "Starting VPN certificate registration process...."
+
+certs="AWSVPN client"
+for c in $certs
+do
+   cert=AWS-VPCB-${c}
+   certid_var=AWSVPCB_${c}_CERTID
+   eval "certid=\${$certid_var}"
+   if [ "$certid" != "" ]; then
+      $AWSCLI_HOME/procs/log "Certificate $cert registered as $certid - checking if it exists...."
+      $AWSCLI_HOME/procs/clicall "acm describe-certificate --certificate-arn $certid" "$AWSCLI_HOME/tempfiles/register.VPNcertificates.1" "$AWSCLI_HOME/tempfiles/register.VPNcertificates.1.error"
+      if [ $? -ne 0 ]; then
+         cat $AWSCLI_HOME/procs/aws-dynamic-vars | grep -v $certid_var > $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp
+         cat $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp > $AWSCLI_HOME/procs/aws-dynamic-vars
+         $AWSCLI_HOME/procs/log "Certificate $certid not found in AWS - unregistered it...."
+      else
+         export json=`cat $AWSCLI_HOME/tempfiles/register.VPNcertificates.1`
+         export test=`$AWSCLI_HOME/procs/json-read "CertificateArn:"`
+         if [ "$test" != "" ]; then
+            $AWSCLI_HOME/procs/log "Certificate $certid found in AWS - moving on...."
+         else
+            cat $AWSCLI_HOME/procs/aws-dynamic-vars | grep -v $certid_var > $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp
+            cat $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp > $AWSCLI_HOME/procs/aws-dynamic-vars
+            $AWSCLI_HOME/procs/log "Certificate $certid not found in AWS - unregistered it...."
+         fi
+      fi
+   else
+      $AWSCLI_HOME/procs/clicall "acm list-certificates" "$AWSCLI_HOME/tempfiles/register.VPNcertificates.2" "$AWSCLI_HOME/tempfiles/register.VPNcertificates.2.error"
+      if [ $? -ne 0 ]; then
+         $AWSCLI_HOME/procs/log "Error looking up cert $c.$DOMAIN in AWS -  please capture any output, zip up entire directory and send to professor for review...."
+         exit 1
+      fi
+      export json=`cat $AWSCLI_HOME/tempfiles/register.VPNcertificates.2`
+      export all_domains=`$AWSCLI_HOME/procs/json-read "DomainName:"`
+      export all_certs=`$AWSCLI_HOME/procs/json-read "CertificateArn:"`
+      counter=0
+      count=0
+      for domain in $all_domains
+      do
+         let counter=counter+1 
+         if [ "$domain" == "$c.$DOMAIN" ]; then
+            let count=count+1
+            certid=`echo $all_certs | cut -f$counter -d" "`
+         fi
+      done
+      if [ $count -eq 1 ]; then
+         echo "export AWSVPCB_${c}_CERTID=$certid" >> $AWSCLI_HOME/procs/aws-dynamic-vars
+         $AWSCLI_HOME/procs/log "Certificate $c.$DOMAIN found in AWS and registered...."
+      elif [ $count -gt 1 ]; then
+         $AWSCLI_HOME/procs/log "Multiple certificates found in AWS for $c.$DOMAIN - **needs manual cleanup** - aborting operation...."
+      else
+         $AWSCLI_HOME/procs/log "No certificate found in AWS for $c.$DOMAIN - moving on...."
+      fi
+   fi
+done
+

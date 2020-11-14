@@ -1,0 +1,42 @@
+# Register Internet Gateway, if it exists
+#
+$AWSCLI_HOME/procs/log "Starting Internet Gateway registration process...."
+
+if [ "$AWSVPCB_IGWID" != "" ]; then
+   $AWSCLI_HOME/procs/log "Internet Gateway registered as $AWSVPCB_IGWID - checking to see if it exists...."
+   $AWSCLI_HOME/procs/clicall "ec2 describe-internet-gateways --internet-gateway-ids $AWSVPCB_IGWID" "$AWSCLI_HOME/tempfiles/register.igw.1" "$AWSCLI_HOME/tempfiles/register.igw.1.error"
+   if [ $? -ne 0 ]; then
+      $AWSCLI_HOME/procs/log "Error looking for Internet Gateway in AWS -  please capture any output, zip up entire directory and send to professor for review...."
+      exit 1
+   fi
+   export json=`cat $AWSCLI_HOME/tempfiles/register.igw.1`
+   export test=`$AWSCLI_HOME/procs/json-read "InternetGatewayId:"`
+   if [ "$test" != "" ]; then
+      $AWSCLI_HOME/procs/log "Registered Internet Gateway $AWSVPCB_IGWID found in AWS - moving on...."
+      exit 
+   else
+      $AWSCLI_HOME/procs/log "Registered Internet Gateway $AWSVPCB_IGWID not found in AWS - unregistering it...."
+      cat $AWSCLI_HOME/procs/aws-dynamic-vars | grep -v AWSVPCB_IGWID > $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp
+      cat $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp > $AWSCLI_HOME/procs/aws-dynamic-vars
+   fi
+fi
+
+$AWSCLI_HOME/procs/clicall "ec2 describe-internet-gateways --filters Name=tag:Name,Values=AWS-VPCB-IGW" "$AWSCLI_HOME/tempfiles/register.igw.2" "$AWSCLI_HOME/tempfiles/register.igw.2.error"
+if [ $? -ne 0 ]; then
+   $AWSCLI_HOME/procs/log "Error looking for Internet Gateway in AWS -  please capture any output, zip up entire directory and send to professor for review...."
+   exit 1
+fi
+export json=`cat $AWSCLI_HOME/tempfiles/register.igw.2`
+export AWSVPCB_IGWID=`$AWSCLI_HOME/procs/json-read "InternetGatewayId:"` 
+dup=`$AWSCLI_HOME/procs/json-read "InternetGatewayId:" | cut -f3 -d"-"`
+if [ "$dup" != "" ]; then
+   $AWSCLI_HOME/procs/log "Found multiple tagged Internet Gateways in AWS - **needs manual cleanup** - aborting operation...."
+   exit
+elif [ "$AWSVPCB_IGWID" != "" ]; then
+   echo "export AWSVPCB_IGWID=$AWSVPCB_IGWID" >> $AWSCLI_HOME/procs/aws-dynamic-vars
+   $AWSCLI_HOME/procs/log "Internet Gateway $AWSVPCB_IGWID registered...."
+else
+   $AWSCLI_HOME/procs/log "No Internet Gateway tagged as AWS-VPCB-IGW in AWS - moving on....."
+   exit
+fi
+

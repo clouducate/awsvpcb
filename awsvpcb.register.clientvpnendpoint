@@ -1,0 +1,92 @@
+# Register Client VPN Endpoint if already exists
+#
+$AWSCLI_HOME/procs/log "Starting Client VPN Endpoint registration process...."
+$AWSCLI_HOME/procs/awsvpcb.register.VPNcertificates 
+
+if [ "$AWSVPCB_CLIENTVPNID" != "" ]; then
+   $AWSCLI_HOME/procs/log "Client VPN Endpoint registered as $AWSVPCB_CLIENTVPNID - checking if it exists...."
+   $AWSCLI_HOME/procs/clicall "ec2 describe-client-vpn-endpoints --client-vpn-endpoint-ids $AWSVPCB_CLIENTVPNID" "$AWSCLI_HOME/tempfiles/register.clientvpnendpoint.1" "$AWSCLI_HOME/tempfiles/register.clientvpnendpoint.1.error"
+   if [ $? -ne 0 ]; then
+      cat $AWSCLI_HOME/procs/aws-dynamic-vars | grep -v AWSVPCB_CLIENTVPNID > $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp
+      cat $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp > $AWSCLI_HOME/procs/aws-dynamic-vars
+      cat $AWSCLI_HOME/procs/aws-dynamic-vars | grep -v  AWSVPCB_CLIENTVPNDNS > $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp
+      cat $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp > $AWSCLI_HOME/procs/aws-dynamic-vars
+      AWSVPCB_CLIENTVPNID=
+   else
+      export json=`cat $AWSCLI_HOME/tempfiles/register.clientvpnendpoint.1`
+      export test=`$AWSCLI_HOME/procs/json-read "ClientVpnEndpointId:"`
+      if [ "$test" != "" ]; then
+         $AWSCLI_HOME/procs/log "Registered Client VPN Endpoint $AWSVPCB_CLIENTVPNID found in AWS - moving on...."
+      else
+         $AWSCLI_HOME/procs/log "Registered Client VPN Endpoint $AWSVPCB_CLIENTVPNID not found in AWS - unregistering it...."
+         cat $AWSCLI_HOME/procs/aws-dynamic-vars | grep -v AWSVPCB_CLIENTVPNID > $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp
+         cat $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp > $AWSCLI_HOME/procs/aws-dynamic-vars
+         cat $AWSCLI_HOME/procs/aws-dynamic-vars | grep -v  AWSVPCB_CLIENTVPNDNS > $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp
+         cat $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp > $AWSCLI_HOME/procs/aws-dynamic-vars
+         AWSVPCB_CLIENTVPNID=
+      fi
+   fi
+else
+   $AWSCLI_HOME/procs/clicall "ec2 describe-client-vpn-endpoints --filters Name=tag:Name,Values=AWS-VPCB-VPN" "$AWSCLI_HOME/tempfiles/register.clientvpnendpoint.2" "$AWSCLI_HOME/tempfiles/register.clientvpnendpoint.2.error"
+   if [ $? -ne 0 ]; then
+      $AWSCLI_HOME/procs/log "Error looking up client VPN endpoint in AWS -  please capture any output, zip up entire directory and send to professor for review...."
+      exit 1
+   fi
+   export json=`cat $AWSCLI_HOME/tempfiles/register.clientvpnendpoint.2`
+   export AWSVPCB_CLIENTVPNID=`$AWSCLI_HOME/procs/json-read "ClientVpnEndpointId:"`
+   export AWSVPCB_CLIENTVPNDNS=`$AWSCLI_HOME/procs/json-read "DnsName:"`
+   dup=`$AWSCLI_HOME/procs/json-read "ClientVpnEndpointId:" | cut -f4 -d"-"`
+   if [ "$dup" != "" ]; then
+      $AWSCLI_HOME/procs/log "Found multiple AWS-VPCB-VPN tagged Client VPN Endpoints in AWS - **needs manual cleanup** - aborting operation...."
+   elif [ "$AWSVPCB_CLIENTVPNID" != "" ]; then
+      echo "export AWSVPCB_CLIENTVPNID=$AWSVPCB_CLIENTVPNID" >> $AWSCLI_HOME/procs/aws-dynamic-vars
+      echo "export AWSVPCB_CLIENTVPNDNS=$AWSVPCB_CLIENTVPNDNS" >> $AWSCLI_HOME/procs/aws-dynamic-vars
+      $AWSCLI_HOME/procs/log "Client VPN endpoint $AWSVPCB_CLIENTVPNID registered...."
+   else
+      $AWSCLI_HOME/procs/log "No tagged Client VPN Endpoint found in AWS - moving on...."
+      exit
+   fi
+fi
+
+
+if [ "$AWSVPCB_CLIENTVPN_ASSOCID" != "" ]; then
+   $AWSCLI_HOME/procs/log "Client VPN Endpoint association $AWSVPCB_CLIENTVPN_ASSOCID registered - checking if it exists...."
+   $AWSCLI_HOME/procs/clicall "ec2 describe-client-vpn-target-networks --client-vpn-endpoint-id $AWSVPCB_CLIENTVPNID --association-ids $AWSVPCB_CLIENTVPN_ASSOCID" "$AWSCLI_HOME/tempfiles/register.clientvpnendpoint.3" "$AWSCLI_HOME/tempfiles/register.clientvpnendpoint.3.error"
+   if [ $? -ne 0 ]; then
+      $AWSCLI_HOME/procs/log "Registered Client VPN Endpoint Association $AWSVPCB_CLIENTVPN_ASSOCID not found in AWS - unregistering it...."
+      cat $AWSCLI_HOME/procs/aws-dynamic-vars | grep -v AWSVPCB_CLIENTVPN_ASSOCID > $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp
+      cat $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp > $AWSCLI_HOME/procs/aws-dynamic-vars
+   else
+      export json=`cat $AWSCLI_HOME/tempfiles/register.clientvpnendpoint.3`
+      export test=`$AWSCLI_HOME/procs/json-read "AssociationId:"`
+      if [ "$test" != "" ]; then
+         $AWSCLI_HOME/procs/log "Registered Client VPN Endpoint Association $AWSVPCB_CLIENTVPN_ASSOCID found in AWS - moving on...."
+         exit
+      else
+         $AWSCLI_HOME/procs/log "Registered Client VPN Endpoint Association $AWSVPCB_CLIENTVPN_ASSOCID not found in AWS - unregistering it...."
+         cat $AWSCLI_HOME/procs/aws-dynamic-vars | grep -v AWSVPCB_CLIENTVPN_ASSOCID > $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp
+         cat $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp > $AWSCLI_HOME/procs/aws-dynamic-vars
+      fi
+   fi
+fi
+
+if [ "$AWSVPCB_CLIENTVPNID" != "" ]; then
+   $AWSCLI_HOME/procs/clicall "ec2 describe-client-vpn-target-networks --client-vpn-endpoint-id $AWSVPCB_CLIENTVPNID" "$AWSCLI_HOME/tempfiles/register.clientvpnendpoint.4" "$AWSCLI_HOME/tempfiles/register.clientvpnendpoint.4.error"
+   if [ $? -ne 0 ]; then
+      $AWSCLI_HOME/procs/log "Error looking up Client VPN Endpoint target association in AWS -  please capture any output, zip up entire directory and send to professor for review...."
+      exit 1
+   fi
+   export json=`cat $AWSCLI_HOME/tempfiles/register.clientvpnendpoint.4`
+   export AWSVPCB_CLIENTVPN_ASSOCID=`$AWSCLI_HOME/procs/json-read "AssociationId:"` 
+   dup=`$AWSCLI_HOME/procs/json-read "AssociationId:" | cut -f4 -d"-"`
+   if [ "$dup" != "" ]; then
+      $AWSCLI_HOME/procs/log "Found multiple AWS-VPCB-VPN tagged Client VPN Endpoint Associations in AWS - **needs manual cleanup** - aborting operation...."
+elif [ "$AWSVPCB_CLIENTVPN_ASSOCID" != "" ]; then
+      echo "export AWSVPCB_CLIENTVPN_ASSOCID=$AWSVPCB_CLIENTVPN_ASSOCID" >> $AWSCLI_HOME/procs/aws-dynamic-vars
+      $AWSCLI_HOME/procs/log "Client VPN Endpoint Association $AWSVPCB_CLIENTVPN_ASSOCID registered...."
+   else
+      $AWSCLI_HOME/procs/log "No tagged Client VPN Endpoint Association found in AWS - moving on...."
+      exit
+   fi
+fi
+

@@ -1,0 +1,97 @@
+# Register VPC routing tables if they exist
+#
+$AWSCLI_HOME/procs/log "Starting VPC routing tables registration process...."
+
+rtables="DEFAULT PUBLIC"
+for r in $rtables
+do
+   rtable=AWS-VPCB-${r}
+   rtableid_var=AWSVPCB_${r}_RTABLEID
+   rassocid_var=AWSVPCB_${r}_RASSOCID
+   eval "rtableid=\${$rtableid_var}"
+   eval "rassocid=\${$rassocid_var}"
+   if [ "$rtableid" != "" ]; then
+      $AWSCLI_HOME/procs/log "Routing table $rtable registered as $rtableid - checking to see if it exists...."
+      $AWSCLI_HOME/procs/clicall "ec2 describe-route-tables --route-table-ids $rtableid" "$AWSCLI_HOME/tempfiles/register.routingtables.1" "$AWSCLI_HOME/tempfiles/register.routingtables.1.error"
+      if [ $? -ne 0 ]; then
+         cat $AWSCLI_HOME/procs/aws-dynamic-vars | grep -v $rtableid_var > $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp
+         cat $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp > $AWSCLI_HOME/procs/aws-dynamic-vars
+         cat $AWSCLI_HOME/procs/aws-dynamic-vars | grep -v $rassocid_var > $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp
+         cat $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp > $AWSCLI_HOME/procs/aws-dynamic-vars
+         $AWSCLI_HOME/procs/log "Registered routing table $rtableid not found in AWS - unregistered it...."
+      else
+         export json=`cat $AWSCLI_HOME/tempfiles/register.routingtables.1`
+         test=`$AWSCLI_HOME/procs/json-read "RouteTableId:"` 
+         if [ "$test" != "" ]; then
+            $AWSCLI_HOME/procs/log "Registered route table $rtableid tagged as $rtable found in AWS - moving on...."
+            if [ "$r" == "PUBLIC" ]; then
+               test=`$AWSCLI_HOME/procs/json-read "RouteTableAssociationId:"`
+               if [ "$test" != "" ]; then
+                  if [ "$test" == "$rassocid" ]; then
+                     $AWSCLI_HOME/procs/log "Registered route table association $rassocid found in AWS - moving on...."
+                  elif [ "$rassocid" == "" ]; then
+                     rassocid=$test
+                     echo "export AWSVPCB_${r}_RASSOCID=$rassocid" >> $AWSCLI_HOME/procs/aws-dynamic-vars
+                     $AWSCLI_HOME/procs/log "Association $rassocid registered for route table $rtable...."
+                  else
+                     cat $AWSCLI_HOME/procs/aws-dynamic-vars | grep -v $rassocid_var > $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp
+                     cat $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp > $AWSCLI_HOME/procs/aws-dynamic-vars
+                     $AWSCLI_HOME/procs/log "Registered route table association $rassocid not found in AWS - unregistered it...."
+                  fi
+               elif [ "$rassocid" != "" ]; then
+                  cat $AWSCLI_HOME/procs/aws-dynamic-vars | grep -v $rassocid_var > $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp
+                  cat $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp > $AWSCLI_HOME/procs/aws-dynamic-vars
+                  $AWSCLI_HOME/procs/log "Registered route table association $rassocid not found in AWS - unregistered it...."
+               fi
+            fi
+            continue 
+         else
+            cat $AWSCLI_HOME/procs/aws-dynamic-vars | grep -v $rtableid_var > $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp
+            cat $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp > $AWSCLI_HOME/procs/aws-dynamic-vars
+            cat $AWSCLI_HOME/procs/aws-dynamic-vars | grep -v $rassocid_var > $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp
+            cat $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp > $AWSCLI_HOME/procs/aws-dynamic-vars
+            $AWSCLI_HOME/procs/log "Registered routing table $rtableid not found in AWS - unregistered it...."
+         fi
+      fi
+   fi
+
+      $AWSCLI_HOME/procs/clicall "ec2 describe-route-tables --filters Name=tag:Name,Values=$rtable" "$AWSCLI_HOME/tempfiles/register.routingtables.2" "$AWSCLI_HOME/tempfiles/register.routingtables.2.error"
+   if [ $? -ne 0 ]; then
+      $AWSCLI_HOME/procs/log "Error looking up routing table $rtable in AWS -  please capture any output, zip up entire directory and send to professor for review...."
+      exit 1
+   fi
+   export json=`cat $AWSCLI_HOME/tempfiles/register.routingtables.2`
+   rtableid=`$AWSCLI_HOME/procs/json-read "RouteTableId:" | cut -f1 -d" "` 
+   dup=`$AWSCLI_HOME/procs/json-read "RouteTableId:" | cut -f4 -d"-"` 
+   if [ "$dup" != "" ]; then
+      $AWSCLI_HOME/procs/log "Found multiple $rtable tagged routing tables in AWS - **needs manual cleanup** - aborting operation...."
+      continue
+   elif [ "$rtableid" != "" ]; then
+      echo "export AWSVPCB_${r}_RTABLEID=$rtableid" >> $AWSCLI_HOME/procs/aws-dynamic-vars
+      $AWSCLI_HOME/procs/log "Routing table $rtableid registered as $rtable...."
+      if [ "$r" == "PUBLIC" ]; then
+         test=`$AWSCLI_HOME/procs/json-read "RouteTableAssociationId:"`
+         if [ "$test" != "" ]; then
+            if [ "$test" == "$rassocid" ]; then
+               $AWSCLI_HOME/procs/log "Registered route table association $rassocid found in AWS - moving on...."
+            elif [ "$rassocid" == "" ]; then
+               rassocid=$test
+               echo "export AWSVPCB_${r}_RASSOCID=$rassocid" >> $AWSCLI_HOME/procs/aws-dynamic-vars
+               $AWSCLI_HOME/procs/log "Association $rassocid registered for route table $rtable...."
+            else
+               cat $AWSCLI_HOME/procs/aws-dynamic-vars | grep -v $rassocid_var > $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp
+               cat $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp > $AWSCLI_HOME/procs/aws-dynamic-vars
+               $AWSCLI_HOME/procs/log "Registered route table association $rassocid not found in AWS - unregistered it...."
+            fi
+         elif [ "$rassocid" != "" ]; then
+            cat $AWSCLI_HOME/procs/aws-dynamic-vars | grep -v $rassocid_var > $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp
+            cat $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp > $AWSCLI_HOME/procs/aws-dynamic-vars
+            $AWSCLI_HOME/procs/log "Registered route table association $rassocid not found in AWS - unregistered it...."
+         fi
+      fi
+   else 
+      $AWSCLI_HOME/procs/log "No $rtable tagged routing table found in AWS - moving on...."
+      continue 
+   fi
+done
+

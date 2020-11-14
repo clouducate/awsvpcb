@@ -1,0 +1,38 @@
+# Create new VPC security groups
+#
+$AWSCLI_HOME/procs/log "Starting VPC security group create process...."
+
+secgroups=$VPC_SECURITYGROUPS
+for s in $secgroups
+do
+   export secgroup=AWS-VPCB-${s}
+   secgroup_var=AWSVPCB_${s}_SECGROUPID
+   eval "secgroupid=\${$secgroup_var}"
+   if [ "$secgroupid" != "" ]; then
+      $AWSCLI_HOME/procs/log "Security group $secgroup already registered as $secgroupid - moving on (if security group was deleted, then run AWSVPCB.VPC.REGISTER)...."
+      continue
+   fi
+   if [ "$s" == "DEFAULT" ]; then
+      $AWSCLI_HOME/procs/clicall "ec2 describe-security-groups --filters Name=vpc-id,Values=$AWSVPCB_VPCID Name=group-name,Values=default" "$AWSCLI_HOME/tempfiles/create.securitygroups.1" "$AWSCLI_HOME/tempfiles/create.securitygroups.1.error"
+      result=$? 
+   else
+      $AWSCLI_HOME/procs/clicall "ec2 create-security-group --group-name $secgroup --vpc-id $AWSVPCB_VPCID --description $secgroup" "$AWSCLI_HOME/tempfiles/create.securitygroups.1" "$AWSCLI_HOME/tempfiles/create.securitygroups.1.error"
+      result=$? 
+   fi 
+   if [ $result -ne 0 ]; then
+      $AWSCLI_HOME/procs/log "Error creating security group $secgroup in AWS -  please capture any output, zip up entire directory and send to professor for review...."
+      exit 1
+   fi
+   export json=`cat $AWSCLI_HOME/tempfiles/create.securitygroups.1`
+   export secgroupid=`$AWSCLI_HOME/procs/json-read "GroupId:" | cut -f1 -d" "` 
+   if [ "$secgroupid" != "" ]; then
+      echo "export AWSVPCB_${s}_SECGROUPID=$secgroupid" >> $AWSCLI_HOME/procs/aws-dynamic-vars
+      $AWSCLI_HOME/procs/log "New secgroup $secgroupid created and registered - Tagging as $secgroup...."
+      $AWSCLI_HOME/procs/clicall "ec2 create-tags --resources $secgroupid --tags Key=Name,Value=$secgroup" "$AWSCLI_HOME/tempfiles/create.subnets.3" "$AWSCLI_HOME/tempfiles/create.vpc.3.error"
+   else
+      $AWSCLI_HOME/procs/log "An error occurred creating security group $secgroup - please capture any output, zip up entire directory and send to professor for review....."
+      exit 1
+   fi
+done
+. $AWSCLI_HOME/procs/aws-dynamic-vars
+

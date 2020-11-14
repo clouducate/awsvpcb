@@ -1,0 +1,24 @@
+# Delete S3 Bucket
+#
+$AWSCLI_HOME/procs/log "Starting S3 Bucket delete process...."
+
+if [ "$AWSVPCB_S3BUCKET" == "" ]; then
+   $AWSCLI_HOME/procs/log "No S3 bucket registered -  moving on...."
+   exit 
+fi
+
+$AWSCLI_HOME/procs/clicall "s3 rm s3://$AWSVPCB_S3BUCKET --recursive" "$AWSCLI_HOME/tempfiles/destroy.s3bucket.1" "$AWSCLI_HOME/tempfiles/destroy.s3bucket.1.error"
+if [ $? -ne 0 ]; then
+   $AWSCLI_HOME/procs/log "Error deleting ELB logs files in S3 bucket $AWSVPCB_S3BUCKET in AWS -  please capture any output, zip up entire directory and send to professor for review...."
+   exit 1
+fi
+$AWSCLI_HOME/procs/log "ELB log files deleted from S3 bucket $AWSVPCB_S3BUCKET...."
+
+$AWSCLI_HOME/procs/clicall "s3api delete-bucket --bucket $AWSVPCB_S3BUCKET" "$AWSCLI_HOME/tempfiles/destroy.s3bucket.1" "$AWSCLI_HOME/tempfiles/destroy.s3bucket.1.error"
+if [ $? -ne 0 ]; then
+   $AWSCLI_HOME/procs/log "Error destroying S3 bucket $AWSVPCB_S3BUCKET in AWS -  please capture any output, zip up entire directory and send to professor for review...."
+   exit 1
+fi
+cat $AWSCLI_HOME/procs/aws-dynamic-vars | grep -v AWSVPCB_S3BUCKET > $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp
+cat $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp > $AWSCLI_HOME/procs/aws-dynamic-vars
+$AWSCLI_HOME/procs/log "S3 bucket $AWSVPCB_S3BUCKET deleted and unregisered...."

@@ -1,0 +1,164 @@
+#
+# This script loads the assignment manifest from the local directory
+#
+if [ "$2" == "DISPLAY" ]; then
+   ASSIGNMENT_NUM=$1
+fi
+input="$AWSCLI_HOME/secfiles/assignment$ASSIGNMENT_NUM/awsvpcb.assignment$ASSIGNMENT_NUM.json"
+if [ ! -s "$input" ]; then
+   $AWSCLI_HOME/procs/log "Assignment$ASSIGNMENT_NUM manifest does not exist or is empty - cancelling operations...."
+   exit 1
+fi
+
+output="$AWSCLI_HOME/tempfiles/aws-assignment-vars.temp"
+FWoutput="$AWSCLI_HOME/tempfiles/assignment.firewallRules.temp"
+FWoutput2="$AWSCLI_HOME/tempfiles/assignment.firewallRules"
+ELBoutput="$AWSCLI_HOME/tempfiles/assignment.ELBs.temp"
+ELBoutput2="$AWSCLI_HOME/tempfiles/assignment.ELBs"
+echo "# Assignment variables loaded" > $output
+echo "# Firewall Rules loaded" > $FWoutput
+echo "# ELBs Loaded" > $ELBoutput
+level=0
+level3Switch=0
+INSTANCE_LASTSTART=
+INSTANCE_LASTSTOP=
+ASSIGNMENT_STOP_INSTANCE_ORDER=
+ASSIGNMENT_START_INSTANCE_ORDER=
+ASSIGNMENT_ELBS=
+. $AWSCLI_HOME/procs/awsvpcb.configure.clearassignmentmanifestvars
+while IFS= read -r line
+do
+  open1=`tr -dc '{' <<<"$line" | wc -c`
+  let level=$level+$open1
+  if [ $level -eq 2 ]; then
+     if [[ $line == *"Instances"* ]]; then
+        level2=Instances
+     elif [[ $line == *"FirewallRules"* ]]; then
+        level2=FirewallRules
+     elif [[ $line == *"DNSEntriesFile"* ]]; then
+        level2=DNSEntriesFile
+        AWSVPCB_DNSENTRIESFILE=`echo $line | cut -d"\"" -f4`
+        echo "export AWSVPCB_DNSENTRIESFILE=$AWSVPCB_DNSENTRIESFILE" >> $output
+     elif [[ $line == *"ELBs"* ]]; then
+        level2=ELBs
+     fi
+  elif [ $level -eq 4 ]; then
+     if [[ "$level2" == "Instances" || "$level2" == "FirewallRules" || "$level2" == "ELBs" ]]; then
+        level3Switch=1
+     fi
+     if [[ "$level2" == "Instances" || "$level2" == "FirewallRules" ]]; then
+        level4=NOTELB
+     fi
+     if [[ "$level2" == "Instances" && $line == *"InstanceName"* ]]; then
+        L4INSTANCE=`echo $line | cut -d"\"" -f4`
+     elif [[ "$level2" == "Instances" && $line == *"InstanceIP"* ]]; then
+        L4INSTANCEIP=`echo $line | cut -d"\"" -f4`
+     elif [[ "$level2" == "Instances" && $line == *"InstanceSubnet"* ]]; then
+        L4INSTANCESUBNET=`echo $line | cut -d"\"" -f4`
+     elif [[ "$level2" == "Instances" && $line == *"InstanceAMI"* ]]; then
+        L4INSTANCEAMI=`echo $line | cut -d"\"" -f4`
+     elif [[ "$level2" == "Instances" && $line == *"InstanceType"* ]]; then
+        L4INSTANCETYPE=`echo $line | cut -d"\"" -f4`
+     elif [[ "$level2" == "Instances" && $line == *"StartPreference"* ]]; then
+        L4STARTPREFERENCE=`echo $line | cut -d"\"" -f4`
+     elif [[ "$level2" == "Instances" && $line == *"StopPreference"* ]]; then
+        L4STOPPREFERENCE=`echo $line | cut -d"\"" -f4`
+     elif [[ "$level2" == "FirewallRules" && $line == *"SecurityGroup"* ]]; then
+        L4FWSECURITYGROUP=`echo $line | cut -d"\"" -f4`
+     elif [[ "$level2" == "FirewallRules" && $line == *"RuleType"* ]]; then
+        L4FWTYPE=`echo $line | cut -d"\"" -f4`
+     elif [[ "$level2" == "FirewallRules" && $line == *"Protocol"* ]]; then
+        L4FWPROTOCOL=`echo $line | cut -d"\"" -f4`
+     elif [[ "$level2" == "FirewallRules" && $line == *"Port"* ]]; then
+        L4FWPORT=`echo $line | cut -d"\"" -f4`
+     elif [[ "$level2" == "FirewallRules" && $line == *"SourceGroup"* ]]; then
+        L4FWSOURCEGROUP=`echo $line | cut -d"\"" -f4`
+     elif [[ "$level2" == "ELBs" && $line == *"ELBName"* ]]; then
+        L4ELBNAME=`echo $line | cut -d"\"" -f4`
+     elif [[ "$level2" == "ELBs" && $line == *"ListenerProtocol"* ]]; then
+        L4ELBLISTENERPROTOCOL=`echo $line | cut -d"\"" -f4`
+     elif [[ "$level2" == "ELBs" && $line == *"ListenerPort"* ]]; then
+        L4ELBLISTENERPORT=`echo $line | cut -d"\"" -f4`
+     elif [[ "$level2" == "ELBs" && $line == *"InstanceProtocol"* ]]; then
+        L4ELBINSTANCEPROTOCOL=`echo $line | cut -d"\"" -f4`
+     elif [[ "$level2" == "ELBs" && $line == *"InstancePort"* ]]; then
+        L4ELBINSTANCEPORT=`echo $line | cut -d"\"" -f4`
+     elif [[ "$level2" == "ELBs" && $line == *"ELBSubnet"* ]]; then
+        L4ELBSUBNET=`echo $line | cut -d"\"" -f4`
+     elif [[ "$level2" == "ELBs" && $line == *"HealthCheckTarget"* ]]; then
+        L4ELBHEALTHCHECKTARGET=`echo $line | cut -d"\"" -f4`
+     elif [[ "$level2" == "ELBs" && $line == *"HealthCheckInterval"* ]]; then
+        L4ELBHEALTHCHECKINTERVAL=`echo $line | cut -d"\"" -f4`
+     elif [[ "$level2" == "ELBs" && $line == *"HealthCheckTimeout"* ]]; then
+        L4ELBHEALTHCHECKTIMEOUT=`echo $line | cut -d"\"" -f4`
+     elif [[ "$level2" == "ELBs" && $line == *"HealthCheckUnhealthyThreshold"* ]]; then
+        L4ELBHEALTHCHECKUNHEALTHYTHRESHOLD=`echo $line | cut -d"\"" -f4`
+     elif [[ "$level2" == "ELBs" && $line == *"HealthCheckHealthyThreshold"* ]]; then
+        L4ELBHEALTHCHECKHEALTHYTHRESHOLD=`echo $line | cut -d"\"" -f4`
+     elif [[ "$level2" == "ELBs" && $line == *"ELBInstances"* ]]; then
+        level4=ELBInstances
+     fi
+  elif [ $level -eq 6 ]; then
+     if [[ "$level2" == "ELBs" && $line == *"InstanceName"* ]]; then
+        L6INSTANCE=`echo $line | cut -d"\"" -f4`
+        echo $L6INSTANCE >> tempfiles/assignment.elb.$L4ELBNAME.instances
+     fi
+  fi
+  open2=`tr -dc '[' <<<"$line" | wc -c`
+  close1=`tr -dc '}' <<<"$line" | wc -c`
+  close2=`tr -dc ']' <<<"$line" | wc -c`
+  let level=$level+$open2
+  let level=$level-$close1-$close2
+  if [[ $level -eq 3 && $level3Switch -eq 1 ]]; then
+     level3Switch=0
+     if [[ "$level2" == "Instances" ]]; then
+       var=${L4INSTANCE}_IP
+       echo "export $var=$L4INSTANCEIP" >> $output
+       var=${L4INSTANCE}_AMI
+       echo "export $var=$L4INSTANCEAMI" >> $output
+       var=${L4INSTANCE}_TYPE
+       echo "export $var=$L4INSTANCETYPE" >> $output
+       var=${L4INSTANCE}_SUBNET
+       var2=AWSVPCB_${L4INSTANCESUBNET}_SUBNETID
+       eval "instance_subnet_id=\${$var2}"
+       echo "export $var=$instance_subnet_id" >> $output
+       var=${L4INSTANCE}_SECGROUP
+       var2=AWSVPCB_${L4INSTANCESUBNET}_SECGROUPID
+       eval "instance_secgroup_id=\${$var2}"
+       echo "export $var=$instance_secgroup_id" >> $output
+       if [[ "$L4STARTPREFERENCE" == "first" ]]; then
+          ASSIGNMENT_START_INSTANCE_ORDER=`echo $L4INSTANCE $ASSIGNMENT_START_INSTANCE_ORDER`
+       elif [[ "$L4STARTPREFERENCE" == "last" ]]; then
+          INSTANCE_LASTSTART=$L4INSTANCE
+       else
+          ASSIGNMENT_START_INSTANCE_ORDER=`echo $ASSIGNMENT_START_INSTANCE_ORDER $L4INSTANCE`
+       fi
+       if [[ "$L4STOPPREFERENCE" == "first" ]]; then
+          ASSIGNMENT_STOP_INSTANCE_ORDER=`echo $L4INSTANCE $ASSIGNMENT_START_INSTANCE_ORDER`
+       elif [[ "$L4STOPPREFERENCE" == "last" ]]; then
+          INSTANCE_LASTSTOP=$L4INSTANCE
+       else
+          ASSIGNMENT_STOP_INSTANCE_ORDER=`echo $ASSIGNMENT_STOP_INSTANCE_ORDER $L4INSTANCE`
+       fi
+     elif [[ "$level2" == "FirewallRules" ]]; then
+        echo "$L4FWSECURITYGROUP $L4FWTYPE $L4FWPROTOCOL $L4FWPORT $L4FWSOURCEGROUP" >> $FWoutput
+     elif [[ "$level2" == "ELBs" ]]; then
+        ASSIGNMENT_ELBS=`echo $ASSIGNMENT_ELBS $L4ELBNAME`
+        echo "$L4ELBNAME $L4ELBLISTENERPROTOCOL $L4ELBLISTENERPORT $L4ELBINSTANCEPROTOCOL $L4ELBINSTANCEPORT $L4ELBSUBNET $L4ELBHEALTHCHECKTARGET $L4ELBHEALTHCHECKINTERVAL $L4ELBHEALTHCHECKTIMEOUT $L4ELBHEALTHCHECKUNHEALTHYTHRESHOLD $L4ELBHEALTHCHECKHEALTHYTHRESHOLD" >> $ELBoutput
+     fi 
+     . $AWSCLI_HOME/procs/awsvpcb.configure.clearassignmentmanifestvars
+  fi
+#echo "LEVEL="$level " " $level2 " " $line
+done < "$input"
+echo "export ASSIGNMENT_START_INSTANCE_ORDER=\"$ASSIGNMENT_START_INSTANCE_ORDER $INSTANCE_LASTSTART\"" >> $output
+echo "export ASSIGNMENT_STOP_INSTANCE_ORDER=\"$ASSIGNMENT_STOP_INSTANCE_ORDER $INSTANCE_LASTSTOP\"" >> $output
+echo "export ASSIGNMENT_ELBS=\"$ASSIGNMENT_ELBS\"" >> $output
+if [ "$2" == "DISPLAY" ]; then
+   cat $output
+   cat $FWoutput
+   cat $ELBoutput
+else 
+   cat $output > $AWSCLI_HOME/procs/aws-assignment-vars
+   cat $FWoutput > $FWoutput2
+   cat $ELBoutput > $ELBoutput2
+fi

@@ -1,0 +1,10 @@
+# Print to log current Instances 
+#
+$AWSCLI_HOME/procs/log "Starting Logging of Instances process...."
+
+$AWSCLI_HOME/procs/clicall "ec2 describe-instances" "$AWSCLI_HOME/tempfiles/diaglog.instances.1" "$AWSCLI_HOME/tempfiles/diaglog.instances.1.error"
+if [ $? -ne 0 ]; then
+   $AWSCLI_HOME/procs/log "Error looking for instances in AWS -  please capture any output, zip up entire directory and send to professor for review...." 
+   exit 1
+fi
+$AWSCLI_HOME/procs/awsvpcb.diaglog.logfile $AWSCLI_HOME/tempfiles/diaglog.instances.1

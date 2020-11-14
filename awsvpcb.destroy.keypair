@@ -1,0 +1,10 @@
+# Delete AWS Key Pair from AWS
+#
+$AWSCLI_HOME/procs/log "Starting Key Pair delete process...."
+
+$AWSCLI_HOME/procs/clicall "ec2 delete-key-pair --key-name $AWSVPCB_KEYPAIR" "$AWSCLI_HOME/tempfiles/destroy.keypair.1" "$AWSCLI_HOME/tempfiles/destroy.keypair.1.error"
+if [ $? -ne 0 ]; then
+   $AWSCLI_HOME/procs/log "Unable to delete Key Pair in AWS - moving on...."
+   exit 
+fi
+$AWSCLI_HOME/procs/log "Key Pair $AWSVPCB_KEYPAIR deleted in AWS...."

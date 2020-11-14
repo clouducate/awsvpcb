@@ -1,0 +1,53 @@
+# Destroy Assignment High level script
+#
+export SCRIPT=AWSVPCB.ASSIGNMENT.DESTROY
+if [ ! -f ./vpcb-config ]; then
+   echo "Cannot find the vpcb-config file. You do not appear to be in the correct directory.  Please cd to the root directory of the scripts."
+   exit
+fi
+
+. ./vpcb-config
+$AWSCLI_HOME/procs/aws-check
+if [ $? -ne 0 ]; then
+   exit 1
+fi
+
+read -p 'YOU ARE ABOUT TO DESTROY YOUR CURRENT ASSIGNMENT.  ARE YOU SURE? (y/n): ' answer
+if [ "$answer" == "n" ]; then
+   $AWSCLI_HOME/procs/log "Cancelled operation at user's request."
+   exit 1
+elif [ "$answer" != "y" ]; then
+   $AWSCLI_HOME/procs/log "Answer must be 'y' or 'n' - cancelling operations...."
+   exit 1
+fi
+
+$AWSCLI_HOME/AWSVPCB.ASSIGNMENT.STOP $1
+if [ $? -ne 0 ]; then
+   $AWSCLI_HOME/procs/log "Assignment stop failed - cancelling operations...."
+   exit 1
+fi
+. $AWSCLI_HOME/vpcb-config
+
+$AWSCLI_HOME/procs/awsvpcb.destroy.assignment.elb
+if [ $? -ne 0 ]; then
+   $AWSCLI_HOME/procs/log "ELB deletion failed - cancelling operations...."
+   exit 1
+fi
+. $AWSCLI_HOME/vpcb-config
+
+$AWSCLI_HOME/procs/awsvpcb.destroy.assignment.firewallrules
+if [ $? -ne 0 ]; then
+   $AWSCLI_HOME/procs/log "Security group inbound rules deletion failed - cancelling operations...."
+   exit 1
+fi
+. $AWSCLI_HOME/vpcb-config
+
+$AWSCLI_HOME/procs/awsvpcb.destroy.assignment.instances
+if [ $? -ne 0 ]; then
+   $AWSCLI_HOME/procs/log "Deletion of assignment instances failed - cancelling operations...."
+   exit 1
+fi
+. $AWSCLI_HOME/vpcb-config
+
+$AWSCLI_HOME/procs/end-assignment
+$AWSCLI_HOME/procs/log "Assignment destroy process completed."

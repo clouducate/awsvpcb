@@ -1,0 +1,24 @@
+# Delete ELBs 
+#
+$AWSCLI_HOME/procs/log "Starting ELB delete process...."
+
+certs=$ASSIGNMENT_ELBS
+for c in $certs
+do
+   cert=AWS-VPCB-${c}
+   elb_var=AWSVPCB_${c}_ELBDNS
+   eval "elbdns=\${$elb_var}"
+   if [ "$elbdns" == "" ]; then
+      $AWSCLI_HOME/procs/log "ELB $cert not registered - moving on (if ELB exists, then run AWSVPCB.VPC.REGISTER)...."
+      continue
+   else
+      $AWSCLI_HOME/procs/clicall "elb delete-load-balancer --load-balancer-name $cert" "$AWSCLI_HOME/tempfiles/stop.assignment.elb.1" "$AWSCLI_HOME/tempfiles/stop.assignment.elb.1.error"
+      if [ $? -ne 0 ]; then
+         $AWSCLI_HOME/procs/log "Error deleting ELB $cert in AWS -  please capture any output, zip up entire directory and send to professor for review...."
+         exit 1
+      fi
+      cat $AWSCLI_HOME/procs/aws-dynamic-vars | grep -v $elb_var > $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp
+      cat $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp > $AWSCLI_HOME/procs/aws-dynamic-vars
+      $AWSCLI_HOME/procs/log "Deleted and unregistered ELB $cert...."
+   fi
+done

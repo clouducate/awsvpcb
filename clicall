@@ -1,0 +1,9 @@
+# Execute AWS CLI Call
+#
+$AWSCMD $1 > $2 2>$3
+test=`cat $3`
+if [ "$test" != "" ]; then
+   $AWSCLI_HOME/procs/log "$test"
+   exit 1
+fi
+

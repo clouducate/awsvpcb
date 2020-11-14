@@ -1,0 +1,47 @@
+# Destroy assignment instances 
+#
+$AWSCLI_HOME/procs/log "Starting assignment instances delete process...."
+
+instances=$ASSIGNMENT_STOP_INSTANCE_ORDER
+for i in $instances
+do
+   instance=AWS-VPCB-${i}
+   instance_var=AWSVPCB_${i}_ID
+   eval "instance_id=\${$instance_var}"
+   if [ "$instance_id" == "" ]; then
+      $AWSCLI_HOME/procs/log "No $instance instance registered - moving on...."
+      continue
+   fi
+   $AWSCLI_HOME/procs/clicall "ec2 terminate-instances --instance-id $instance_id" "$AWSCLI_HOME/tempfiles/destroy.assignment.instance.1" "$AWSCLI_HOME/tempfiles/destroy.assignment.instance.1.error"
+   if [ $? -ne 0 ]; then
+      $AWSCLI_HOME/procs/log "Error terminating assignment instance $instance in AWS -  please capture any output, zip up entire directory and send to professor for review...."
+      exit 1
+   fi
+   $AWSCLI_HOME/procs/log "Waiting for assignment $instance instance $instance_id to terminate so that the destroy can continue - this may take a while...."
+   terminated=0
+   count=0
+   while [ $count -le 60 ]; do
+      $AWSCLI_HOME/procs/clicall "ec2 describe-instances --instance-id $instance_id" "$AWSCLI_HOME/tempfiles/destroy.assignment.instance.2" "$AWSCLI_HOME/tempfiles/destroy.assignment.instance.2.error"
+      if [ $? -ne 0 ]; then
+         $AWSCLI_HOME/procs/log "Error terminating assignment $instance instance in AWS -  please capture any output, zip up entire directory and send to professor for review...."
+         exit 1
+      fi
+      export json=`cat $AWSCLI_HOME/tempfiles/destroy.assignment.instance.2`
+      instance_terminated=`$AWSCLI_HOME/procs/json-read "Name:" | grep terminated`
+      if [ "$instance_terminated" != "" ]; then
+         terminated=1
+         break
+      else
+         let count=count+1
+         sleep 2
+         continue
+      fi
+   done
+   cat $AWSCLI_HOME/procs/aws-dynamic-vars | grep -v $instance_var > $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp
+   cat $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp > $AWSCLI_HOME/procs/aws-dynamic-vars
+   $AWSCLI_HOME/procs/log "Assignment $instance instance $instance_id terminated and unregistered...."
+done
+
+cat $AWSCLI_HOME/procs/aws-dynamic-vars | grep -v AWSVPCB_DNS_HISTORY > $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp
+cat $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp > $AWSCLI_HOME/procs/aws-dynamic-vars
+

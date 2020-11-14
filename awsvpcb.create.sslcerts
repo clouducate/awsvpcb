@@ -1,0 +1,31 @@
+# Create ELB SSL Certs 
+#
+$AWSCLI_HOME/procs/log "Starting ELB SSL Certificates import process...."
+
+certs=$POSSIBLE_ELBS
+for c in $certs
+do
+   cert=AWS-VPCB-${c}
+   certid_var=AWSVPCB_${c}_CERTID
+   eval "certid=\${$certid_var}"
+   if [ "$certid" != "" ]; then
+      $AWSCLI_HOME/procs/log "Certificate $certid_var already registered as $certid - moving on (if certificate was deleted, then run AWSVPCB.VPC.REGISTER)...."
+      continue
+   fi
+
+   $AWSCLI_HOME/procs/clicall "iam upload-server-certificate --server-certificate-name AWS-VPCB-$c --certificate-body file://$AWSCLI_HOME/secfiles/$c.$DOMAIN.crt --private-key file://$AWSCLI_HOME/secfiles/$c.$DOMAIN.key --certificate-chain file://$AWSCLI_HOME/secfiles/$VPN_CA_CERT" "$AWSCLI_HOME/tempfiles/create.sslcerts.1" "$AWSCLI_HOME/tempfiles/create.sslcerts.1.error"
+   if [ $? -ne 0 ]; then
+      $AWSCLI_HOME/procs/log "Error importing cert $c.$DOMAIN into AWS -  please capture any output, zip up entire directory and send to professor for review...."
+      exit 1
+   fi
+   export json=`cat $AWSCLI_HOME/tempfiles/create.sslcerts.1`
+   export certid=`$AWSCLI_HOME/procs/json-read "Arn:"` 
+   if [ "$certid" != "" ]; then
+      echo "export AWSVPCB_${c}_CERTID=$certid" >> $AWSCLI_HOME/procs/aws-dynamic-vars
+      $AWSCLI_HOME/procs/log "Certificate $c.$DOMAIN imported and registered - tagging it as $cert...."
+   else 
+      $AWSCLI_HOME/procs/log "Error importing cert $c.$DOMAIN into AWS -  please capture any output, zip up entire directory and send to professor for review...."
+      exit 1
+   fi
+done
+

@@ -1,0 +1,126 @@
+#
+# This script loads the VPC manifest from the local directory
+#
+input="$AWSCLI_HOME/secfiles/vpc$1/vpc.json"
+if [ ! -s "$input" ]; then
+   $AWSCLI_HOME/procs/log "VPC$1 manifest does not exist or is empty - cancelling operations...."
+   exit 1
+fi
+output="$AWSCLI_HOME/tempfiles/aws-vpc-vars.temp"
+echo "# VPC Variables loaded" > $output
+level=0
+level3Switch=0
+POSSIBLE_INSTANCES=
+POSSIBLE_ELBS=
+VPC_SUBNETS=
+VPC_SECURITYGROUPS=
+DNS_NUM=0
+while IFS= read -r line
+do
+  open1=`tr -dc '{' <<<"$line" | wc -c`
+  let level=$level+$open1
+  if [ $level -eq 2 ]; then
+     if [[ $line == *"VPC"* ]]; then
+        level2=VPC
+     elif [[ $line == *"Subnets"* ]]; then
+        level2=Subnets
+     elif [[ $line == *"PossibleInstanceNames"* ]]; then
+        level2=PossibleInstanceNames
+     elif [[ $line == *"PossibleELBs"* ]]; then
+        level2=PossibleELBs
+     elif [[ $line == *"DNSIPAddresses"* ]]; then
+        level2=DNSIPAddresses
+     elif [[ $line == *"NATDefinition"* ]]; then
+        level2=NATDefinition
+     elif [[ $line == *"VPNDefinition"* ]]; then
+        level2=VPNDefinition
+     elif [[ $line == *"ServerPrivateKey"* ]]; then
+        level2=ServerPrivateKey
+        AWSVPCB_KEYPAIR=`echo $line | cut -d"\"" -f4`
+        echo "export AWSVPCB_KEYPAIR=$AWSVPCB_KEYPAIR" >> $output
+     fi
+  elif [ $level -eq 3 ]; then
+     if [[ "$level2" == "VPC" && $line == *"VPCCIDR"* ]]; then
+        VPC_CIDR=`echo $line | cut -d"\"" -f4` 
+        echo "export VPC_CIDR=$VPC_CIDR" >> $output
+     elif [[ "$level2" == "VPNDefinition" && $line == *"CACert"* ]]; then
+        VPN_CA_CERT=`echo $line | cut -d"\"" -f4` 
+        echo "export VPN_CA_CERT=$VPN_CA_CERT" >> $output
+     elif [[ "$level2" == "VPNDefinition" && $line == *"ConfigFile"* ]]; then
+        VPN_CONFIG_FILE=`echo $line | cut -d"\"" -f4`
+        echo "export VPN_CONFIG_FILE=$VPN_CONFIG_FILE" >> $output
+     elif [[ "$level2" == "VPNDefinition" && $line == *"ClientCIDR"* ]]; then
+        VPC_CLIENT_CIDR=`echo $line | cut -d"\"" -f4`
+        echo "export VPC_CLIENT_CIDR=$VPC_CLIENT_CIDR" >> $output
+     elif [[ "$level2" == "NATDefinition" && $line == *"IPAddress"* ]]; then
+        NAT_IP=`echo $line | cut -d"\"" -f4`
+        echo "export NAT_IP=$NAT_IP" >> $output
+     elif [[ "$level2" == "NATDefinition" && $line == *"Subnet"* ]]; then
+        NAT_SUBNET=`echo $line | cut -d"\"" -f4`
+        echo "export NAT_SUBNET=$NAT_SUBNET" >> $output
+     elif [[ "$level2" == "NATDefinition" && $line == *"AMI"* ]]; then
+        NAT_AMI=`echo $line | cut -d"\"" -f4`
+        echo "export NAT_AMI=$NAT_AMI" >> $output
+     fi
+  elif [ $level -eq 4 ]; then
+     if [[ "$level2" == "Subnets" ]]; then
+        level3Switch=1
+     fi
+     if [[ "$level2" == "Subnets" && $line == *"SubnetName"* ]]; then
+        L4SUBNET=`echo $line | cut -d"\"" -f4`
+     elif [[ "$level2" == "Subnets" && $line == *"SubnetCIDR"* ]]; then
+        L4SUBNETCIDR=`echo $line | cut -d"\"" -f4`
+     elif [[ "$level2" == "Subnets" && $line == *"SecurityGroup"* ]]; then
+        L4SECURITYGROUP=`echo $line | cut -d"\"" -f4`
+     elif [[ "$level2" == "Subnets" && $line == *"RoutingTable"* ]]; then
+        L4SUBNETROUTINGTABLE=`echo $line | cut -d"\"" -f4`
+     elif [[ "$level2" == "PossibleInstanceNames" && $line == *"InstanceName"* ]]; then
+        POSSIBLE_INSTANCE=`echo $line | cut -d"\"" -f4`
+        POSSIBLE_INSTANCES=`echo $POSSIBLE_INSTANCES $POSSIBLE_INSTANCE`
+     elif [[ "$level2" == "PossibleELBs" && $line == *"ELBName"* ]]; then
+        POSSIBLE_ELB=`echo $line | cut -d"\"" -f4`
+        POSSIBLE_ELBS=`echo $POSSIBLE_ELBS $POSSIBLE_ELB`
+     elif [[ "$level2" == "DNSIPAddresses" && $line == *"IPAddress"* ]]; then
+        let DNS_NUM=$DNS_NUM+1
+        if [ $DNS_NUM -eq 1 ]; then
+           DNS1_IP=`echo $line | cut -d"\"" -f4`
+           echo "export DNS1_IP=$DNS1_IP" >> $output
+        elif [ $DNS_NUM -eq 2 ]; then
+           DNS2_IP=`echo $line | cut -d"\"" -f4`
+           echo "export DNS2_IP=$DNS2_IP" >> $output
+        fi
+     fi
+  fi
+  open2=`tr -dc '[' <<<"$line" | wc -c`
+  close1=`tr -dc '}' <<<"$line" | wc -c`
+  close2=`tr -dc ']' <<<"$line" | wc -c`
+  let level=$level+$open2
+  let level=$level-$close1-$close2
+  if [[ $level -eq 3 && $level3Switch -eq 1 ]]; then
+     level3Switch=0
+     if [[ "$level2" == "Subnets" ]]; then
+       VPC_SUBNETS=`echo $VPC_SUBNETS $L4SUBNET`
+       var=VPC_${L4SUBNET}_CIDR
+       echo "export $var=$L4SUBNETCIDR" >> $output
+       var=VPC_${L4SUBNET}_ROUTINGTABLE
+       echo "export $var=$L4SUBNETROUTINGTABLE" >> $output
+       if [ "$L4SECURITYGROUP" == "yes" ]; then
+          VPC_SECURITYGROUPS=`echo $VPC_SECURITYGROUPS $L4SUBNET`
+       fi
+       L4SUBNET=
+       L4SUBNETCIDR=
+       L4SUBNETROUTINGTABLE=
+       L4SECURITYGROUP=
+     fi
+#     echo "LEVEL="$level " " $level2 " " $line
+  fi
+done < "$input"
+echo "export VPC_SUBNETS=\"$VPC_SUBNETS\"" >> $output
+echo "export VPC_SECURITYGROUPS=\"$VPC_SECURITYGROUPS\"" >> $output
+echo "export POSSIBLE_INSTANCES=\"$POSSIBLE_INSTANCES\"" >> $output
+echo "export POSSIBLE_ELBS=\"$POSSIBLE_ELBS\"" >> $output
+if [ "$2" == "DISPLAY" ]; then
+   cat $output   
+else 
+   cat $output > $AWSCLI_HOME/procs/aws-vpc-vars
+fi

@@ -1,0 +1,38 @@
+# Create new VPC subnets
+#
+$AWSCLI_HOME/procs/log "Starting VPC subnets create process...."
+
+subnets=$VPC_SUBNETS
+for s in $subnets
+do
+   subnet=AWS-VPCB-${s}
+   subnetid_var=AWSVPCB_${s}_SUBNETID
+   subnet_cidr_var=VPC_${s}_CIDR
+   eval "subnet_cidr=\${$subnet_cidr_var}"
+   eval "subnetid=\${$subnetid_var}"
+   if [ "$subnetid" != "" ]; then 
+      $AWSCLI_HOME/procs/log "Subnet $subnet already registered as $subnetid - moving on (if subnet was deleted, then run AWSVPCB.VPC.REGISTER)...."
+      continue
+   fi
+   $AWSCLI_HOME/procs/clicall "ec2 create-subnet --availability-zone $AWS_AZ --cidr-block $subnet_cidr --vpc-id $AWSVPCB_VPCID" "$AWSCLI_HOME/tempfiles/create.subnets.1" "$AWSCLI_HOME/tempfiles/create.subnets.1.error"
+   if [ $? -ne 0 ]; then
+      $AWSCLI_HOME/procs/log "Error creating subnet $subnet in AWS -  please capture any output, zip up entire directory and send to professor for review...."
+      exit 1
+   fi
+   export json=`cat $AWSCLI_HOME/tempfiles/create.subnets.1`
+   subnetid=`$AWSCLI_HOME/procs/json-read "SubnetId:"` 
+   if [ "$subnetid" != "" ]; then
+      echo "export AWSVPCB_${s}_SUBNETID=$subnetid" >> $AWSCLI_HOME/procs/aws-dynamic-vars
+      $AWSCLI_HOME/procs/log "New subnet $subnetid created and registered - tagging it as $subnet...."
+      $AWSCLI_HOME/procs/clicall "ec2 create-tags --resources $subnetid --tags Key=Name,Value=$subnet" "$AWSCLI_HOME/tempfiles/create.subnets.2" "$AWSCLI_HOME/tempfiles/create.subnets.2.error"
+      if [ $? -ne 0 ]; then
+         $AWSCLI_HOME/procs/log "Error tagging subnet $subnet in AWS -  please capture any output, zip up entire directory and send to professor for review...."
+         exit 1
+      fi
+   else
+      $AWSCLI_HOME/procs/log "An error occurred creating subnet $subnet - please capture any output, zip up entire directory and send to professor for review....."
+      exit
+   fi
+done
+. $AWSCLI_HOME/procs/aws-dynamic-vars
+

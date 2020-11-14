@@ -1,0 +1,29 @@
+#!/bin/bash
+# Requires the presetting of the "json" variable and takes as input the property desired
+#
+function jsonval {
+    temp=`echo $json | sed 's/\\\\\//\//g' | sed 's/[{}]//g' | awk -v k="text" '{n=split($0,a,","); for (i=1; i<=n; i++) print a[i]}' | sed 's/\"\:\"/\|/g' | sed 's/[\,]/ /g' | sed 's/\"//g' | grep -w $prop `
+    echo ${temp##*|}
+}
+
+prop=$1
+val=`jsonval`
+spot=0
+for i in $val
+do
+   if [ $spot -eq 1 ]; then
+      spot=0
+      if [ "$1" == "ML" ]; then
+         echo $i
+      else
+         allval="$allval $i"
+      fi
+      continue
+   fi
+   if [ "$i" == "$prop" ]; then
+      spot=1
+   fi
+done
+if [ "$1" != "ML" ]; then
+   echo $allval
+fi

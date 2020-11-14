@@ -1,0 +1,9 @@
+# Logg contents of the config files
+#
+$AWSCLI_HOME/procs/log "Starting Logging of the configuration files process...."
+
+$AWSCLI_HOME/procs/awsvpcb.diaglog.logfile $AWSCLI_HOME/vpcb-config 
+$AWSCLI_HOME/procs/awsvpcb.diaglog.logfile $AWSCLI_HOME/procs/aws-dynamic-vars 
+$AWSCLI_HOME/procs/awsvpcb.diaglog.logfile $AWSCLI_HOME/procs/aws-assignment-vars 
+$AWSCLI_HOME/procs/awsvpcb.diaglog.logfile $AWSCLI_HOME/procs/aws-vpc-vars 
+$AWSCLI_HOME/procs/awsvpcb.diaglog.logfile $AWSCLI_HOME/procs/aws-vpcb-vars 

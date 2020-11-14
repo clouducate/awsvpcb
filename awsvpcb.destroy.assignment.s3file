@@ -1,0 +1,13 @@
+# Delete any trigger file that exists in S3 Bucket
+#
+$AWSCLI_HOME/procs/log "Starting trigger file(s) delete process...."
+
+for f in $(seq 3 11);
+do 
+   $AWSCLI_HOME/procs/clicall "s3 rm s3://awsvpcb-$USER_ID/assignment$f.trg" "$AWSCLI_HOME/tempfiles/destroy.assignment.s3file.1" "$AWSCLI_HOME/tempfiles/destroy.assignment.s3file.1.error"
+   if [ $? -ne 0 ]; then
+      $AWSCLI_HOME/procs/log "Error deleting trigger file assignment$f.trg from AWS -  please capture any output, zip up entire directory and send to professor for review...."
+      exit 1
+   fi
+done
+$AWSCLI_HOME/procs/log "Trigger fila(s) in S3 bucket awsvpcb-$USER_ID in AWS deleted...."

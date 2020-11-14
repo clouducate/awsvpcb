@@ -1,0 +1,45 @@
+# Register ELBs if already exists
+#
+$AWSCLI_HOME/procs/log "Starting ELB registration process...."
+
+certs=$POSSIBLE_ELBS
+for c in $certs
+do
+   cert=AWS-VPCB-${c}
+   elb_var=AWSVPCB_${c}_ELBDNS
+   eval "elbdns=\${$elb_var}"
+   if [ "$elbdns" != "" ]; then
+      $AWSCLI_HOME/procs/log "ELB $cert registered - checking if it exists...."
+      $AWSCLI_HOME/procs/clicall "elb describe-load-balancers --load-balancer-names $cert" "$AWSCLI_HOME/tempfiles/register.elb.1" "$AWSCLI_HOME/tempfiles/register.elb.1.error"
+      if [ $? -ne 0 ]; then
+         cat $AWSCLI_HOME/procs/aws-dynamic-vars | grep -v $elbdns > $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp
+         cat $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp > $AWSCLI_HOME/procs/aws-dynamic-vars
+         $AWSCLI_HOME/procs/log "ELB $cert not found in AWS - unregistered it...."
+      else
+         export json=`cat $AWSCLI_HOME/tempfiles/register.elb.1`
+         export test=`$AWSCLI_HOME/procs/json-read "DNSName:"`
+         if [ "$test" != "" ]; then
+            $AWSCLI_HOME/procs/log "ELB $cert found in AWS - moving on...."
+         else
+            cat $AWSCLI_HOME/procs/aws-dynamic-vars | grep -v $elbdns > $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp
+            cat $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp > $AWSCLI_HOME/procs/aws-dynamic-vars
+            $AWSCLI_HOME/procs/log "ELB $cert not found in AWS - unregistered it...."
+         fi
+      fi
+   else
+      $AWSCLI_HOME/procs/clicall "elb describe-load-balancers --load-balancer-names $cert" "$AWSCLI_HOME/tempfiles/register.elb.2" "$AWSCLI_HOME/tempfiles/register.elb.2.error"
+      if [ $? -ne 0 ]; then
+         $AWSCLI_HOME/procs/log "ELB $cert not found in AWS - moving on...."
+         continue
+      fi
+      export json=`cat $AWSCLI_HOME/tempfiles/register.elb.2`
+      export elbdns=`$AWSCLI_HOME/procs/json-read "DNSName:"`
+      if [ "$elbdns" != "" ]; then
+         echo "export AWSVPCB_${c}_ELBDNS=$elbdns" >> $AWSCLI_HOME/procs/aws-dynamic-vars
+         $AWSCLI_HOME/procs/log "ELB $cert found in AWS and registered...."
+      else
+         $AWSCLI_HOME/procs/log "No ELB found in AWS for $cert - moving on...."
+      fi
+   fi
+done
+

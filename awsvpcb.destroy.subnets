@@ -1,0 +1,26 @@
+# Destroy the registered subnets
+#
+$AWSCLI_HOME/procs/log "Starting VPC subnet destroy process...."
+
+subnets="PUBLIC CLIENTVPN DEFAULT WEB DB ELB"
+for s in $subnets
+do
+   subnet=AWS-VPCB-${s}
+   subnetid_var=AWSVPCB_${s}_SUBNETID
+   eval "subnetid=\${$subnetid_var}"
+   if [ "$subnetid" != "" ]; then
+      $AWSCLI_HOME/procs/clicall "ec2 delete-subnet --subnet-id $subnetid" "$AWSCLI_HOME/tempfiles/destroy.subnets.1" "$AWSCLI_HOME/tempfiles/destroy.subnets.1.error"
+      if [ $? -ne 0 ]; then
+         $AWSCLI_HOME/procs/log "An error occurred deleting subnet $subnetid - please capture any output, zip up entire directory and send to professor for review....."
+         exit 1
+      else
+         $AWSCLI_HOME/procs/log "Subnet $subnetid deleted...."
+         $AWSCLI_HOME/procs/log "Unregistering subnet $subnetid...."
+         cat $AWSCLI_HOME/procs/aws-dynamic-vars | grep -v $subnetid_var > $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp
+         cat $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp > $AWSCLI_HOME/procs/aws-dynamic-vars
+      fi
+   else
+      $AWSCLI_HOME/procs/log "Subnet $subnet not registered - moving on...."
+   fi
+done
+

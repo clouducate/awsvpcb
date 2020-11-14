@@ -1,0 +1,81 @@
+# Create Client VPN Endpoint 
+#
+$AWSCLI_HOME/procs/log "Starting Client VPN Endpoint create process...."
+
+certs="AWSVPN client"
+for c in $certs
+do
+   cert=AWS-VPCB-${c}
+   certid_var=AWSVPCB_${c}_CERTID
+   eval "certid=\${$certid_var}"
+   if [ "$certid" != "" ]; then
+      $AWSCLI_HOME/procs/log "Certificate $certid_var already registered as $certid - moving on (if certificate was deleted, then run AWSVPCB.VPC.REGISTER)...."
+      continue
+   fi
+
+   $AWSCLI_HOME/procs/clicall "acm import-certificate --certificate file://$AWSCLI_HOME/secfiles/$c.$DOMAIN.crt --private-key file://$AWSCLI_HOME/secfiles/$c.$DOMAIN.key --certificate-chain file://$AWSCLI_HOME/secfiles/$VPN_CA_CERT" "$AWSCLI_HOME/tempfiles/create.clientvpnendpoint.1" "$AWSCLI_HOME/tempfiles/create.clientvpnendpoint.1.error"
+   if [ $? -ne 0 ]; then
+      $AWSCLI_HOME/procs/log "Error importing cert $c.$DOMAIN into AWS -  please capture any output, zip up entire directory and send to professor for review...."
+      exit 1
+   fi
+   export json=`cat $AWSCLI_HOME/tempfiles/create.clientvpnendpoint.1`
+   export certid=`$AWSCLI_HOME/procs/json-read "CertificateArn:"` 
+   if [ "$certid" != "" ]; then
+      echo "export AWSVPCB_${c}_CERTID=$certid" >> $AWSCLI_HOME/procs/aws-dynamic-vars
+      $AWSCLI_HOME/procs/log "Certificate $c.$DOMAIN imported and registered - tagging it as $cert...."
+      $AWSCLI_HOME/procs/clicall "acm add-tags-to-certificate --certificate-arn $certid --tags Key=Name,Value=$cert" "$AWSCLI_HOME/tempfiles/create.clientvpnendpoint.2" "$AWSCLI_HOME/tempfiles/create.clientvpnendpoint.2.error"
+      if [ $? -ne 0 ]; then
+         $AWSCLI_HOME/procs/log "Error tagging certificate $c.$DOMAIN in AWS -  please capture any output, zip up entire directory and send to professor for review...."
+         exit 1
+      fi
+   fi
+done
+. $AWSCLI_HOME/procs/aws-dynamic-vars
+
+if [ "$AWSVPCB_CLIENTVPNID" != "" ]; then
+   $AWSCLI_HOME/procs/log "Client VPN Endpoint already registered as $AWSVPCB_CLIENTVPNID - moving on (if Client VPN Endpoint was deleted, then run AWSVPCB.VPC.REGISTER)...."
+   exit
+fi
+$AWSCLI_HOME/procs/clicall "ec2 create-client-vpn-endpoint --client-cidr-block $VPC_CLIENT_CIDR --server-certificate-arn $AWSVPCB_AWSVPN_CERTID --authentication-options Type=certificate-authentication,MutualAuthentication={ClientRootCertificateChainArn=$AWSVPCB_client_CERTID} --connection-log-options Enabled=false --transport-protocol tcp --split-tunnel --dns-servers $DNS1_IP $DNS2_IP" "$AWSCLI_HOME/tempfiles/create.clientvpnendpoint.3" "$AWSCLI_HOME/tempfiles/create.clientvpnendpoint.3.error"
+if [ $? -ne 0 ]; then
+   $AWSCLI_HOME/procs/log "Error creating client VPN enpoint in AWS -  please capture any output, zip up entire directory and send to professor for review...."
+   exit 1
+fi
+export json=`cat $AWSCLI_HOME/tempfiles/create.clientvpnendpoint.3`
+export AWSVPCB_CLIENTVPNID=`$AWSCLI_HOME/procs/json-read "ClientVpnEndpointId:"`
+export AWSVPCB_CLIENTVPNDNS=`$AWSCLI_HOME/procs/json-read "DnsName:"`
+if [ "$AWSVPCB_CLIENTVPNID" != "" ]; then
+   echo "export AWSVPCB_CLIENTVPNID=$AWSVPCB_CLIENTVPNID" >> $AWSCLI_HOME/procs/aws-dynamic-vars
+   echo "export AWSVPCB_CLIENTVPNDNS=$AWSVPCB_CLIENTVPNDNS" >> $AWSCLI_HOME/procs/aws-dynamic-vars
+   $AWSCLI_HOME/procs/log "Client VPN endpoint $AWSVPCB_CLIENTVPNID created and registered - tagging it as AWS-VPCB-VPN...."
+   $AWSCLI_HOME/procs/clicall "ec2 create-tags --resources $AWSVPCB_CLIENTVPNID --tags Key=Name,Value=AWS-VPCB-VPN" "$AWSCLI_HOME/tempfiles/create.clientvpnendpoint.4" "$AWSCLI_HOME/tempfiles/create.clientvpnendpoint.4.error"
+   if [ $? -ne 0 ]; then
+      $AWSCLI_HOME/procs/log "Error tagging Client VPN endpoint $$AWSVPCB_CLIENTVPNID in AWS -  please capture any output, zip up entire directory and send to professor for review...."
+      exit 1
+   fi
+   $AWSCLI_HOME/procs/clicall "ec2 authorize-client-vpn-ingress --client-vpn-endpoint-id $AWSVPCB_CLIENTVPNID --target-network-cidr $VPC_CIDR --authorize-all-groups" "$AWSCLI_HOME/tempfiles/create.clientvpnendpoint.4b" "$AWSCLI_HOME/tempfiles/create.clientvpnendpoint.4b.error"
+   if [ $? -ne 0 ]; then
+      $AWSCLI_HOME/procs/log "Error authorizing Client VPN endpoint $AWSVPCB_CLIENTVPNID in AWS -  please capture any output, zip up entire directory and send to professor for review...."
+      exit 1
+   fi
+   $AWSCLI_HOME/procs/clicall "ec2 export-client-vpn-client-configuration --client-vpn-endpoint-id $AWSVPCB_CLIENTVPNID --output text" "$AWSCLI_HOME/secfiles/$VPN_CONFIG_FILE" "$AWSCLI_HOME/tempfiles/create.clientvpnendpoint.5.error"
+   if [ $? -ne 0 ]; then
+      $AWSCLI_HOME/procs/log "Error downloading VPN client configuration file from AWS -  please capture any output, zip up entire directory and send to professor for review...."
+      exit 1
+   fi
+   cp $AWSCLI_HOME/secfiles/$VPN_CONFIG_FILE $AWSCLI_HOME/tempfiles/$VPN_CONFIG_FILE.temp
+   sed -e "s/remote cvpn-endpoint/remote asdfa.cvpn-endpoint/g" $AWSCLI_HOME/tempfiles/$VPN_CONFIG_FILE.temp > $AWSCLI_HOME/secfiles/$VPN_CONFIG_FILE
+   cat $AWSCLI_HOME/secfiles/$VPN_CONFIG_FILE | grep -v "reneg-sec 0" > $AWSCLI_HOME/tempfiles/$VPN_CONFIG_FILE.temp
+   cat $AWSCLI_HOME/tempfiles/$VPN_CONFIG_FILE.temp > $AWSCLI_HOME/secfiles/$VPN_CONFIG_FILE
+   echo " " >> $AWSCLI_HOME/secfiles/$VPN_CONFIG_FILE
+   echo "<cert>" >> $AWSCLI_HOME/secfiles/$VPN_CONFIG_FILE
+   cat $AWSCLI_HOME/secfiles/client.$DOMAIN.crt >> $AWSCLI_HOME/secfiles/$VPN_CONFIG_FILE
+   echo "</cert>" >> $AWSCLI_HOME/secfiles/$VPN_CONFIG_FILE
+   echo " " >> $AWSCLI_HOME/secfiles/$VPN_CONFIG_FILE
+   echo "<key>" >> $AWSCLI_HOME/secfiles/$VPN_CONFIG_FILE
+   cat $AWSCLI_HOME/secfiles/client.$DOMAIN.key >> $AWSCLI_HOME/secfiles/$VPN_CONFIG_FILE
+   echo "</key>" >> $AWSCLI_HOME/secfiles/$VPN_CONFIG_FILE
+   echo " " >> $AWSCLI_HOME/secfiles/$VPN_CONFIG_FILE
+   echo "reneg-sec 0" >> $AWSCLI_HOME/secfiles/$VPN_CONFIG_FILE
+   $AWSCLI_HOME/procs/log "Downloaded and updated client VPN configuration file to $AWSCLI_HOME/secfiles/$VPN_CONFIG_FILE...."
+fi

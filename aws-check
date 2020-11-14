@@ -1,0 +1,12 @@
+# AWS connectivity check
+#
+$AWSCLI_HOME/procs/clicall "--version" "$AWSCLI_HOME/tempfiles/check.0" "$AWSCLI_HOME/tempfiles/check.0.error"
+if [ $? -ne 0 ]; then
+   $AWSCLI_HOME/procs/log "Failed to connect to AWS - please verify AWS config...."
+   exit 1
+else
+   out=`cat $AWSCLI_HOME/tempfiles/check.0`
+   $AWSCLI_HOME/procs/log "Starting script $SCRIPT"
+   $AWSCLI_HOME/procs/log "Running version $out of AWS CLI"
+fi
+

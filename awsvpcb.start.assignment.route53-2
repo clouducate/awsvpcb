@@ -1,0 +1,50 @@
+# Start assignment Route 53 DNS server phase 2 - create inbound endpoint 
+#
+$AWSCLI_HOME/procs/log "Starting assignment Route 53 inbound endpoint create process...."
+
+if [ "$AWSVPCB_DNS_HOSTZONEID" == "" ]; then
+   $AWSCLI_HOME/procs/log "Error route 53 private zone does not exist -  please capture any output, zip up entire directory and send to professor for review...."
+   exit 1
+fi
+if [ "$AWSVPCB_DNS_INBOUNDID" != "" ]; then
+   $AWSCLI_HOME/procs/log "Route 53 DNS inbound endpoint already registered - moving on...."
+   exit 
+fi
+
+if [ "$AWSVPCB_DNS_HISTORY" == "" ]; then
+   input="$AWSCLI_HOME/tempfiles/assignment.ELBs"
+   while read -r c protocol port iprotocol iport subnet target interval timeout uthreshold hthreshold
+   do
+      if [ "$c" == "#" ]; then
+         continue
+      fi
+      elb_dns_var=AWSVPCB_${c}_ELBDNS
+      eval "elb_dns=\${$elb_dns_var}"
+      sed -e "s/ELBDNSNAME/$elb_dns/g" $AWSCLI_HOME/secfiles/route53-elb.json.template > $AWSCLI_HOME/secfiles/route53-elb.json.1
+      sed -e "s/ELBNAME/$c.$DOMAIN/g" $AWSCLI_HOME/secfiles/route53-elb.json.1 > $AWSCLI_HOME/secfiles/route53-elb.json
+      $AWSCLI_HOME/procs/clicall "route53 change-resource-record-sets --hosted-zone-id $AWSVPCB_DNS_HOSTZONEID --change-batch file://$AWSCLI_HOME/secfiles/route53-elb.json" "$AWSCLI_HOME/tempfiles/start.assignment.route53-1.5" "$AWSCLI_HOME/tempfiles/start.assignment.route53-1.5.error"
+      if [ $? -ne 0 ]; then
+         $AWSCLI_HOME/procs/log "Error creating private zone $DOMAIN in AWS -  please capture any output, zip up entire directory and send to professor for review...."
+         exit 1
+      fi
+   done < "$input"
+fi
+$AWSCLI_HOME/procs/log "Assignment Website DNS records created in AWS...."
+
+d=`date`
+d2=`echo ${d//[[:blank:]]/}`
+d3=`echo ${d2//[:]/}`
+$AWSCLI_HOME/procs/clicall "route53resolver create-resolver-endpoint --creator-request-id $d3 --name AWS-VPCB-DNS --security-group-ids $AWSVPCB_DEFAULT_SECGROUPID --direction INBOUND --ip-addresses SubnetId=$AWSVPCB_DEFAULT_SUBNETID,Ip=$DNS1_IP SubnetId=$AWSVPCB_DEFAULT_SUBNETID,Ip=$DNS2_IP" "$AWSCLI_HOME/tempfiles/start.assignment.route53-2.1" "$AWSCLI_HOME/tempfiles/start.assignment.route53-2.1.error"
+if [ $? -ne 0 ]; then
+   $AWSCLI_HOME/procs/log "Error creating route53 inbound endpoint in AWS -  please capture any output, zip up entire directory and send to professor for review...."
+   exit 1
+fi
+export json=`cat $AWSCLI_HOME/tempfiles/start.assignment.route53-2.1`
+export AWSVPCB_DNS_INBOUNDID=`$AWSCLI_HOME/procs/json-read "Id:"` 
+if [ "$AWSVPCB_DNS_INBOUNDID" != "" ]; then
+   echo "export AWSVPCB_DNS_INBOUNDID=$AWSVPCB_DNS_INBOUNDID" >> $AWSCLI_HOME/procs/aws-dynamic-vars
+   $AWSCLI_HOME/procs/log "New Route 53 inbound endpoint $AWSVPCB_DNS_INBOUNDID created and registered...."
+else
+   $AWSCLI_HOME/procs/log "An error occurred creating Route 53 inbound endpoint in AWS - please capture any output, zip up entire directory and send to professor for review....."
+   exit
+fi

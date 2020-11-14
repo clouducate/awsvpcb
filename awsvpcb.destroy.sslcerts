@@ -1,0 +1,23 @@
+# Delete SSL Certificates 
+#
+$AWSCLI_HOME/procs/log "Starting SSL Certificate delete process...."
+
+certs="rainforest myfiu"
+for c in $certs
+do
+   cert=AWS-VPCB-${c}
+   certid_var=AWSVPCB_${c}_CERTID
+   eval "certid=\${$certid_var}"
+   if [ "$certid" != "" ]; then
+      $AWSCLI_HOME/procs/clicall "iam delete-server-certificate --server-certificate-name $cert" "$AWSCLI_HOME/tempfiles/destroy.sslcerts.1" "$AWSCLI_HOME/tempfiles/destroy.sslcerts.1.error"
+      if [ $? -ne 0 ]; then
+         $AWSCLI_HOME/procs/log "Error deleting cert $c.$DOMAIN in AWS -  please capture any output, zip up entire directory and send to professor for review...."
+         exit 1
+      fi
+      cat $AWSCLI_HOME/procs/aws-dynamic-vars | grep -v $certid_var > $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp
+      cat $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp > $AWSCLI_HOME/procs/aws-dynamic-vars
+      $AWSCLI_HOME/procs/log "Deleted and unregistered certificate $cert...."
+   else
+      $AWSCLI_HOME/procs/log "Certificate $cert not registered - moving on...."
+   fi
+done

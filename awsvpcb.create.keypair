@@ -1,0 +1,22 @@
+# Create AWS Key Pair for authenticating to EC2 instances
+#
+$AWSCLI_HOME/procs/log "Starting Key Pair import process...."
+
+$AWSCLI_HOME/procs/clicall "ec2 describe-key-pairs" "$AWSCLI_HOME/tempfiles/create.keypair.1" "$AWSCLI_HOME/tempfiles/create.keypair.1.error"
+if [ $? -ne 0 ]; then
+   $AWSCLI_HOME/procs/log "Error importing Key Pair into AWS -  please capture any output, zip up entire directory and send to professor for review...."
+   exit 1
+fi
+export json=`cat $AWSCLI_HOME/tempfiles/create.keypair.1`
+export keyname=`$AWSCLI_HOME/procs/json-read "KeyName:" | grep $AWSVPCB_KEYPAIR`
+if [ "$keyname" != "" ]; then
+   $AWSCLI_HOME/procs/log "Key pair $AWSVPCB_KEYPAIR already imported into AWS - moving on (if incorrect, then AWSVPCB.VPC.REGISTER)...."
+   exit
+fi
+
+$AWSCLI_HOME/procs/clicall "ec2 import-key-pair --key-name $AWSVPCB_KEYPAIR --public-key-material file://$AWSCLI_HOME/secfiles/$AWSVPCB_KEYPAIR.pub" "$AWSCLI_HOME/tempfiles/create.keypair.1" "$AWSCLI_HOME/tempfiles/create.keypair.1.error"
+if [ $? -ne 0 ]; then
+   $AWSCLI_HOME/procs/log "Error importing Key Pair into AWS -  please capture any output, zip up entire directory and send to professor for review...."
+   exit 1
+fi
+$AWSCLI_HOME/procs/log "Key Pair $AWSVPCB_KEYPAIR imported into AWS...."

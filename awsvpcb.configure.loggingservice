@@ -1,0 +1,99 @@
+# AWSVPCB Logging Service Configuration script 
+#
+$AWSCLI_HOME/procs/log "Creating logging service."
+enable_logging=1
+$AWSCLI_HOME/procs/clicall "logs describe-log-groups --log-group-name-prefix $SEMESTER --profile logging" "$AWSCLI_HOME/tempfiles/configure.1" "$AWSCLI_HOME/tempfiles/configure.1.error"
+if [ $? -ne 0 ]; then
+   $AWSCLI_HOME/procs/log "Failed looking for log group. Logging service configuration failed - will not log to AWS...."
+   enable_logging=0
+else
+   export json=`cat $AWSCLI_HOME/tempfiles/configure.1`
+   test=`$AWSCLI_HOME/procs/json-read "logGroupName:"`
+   if [ "$test" != "" ]; then
+      $AWSCLI_HOME/procs/log "Log group already defined in AWS - moving on...."
+   else
+      $AWSCLI_HOME/procs/log "Log group not not found in AWS - Creating it...."
+      $AWSCLI_HOME/procs/clicall "logs create-log-group --log-group-name $SEMESTER --profile logging" "$AWSCLI_HOME/tempfiles/configure.2" "$AWSCLI_HOME/tempfiles/configure.2.error"
+      if [ $? -ne 0 ]; then
+         $AWSCLI_HOME/procs/log "Failed creating log group. Logging service configuration failed - will not log to AWS...."
+         enable_logging=0
+      else
+         $AWSCLI_HOME/procs/log "Log group $SEMESTER created in AWS...."
+      fi
+   fi
+fi
+  
+if [ $enable_logging -eq 1 ]; then
+   $AWSCLI_HOME/procs/log "Configuring logging service."
+   $AWSCLI_HOME/procs/clicall "sts get-caller-identity" "$AWSCLI_HOME/tempfiles/configure.3" "$AWSCLI_HOME/tempfiles/configure.3.error"
+   if [ $? -ne 0 ]; then
+      $AWSCLI_HOME/procs/log "Failed looking for Account. Logging service testing failed - will not log to AWS...."
+      enable_logging=0
+   else
+      export json=`cat $AWSCLI_HOME/tempfiles/configure.3`
+      Account=`$AWSCLI_HOME/procs/json-read "Account:"`
+      if [ "$Account" == "" ]; then
+         $AWSCLI_HOME/procs/log "Failed to find Account. Logging service testing failed - will not log to AWS...."
+         enable_logging=0
+      else
+         LOGSTREAM=${USER_ID}-${Account}
+         cat $AWSCLI_HOME/procs/aws-dynamic-vars | grep -v LOGSTREAM > $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp
+         echo "export LOGSTREAM=$LOGSTREAM" >> $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp
+         cat $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp > $AWSCLI_HOME/procs/aws-dynamic-vars
+         $AWSCLI_HOME/procs/clicall "logs describe-log-streams --log-group-name $SEMESTER --log-stream-name-prefix $LOGSTREAM --profile logging" "$AWSCLI_HOME/tempfiles/configure.4" "$AWSCLI_HOME/tempfiles/configure.4.error"
+         if [ $? -ne 0 ]; then
+            $AWSCLI_HOME/procs/log "Failed looking for log stream. Logging service testing failed - will not log to AWS...."
+            enable_logging=0
+         else
+            export json=`cat $AWSCLI_HOME/tempfiles/configure.4`
+            test=`$AWSCLI_HOME/procs/json-read "logStreamName:"`
+            if [ "$test" == "" ]; then
+               $AWSCLI_HOME/procs/log "Log stream $LOGSTREAM not not found in AWS - Creating it...."
+               $AWSCLI_HOME/procs/clicall "logs create-log-stream --log-group-name $SEMESTER --log-stream-name $LOGSTREAM --profile logging" "$AWSCLI_HOME/tempfiles/configure.5" "$AWSCLI_HOME/tempfiles/configure.5.error"
+               if [ $? -ne 0 ]; then
+                  $AWSCLI_HOME/procs/log "Failed creating log stream. Logging service testing failed - will not log to AWS...."
+                  enable_logging=0
+               else
+                  $AWSCLI_HOME/procs/log "Log stream $LOGSTREAM created in AWS...."
+                  ts1=`date +%s%3N`
+                  if [[ "$ts1" == *"N"* ]]; then
+                     len=${#ts1}
+                     len1=`expr $len - 1`
+                     ts2=`echo ${ts1:0:$len1}`
+                     ts="${ts2}00"
+                  else
+                     ts=$ts1
+                  fi
+                  echo "[" > $AWSCLI_HOME/tempfiles/logevent
+                  echo "   {" >> $AWSCLI_HOME/tempfiles/logevent
+                  echo "    \"timestamp\": $ts," >> $AWSCLI_HOME/tempfiles/logevent
+                  echo "    \"message\": \"$SCRIPT - Logging Service Enabled for $USER_ID\"" >> $AWSCLI_HOME/tempfiles/logevent
+                  echo "   }" >> $AWSCLI_HOME/tempfiles/logevent
+                  echo "]" >> $AWSCLI_HOME/tempfiles/logevent
+                  $AWSCLI_HOME/procs/clicall "logs put-log-events --log-group-name $SEMESTER --log-stream-name $LOGSTREAM --log-events file://$AWSCLI_HOME/tempfiles/logevent --profile logging" "$AWSCLI_HOME/tempfiles/configure.6" "$AWSCLI_HOME/tempfiles/configure.6.error"
+                  if [ $? -ne 0 ]; then
+                     $AWSCLI_HOME/procs/log "Failed writing to log stream. Logging service testing failed - will not log to AWS...."
+                     enable_logging=0
+                  else
+                     export json=`cat $AWSCLI_HOME/tempfiles/configure.6`
+                     nextSequenceToken=`$AWSCLI_HOME/procs/json-read "nextSequenceToken:"`
+                     echo $nextSequenceToken > $AWSCLI_HOME/tempfiles/nextSequenceToken
+                  fi
+               fi
+            fi
+         fi
+      fi
+   fi
+fi
+
+if [ $enable_logging -eq 1 ]; then
+   $AWSCLI_HOME/procs/log "Logging service configured successfully.  Enabling logging service."
+   cat $AWSCLI_HOME/procs/aws-vpc-vars | grep -v LOGGING_SERVICE > $AWSCLI_HOME/procs/aws-vpc-vars.temp
+   echo "export LOGGING_SERVICE=ON" >> $AWSCLI_HOME/procs/aws-vpc-vars.temp
+   cat $AWSCLI_HOME/procs/aws-vpc-vars.temp > $AWSCLI_HOME/procs/aws-vpc-vars
+   rm $AWSCLI_HOME/procs/aws-vpc-vars.temp
+   $AWSCLI_HOME/procs/log "Logging service enabled."
+else
+   $AWSCLI_HOME/procs/log "Logging service could not be configured.  This will not stop further work, but let your professor know."
+   $AWSCLI_HOME/procs/log "Logging service remains disabled."
+fi

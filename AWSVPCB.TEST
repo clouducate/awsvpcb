@@ -1,0 +1,27 @@
+# Test High level script
+#
+export SCRIPT=AWSVPCB.TEST
+if [ ! -f ./vpcb-config ]; then
+   echo "Cannot find the vpcb-config file. You do not appear to be in the correct directory.  Please cd to the root directory of the scripts."
+   exit
+fi
+
+. ./vpcb-config
+$AWSCLI_HOME/procs/aws-check
+if [ $? -ne 0 ]; then
+   exit 1
+fi 
+
+$AWSCLI_HOME/procs/awsvpcb.test
+if [ $? -ne 0 ]; then
+   exit 1
+fi
+. $AWSCLI_HOME/vpcb-config
+
+if [ "$AWSVPCB_AWSID" == "" ]; then
+   $AWSCLI_HOME/procs/log "Userid not found in registry...."
+   $AWSCLI_HOME/procs/log "AWSVPCB Testing was unsuccessful - please share details with your professor."
+   exit 1
+fi
+$AWSCLI_HOME/procs/log "AWSVPCB Testing was successful."
+

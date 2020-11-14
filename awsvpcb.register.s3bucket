@@ -1,0 +1,37 @@
+# Register ELBs if already exists
+#
+$AWSCLI_HOME/procs/log "Starting ELB S3 Bucket log registration process...."
+
+if [ "$AWSVPCB_S3BUCKET" != "" ]; then
+   $AWSCLI_HOME/procs/log "S3 bucket $AWSVPCB_S3BUCKET registered - checking if it exists...."
+   $AWSCLI_HOME/procs/clicall "s3api get-bucket-location --bucket $AWSVPCB_S3BUCKET" "$AWSCLI_HOME/tempfiles/register.s3bucket.1" "$AWSCLI_HOME/tempfiles/register.s3bucket.1.error"
+   if [ $? -ne 0 ]; then
+      cat $AWSCLI_HOME/procs/aws-dynamic-vars | grep -v AWSVPCB_S3BUCKET > $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp
+      cat $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp > $AWSCLI_HOME/procs/aws-dynamic-vars
+      $AWSCLI_HOME/procs/log "S3 bucket $AWSVPCB_S3BUCKET not found in AWS - unregistered it...."
+   else
+      export json=`cat $AWSCLI_HOME/tempfiles/register.s3bucket.1`
+      export test=`$AWSCLI_HOME/procs/json-read "LocationConstraint:"`
+      if [ "$test" != "" ]; then
+         $AWSCLI_HOME/procs/log "S3 bucket found in AWS - moving on...."
+      else
+         cat $AWSCLI_HOME/procs/aws-dynamic-vars | grep -v AWSVPCB_S3BUCKET > $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp
+         cat $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp > $AWSCLI_HOME/procs/aws-dynamic-vars
+         $AWSCLI_HOME/procs/log "S3 bucket $AWSVPCB_S3BUCKET not found in AWS - unregistered it...."
+      fi
+   fi
+else
+   $AWSCLI_HOME/procs/clicall "s3api list-buckets" "$AWSCLI_HOME/tempfiles/register.s3bucket.2" "$AWSCLI_HOME/tempfiles/register.s3bucket.2.error"
+   if [ $? -ne 0 ]; then
+      $AWSCLI_HOME/procs/log "Error looking up S3 buckets in AWS - please capture any output, zip up entire directory and send to professor for review...."
+      exit 1
+   fi
+   export json=`cat $AWSCLI_HOME/tempfiles/register.s3bucket.2`
+   export AWSVPCB_S3BUCKET=`$AWSCLI_HOME/procs/json-read "Name:" "ML" | grep "elb-log"`
+   if [ "$AWSVPCB_S3BUCKET" != "" ]; then
+      echo "export AWSVPCB_S3BUCKET=$AWSVPCB_S3BUCKET" >> $AWSCLI_HOME/procs/aws-dynamic-vars
+      $AWSCLI_HOME/procs/log "S3 bucket $AWSVPCB_S3BUCKET found in AWS and registered...."
+   else
+      $AWSCLI_HOME/procs/log "No S3 bucket found in AWS - moving on...."
+   fi
+fi

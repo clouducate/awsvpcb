@@ -1,0 +1,61 @@
+# Start assignment Route 53 DNS server phase 1 - create zone & entries for the VPC
+#
+$AWSCLI_HOME/procs/log "Starting assignment Route 53 create process...."
+
+if [ "$AWSVPCB_DNS_HOSTZONEID" != "" ]; then
+   $AWSCLI_HOME/procs/log "Route 53 private zone already registered  - moving on...."
+   exit
+fi
+$AWSCLI_HOME/procs/clicall "route53 list-hosted-zones-by-name --dns-name $DOMAIN" "$AWSCLI_HOME/tempfiles/start.assignment.route53-1.0" "$AWSCLI_HOME/tempfiles/start.assignment.route53-1.0.error"
+if [ $? -ne 0 ]; then
+   $AWSCLI_HOME/procs/log "Error creating private zone $DOMAIN in AWS -  please capture any output, zip up entire directory and send to professor for review...."
+   exit 1
+fi
+export json=`cat $AWSCLI_HOME/tempfiles/start.assignment.route53-1.0`
+export zone_exists=`$AWSCLI_HOME/procs/json-read "Name:"`
+if [ "$zone_exists" != "" ]; then
+   $AWSCLI_HOME/procs/log "Route 53 private zone already exists, but not registered  - delete it in AWS or run AWSVPCB.REGISTER.VPC...."
+   exit 1
+fi
+
+sed -e "s/TRIGGERNUM/$ASSIGNMENT_NUM/g" $AWSCLI_HOME/secfiles/route53-trg.json.template > $AWSCLI_HOME/secfiles/route53-trg.json
+
+d=`date`
+d2=`echo ${d//[[:blank:]]/}`
+d3=`echo ${d2//[:]/}`
+$AWSCLI_HOME/procs/clicall "route53 create-hosted-zone --name $DOMAIN --caller-reference $d3 --vpc VPCRegion=$AWS_REGION,VPCId=$AWSVPCB_VPCID --hosted-zone-config Comment=AWS-VPCB-DNS,PrivateZone=true" "$AWSCLI_HOME/tempfiles/start.assignment.route53-1.1" "$AWSCLI_HOME/tempfiles/start.assignment.route53-1.1.error"
+if [ $? -ne 0 ]; then
+   $AWSCLI_HOME/procs/log "Error creating private zone $DOMAIN in AWS -  please capture any output, zip up entire directory and send to professor for review...."
+   exit 1
+fi
+export json=`cat $AWSCLI_HOME/tempfiles/start.assignment.route53-1.1`
+export AWSVPCB_DNS_HOSTZONEID=`$AWSCLI_HOME/procs/json-read "Location:" | cut -f6 -d"/"` 
+if [ "$AWSVPCB_DNS_HOSTZONEID" != "" ]; then
+   echo "export AWSVPCB_DNS_HOSTZONEID=$AWSVPCB_DNS_HOSTZONEID" >> $AWSCLI_HOME/procs/aws-dynamic-vars
+   $AWSCLI_HOME/procs/log "New Route 53 private zone $DOMAIN $AWSVPCB_DNS_HOSTZONEID created and registered...."
+   if [ "$AWSVPCB_DNS_HISTORY" != "" ]; then
+      $AWSCLI_HOME/procs/awsvpcb.start.assignment.resourcerecords.makefile $AWSCLI_HOME/tempfiles/stop.assignment.route53-1.1
+      $AWSCLI_HOME/procs/clicall "route53 change-resource-record-sets --hosted-zone-id $AWSVPCB_DNS_HOSTZONEID --change-batch file://$AWSCLI_HOME/secfiles/route53-create.json" "$AWSCLI_HOME/tempfiles/start.assignment.route53-1.2" "$AWSCLI_HOME/tempfiles/start.assignment.route53-1.2.error"
+         result=$?
+      if [ $result -ne 0 ]; then
+         $AWSCLI_HOME/procs/log "Error creating assignment DNS records in AWS -  please capture any output, zip up entire directory and send to professor for review...."
+         exit 1
+      fi
+      $AWSCLI_HOME/procs/log "Assignment DNS records restored to previous settings in AWS...."
+   else
+      $AWSCLI_HOME/procs/clicall "route53 change-resource-record-sets --hosted-zone-id $AWSVPCB_DNS_HOSTZONEID --change-batch file://$AWSCLI_HOME/secfiles/$AWSVPCB_DNSENTRIESFILE" "$AWSCLI_HOME/tempfiles/start.assignment.route53-1.2" "$AWSCLI_HOME/tempfiles/start.assignment.route53-1.2.error"
+      if [ $? -ne 0 ]; then
+         $AWSCLI_HOME/procs/log "Error creating assignment DNS records in AWS -  please capture any output, zip up entire directory and send to professor for review...."
+         exit 1
+      fi
+      $AWSCLI_HOME/procs/clicall "route53 change-resource-record-sets --hosted-zone-id $AWSVPCB_DNS_HOSTZONEID --change-batch file://$AWSCLI_HOME/secfiles/route53-trg.json" "$AWSCLI_HOME/tempfiles/start.assignment.route53-1.4" "$AWSCLI_HOME/tempfiles/start.assignment.route53-1.4.error"
+      if [ $? -ne 0 ]; then
+         $AWSCLI_HOME/procs/log "Error creating private zone $DOMAIN in AWS -  please capture any output, zip up entire directory and send to professor for review...."
+         exit 1
+      fi
+      $AWSCLI_HOME/procs/log "Assignment DNS records created in AWS...."
+   fi
+else
+   $AWSCLI_HOME/procs/log "An error occurred creating private zone in AWS - please capture any output, zip up entire directory and send to professor for review....."
+   exit
+fi

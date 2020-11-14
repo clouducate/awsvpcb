@@ -1,0 +1,59 @@
+# Create assignment firewall rules for each security group
+#
+$AWSCLI_HOME/procs/log "Starting assignment firewall rules create process...."
+
+input="$AWSCLI_HOME/tempfiles/assignment.firewallRules"
+while read -r s type protocol port source 
+do
+   if [ "$s" == "#" ]; then
+      continue
+   elif [ "$s" == "" -o "$s" == "-" ]; then
+      $AWSCLI_HOME/procs/log "Error with firewall rule - empty line - skipping....."
+      continue
+   elif [ "$type" != "inbound" -a "$type" != "outbound" ]; then
+      $AWSCLI_HOME/procs/log "Error with firewall rule - type not inbound or outbound - please capture any output, zip up entire directory and send to professor for review...."
+      exit 1
+   elif [ "$protocol" == "" ]; then
+      $AWSCLI_HOME/procs/log "Error with firewall rule - protocol not provided - please capture any output, zip up entire directory and send to professor for review...."
+      exit 1
+   elif [ "$port" == "" ]; then
+      $AWSCLI_HOME/procs/log "Error with firewall rule - port not provided - please capture any output, zip up entire directory and send to professor for review...."
+      exit 1
+   elif [[ "$source" == "" && ( "$type" == "inbound" || "$type" == "outbound" ) ]]; then
+      $AWSCLI_HOME/procs/log "Error with firewall rule - source not provided - please capture any output, zip up entire directory and send to professor for review...."
+      exit 1
+   fi
+
+   export secgroup=AWS-VPCB-${s}
+   secgroup_var=AWSVPCB_${s}_SECGROUPID
+   eval "secgroupid=\${$secgroup_var}"
+   if [ "$secgroupid" == "" ]; then
+      $AWSCLI_HOME/procs/log "Error with firewall rule - security group $s not registered - please capture any output, zip up entire directory and send to professor for review...."
+      exit 1
+   fi
+
+   if [[ "$type" == "inbound" ]] ;then  
+      $AWSCLI_HOME/procs/clicall "ec2 authorize-security-group-ingress --group-id $secgroupid --protocol $protocol --port $port --cidr $source" "$AWSCLI_HOME/tempfiles/create.assignment.firewallrules.2" "$AWSCLI_HOME/tempfiles/create.assignment.firewallrules.2.error"
+      if [ $? -ne 0 ]; then
+         test=`grep "InvalidPermission.Duplicate" $AWSCLI_HOME/tempfiles/create.assignment.firewallrules.2.error`
+         if [ "$test" == "" ]; then
+            $AWSCLI_HOME/procs/log "Error creating inbound rules for security group $secgroup in AWS -  please capture any output, zip up entire directory and send to professor for review...."
+            exit 1
+         else
+            $AWSCLI_HOME/procs/log "Rule already exists - moving on...."
+         fi
+      fi
+   else 
+      $AWSCLI_HOME/procs/clicall "ec2 authorize-security-group-egress --group-id $secgroupid --protocol $protocol --port $port --cidr $source" "$AWSCLI_HOME/tempfiles/create.assignment.firewallsrules.2" "$AWSCLI_HOME/tempfiles/create.assignment.firewallrules.2.error"
+      if [ $? -ne 0 ]; then
+         test=`grep "InvalidPermission.Duplicate" $AWSCLI_HOME/tempfiles/create.assignment.firewallrules.2.error`
+         if [ "$test" == "" ]; then
+            $AWSCLI_HOME/procs/log "Error creating outbound rules for security group $secgroup in AWS -  please capture any output, zip up entire directory and send to professor for review...."
+            exit 1
+         else
+            $AWSCLI_HOME/procs/log "Rule already exists - moving on...."
+         fi
+      fi
+   fi
+done < "$input"
+$AWSCLI_HOME/procs/log "Completed assignment firewall rules create process...."

@@ -1,0 +1,10 @@
+# Print to log current ELBs
+#
+$AWSCLI_HOME/procs/log "Starting Logging of ELBs process...."
+
+$AWSCLI_HOME/procs/clicall "elb describe-load-balancers" "$AWSCLI_HOME/tempfiles/diaglog.elb.1" "$AWSCLI_HOME/tempfiles/diaglog.elb.1.error"
+if [ $? -ne 0 ]; then
+   $AWSCLI_HOME/procs/log "Error looking for ELBs in AWS -  please capture any output, zip up entire directory and send to professor for review...." 
+   exit 1
+fi
+$AWSCLI_HOME/procs/awsvpcb.diaglog.logfile $AWSCLI_HOME/tempfiles/diaglog.elb.1

@@ -1,0 +1,10 @@
+# Print to log current S# Buckets 
+#
+$AWSCLI_HOME/procs/log "Starting Logging of S3 Buckets process...."
+
+$AWSCLI_HOME/procs/clicall "s3api list-buckets" "$AWSCLI_HOME/tempfiles/diaglog.s3bucket.1" "$AWSCLI_HOME/tempfiles/diaglog.s3bucket.1.error"
+if [ $? -ne 0 ]; then
+   $AWSCLI_HOME/procs/log "Error looking for S3 Buckets in AWS -  please capture any output, zip up entire directory and send to professor for review...." 
+   exit 1
+fi
+$AWSCLI_HOME/procs/awsvpcb.diaglog.logfile $AWSCLI_HOME/tempfiles/diaglog.s3bucket.1

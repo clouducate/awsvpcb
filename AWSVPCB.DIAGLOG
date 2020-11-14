@@ -1,0 +1,100 @@
+# Print Diagnostics to the log
+#
+export SCRIPT=AWSVPCB.DIAGLOG
+if [ ! -f ./vpcb-config ]; then
+   echo "Cannot find the vpcb-config file. You do not appear to be in the correct directory.  Please cd to the root directory of the scripts."
+   exit
+fi
+
+. ./vpcb-config
+$AWSCLI_HOME/procs/aws-check
+if [ $? -ne 0 ]; then
+   exit 1
+fi 
+. $AWSCLI_HOME/vpcb-config
+
+if [ "$ENABLE_AWS_LOGGING" != "yes" ]; then
+   $AWSCLI_HOME/procs/log "Logging service to AWS is disabled - caninot proceed with DIAGLOG...."
+   exit
+fi
+
+export diag_timestamp=`date +%s`
+
+$AWSCLI_HOME/procs/awsvpcb.diaglog.configfiles
+if [ $? -ne 0 ]; then
+   $AWSCLI_HOME/procs/log "Logging of configuration files failed - cancelling operations...."
+   exit 1
+fi
+. $AWSCLI_HOME/vpcb-config
+
+$AWSCLI_HOME/procs/awsvpcb.diaglog.vpc
+if [ $? -ne 0 ]; then
+   $AWSCLI_HOME/procs/log "Logging of VPCs failed - cancelling operations...."
+   exit 1
+fi
+. $AWSCLI_HOME/vpcb-config
+
+$AWSCLI_HOME/procs/awsvpcb.diaglog.subnets
+if [ $? -ne 0 ]; then
+   $AWSCLI_HOME/procs/log "Logging of subnets failed - cancelling operations...."
+   exit 1
+fi
+. $AWSCLI_HOME/vpcb-config
+
+$AWSCLI_HOME/procs/awsvpcb.diaglog.securitygroups
+if [ $? -ne 0 ]; then
+   $AWSCLI_HOME/procs/log "Logging of Security Groups failed - cancelling operations...."
+   exit 1
+fi
+. $AWSCLI_HOME/vpcb-config
+
+$AWSCLI_HOME/procs/awsvpcb.diaglog.internetgateway
+if [ $? -ne 0 ]; then
+   $AWSCLI_HOME/procs/log "Logging of Internet Gateway failed - cancelling operations...."
+   exit 1
+fi
+. $AWSCLI_HOME/vpcb-config
+
+$AWSCLI_HOME/procs/awsvpcb.diaglog.routingtables
+if [ $? -ne 0 ]; then
+   $AWSCLI_HOME/procs/log "Logging of Route tables failed - cancelling operations...."
+   exit 1
+fi
+. $AWSCLI_HOME/vpcb-config
+
+$AWSCLI_HOME/procs/awsvpcb.diaglog.instances
+if [ $? -ne 0 ]; then
+   $AWSCLI_HOME/procs/log "Logging of Instances failed - cancelling operations...."
+   exit 1
+fi
+. $AWSCLI_HOME/vpcb-config
+
+$AWSCLI_HOME/procs/awsvpcb.diaglog.clientvpnendpoint
+if [ $? -ne 0 ]; then
+   $AWSCLI_HOME/procs/log "Logging of Client VPN Endpoint failed - cancelling operations...."
+   exit 1
+fi
+. $AWSCLI_HOME/vpcb-config
+
+$AWSCLI_HOME/procs/awsvpcb.diaglog.route53
+if [ $? -ne 0 ]; then
+   $AWSCLI_HOME/procs/log "Logging of Route 53 failed - cancelling operations...."
+   exit 1
+fi
+. $AWSCLI_HOME/vpcb-config
+
+$AWSCLI_HOME/procs/awsvpcb.diaglog.elb
+if [ $? -ne 0 ]; then
+   $AWSCLI_HOME/procs/log "Logging of ELB failed - cancelling operations...."
+   exit 1
+fi
+. $AWSCLI_HOME/vpcb-config
+
+$AWSCLI_HOME/procs/awsvpcb.diaglog.s3bucket
+if [ $? -ne 0 ]; then
+   $AWSCLI_HOME/procs/log "Logging of S3 bucket failed - cancelling operations...."
+   exit 1
+fi
+. $AWSCLI_HOME/vpcb-config
+
+$AWSCLI_HOME/procs/log "Completed the Diagnostics logging process."

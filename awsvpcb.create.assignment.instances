@@ -1,0 +1,12 @@
+# Create assignment instances in the VPC
+#
+$AWSCLI_HOME/procs/log "Starting assignment instances create process...."
+
+for i in $ASSIGNMENT_START_INSTANCE_ORDER
+do
+   $AWSCLI_HOME/procs/awsvpcb.create.assignment.instance $i
+   if [ $? -ne 0 ]; then
+      exit 1
+   fi
+done
+

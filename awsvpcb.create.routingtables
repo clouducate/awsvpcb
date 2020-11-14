@@ -1,0 +1,66 @@
+# Create new VPC routing tables
+#
+$AWSCLI_HOME/procs/log "Starting VPC routing tables create process...."
+
+rtables="DEFAULT PUBLIC"
+for r in $rtables
+do
+   rtable=AWS-VPCB-${r}
+   rtableid_var=AWSVPCB_${r}_RTABLEID
+   eval "rtableid=\${$rtableid_var}"
+   if [ "$rtableid" != "" ]; then
+      $AWSCLI_HOME/procs/log "Route table $rtable already registered as $rtableid - moving on (if route table was deleted, then run AWSVPCB.VPC.REGISTER)...."
+      continue
+   fi
+   if [ "$r" == "PUBLIC" ]; then
+      $AWSCLI_HOME/procs/clicall "ec2 create-route-table --vpc-id $AWSVPCB_VPCID" "$AWSCLI_HOME/tempfiles/create.routingtables.1" "$AWSCLI_HOME/tempfiles/create.routingtables.1.error"
+      result=$?
+   else 
+      $AWSCLI_HOME/procs/clicall "ec2 describe-route-tables --filters Name=association.main,Values=true Name=vpc-id,Values=$AWSVPCB_VPCID" "$AWSCLI_HOME/tempfiles/create.routingtables.1" "$AWSCLI_HOME/tempfiles/create.routingtables.1.error"
+      result=$?
+   fi
+   if [ $result -ne 0 ]; then
+      $AWSCLI_HOME/procs/log "Error creating $rtable routing table in AWS -  please capture any output, zip up entire directory and send to professor for review...."
+      exit 1
+   fi
+   export json=`cat $AWSCLI_HOME/tempfiles/create.routingtables.1`
+   rtableid=`$AWSCLI_HOME/procs/json-read "RouteTableId:" | cut -f1 -d" "` 
+   if [ "$rtableid" != "" ]; then
+      echo "export AWSVPCB_${r}_RTABLEID=$rtableid" >> $AWSCLI_HOME/procs/aws-dynamic-vars
+      $AWSCLI_HOME/procs/log "Route table $rtableid created and registered - tagging it as $rtable...."
+      $AWSCLI_HOME/procs/clicall "ec2 create-tags --resources $rtableid --tags Key=Name,Value=$rtable" "$AWSCLI_HOME/tempfiles/create.routingtables.2" "$AWSCLI_HOME/tempfiles/create.routingtables.2.error"
+      if [ $? -ne 0 ]; then
+         $AWSCLI_HOME/procs/log "Error tagging route table $rtable in AWS -  please capture any output, zip up entire directory and send to professor for review...."
+         exit 1
+      fi
+      if [ "$r" == "PUBLIC" ]; then
+         $AWSCLI_HOME/procs/clicall "ec2 associate-route-table --route-table-id $rtableid --subnet-id $AWSVPCB_PUBLIC_SUBNETID" "$AWSCLI_HOME/tempfiles/create.routingtables.3" "$AWSCLI_HOME/tempfiles/create.routingtables.3.error"
+         if [ $? -ne 0 ]; then
+            $AWSCLI_HOME/procs/log "Error associating route table $rtable to subnet $AWSVPCB_PUBLIC_SUBNETID in AWS -  please capture any output, zip up entire directory and send to professor for review...."
+            exit 1
+         fi
+         export json=`cat $AWSCLI_HOME/tempfiles/create.routingtables.3`
+         rassocid=`$AWSCLI_HOME/procs/json-read "AssociationId:"`
+         echo "export AWSVPCB_${r}_RASSOCID=$rassocid" >> $AWSCLI_HOME/procs/aws-dynamic-vars
+         $AWSCLI_HOME/procs/log "Association $rassocid created and registered for route table $rtable to subnet $AWSVPCB_PUBLIC_SUBNETID in AWS...."
+         $AWSCLI_HOME/procs/clicall "ec2 create-route --route-table-id $rtableid --destination-cidr-block 0.0.0.0/0 --gateway-id $AWSVPCB_IGWID" "$AWSCLI_HOME/tempfiles/create.routingtables.4" "$AWSCLI_HOME/tempfiles/create.routingtables.4.error"
+         if [ $? -ne 0 ]; then
+            $AWSCLI_HOME/procs/log "Error creating route to Internet Gateway $AWSVPCB_IGWID in route table $rtable in AWS -  please capture any output, zip up entire directory and send to professor for review...."
+            exit 1
+         fi
+         $AWSCLI_HOME/procs/log "Created route to Internet gateway $AWSVPCB_IGWID in $rtable in AWS...."
+      else
+         $AWSCLI_HOME/procs/clicall "ec2 create-route --route-table-id $rtableid --destination-cidr-block 0.0.0.0/0 --instance-id $AWSVPCB_NAT_ID" "$AWSCLI_HOME/tempfiles/create.routingtables.4" "$AWSCLI_HOME/tempfiles/create.routingtables.4.error"
+         if [ $? -ne 0 ]; then
+            $AWSCLI_HOME/procs/log "Error creating route to NAT instance $AWSVPCB_NAT_ID in route table $rtable in AWS -  please capture any output, zip up entire directory and send to professor for review...."
+            exit 1
+         fi
+         $AWSCLI_HOME/procs/log "Created route to NAT instance $AWSVPCB_NAT_ID in $rtable in AWS...."
+      fi
+   else
+      $AWSCLI_HOME/procs/log "An error occurred creating route table $rtable - please capture any output, zip up entire directory and send to professor for review....."
+      exit
+   fi
+done
+. $AWSCLI_HOME/procs/aws-dynamic-vars
+

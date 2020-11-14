@@ -1,0 +1,86 @@
+# Start assignment instance in the VPC
+#
+instance=$1
+instance_id_var=AWSVPCB_${instance}_ID
+eval "instance_id=\${$instance_id_var}"
+if [ "$instance_id" == "" ]; then
+   $AWSCLI_HOME/procs/log "Assignment instance $instance not registered (informational only) - moving on...."
+   exit
+fi
+
+$AWSCLI_HOME/procs/clicall "ec2 describe-instances --instance-id $instance_id" "$AWSCLI_HOME/tempfiles/start.assignment.instance.1" "$AWSCLI_HOME/tempfiles/start.assignment.instance.1.error"
+if [ $? -ne 0 ]; then
+   $AWSCLI_HOME/procs/log "Error starting assignment instance $instance in AWS -  please capture any output, zip up entire directory and send to professor for review...."
+   exit 1
+fi
+export json=`cat $AWSCLI_HOME/tempfiles/start.assignment.instance.1`
+export instance_running=`$AWSCLI_HOME/procs/json-read "Name:" | grep running`
+if [ "$instance_running" != "" ]; then
+   $AWSCLI_HOME/procs/log "Assignment $instance instance $instance_id already started in AWS - moving on...."
+   exit
+fi
+
+$AWSCLI_HOME/procs/clicall "ec2 start-instances --instance-ids $instance_id" "$AWSCLI_HOME/tempfiles/start.assignment.instance.2" "$AWSCLI_HOME/tempfiles/start.assignment.instance.2.error"
+if [ $? -ne 0 ]; then
+   $AWSCLI_HOME/procs/log "Error starting assignment instance $instance in AWS -  please capture any output, zip up entire directory and send to professor for review...."
+   exit 1
+fi
+
+$AWSCLI_HOME/procs/log "Waiting for assignment $instance instance $instance_id to start - this may take a while...."
+running=0
+count=0
+while [ $count -le 90 ]; do
+   $AWSCLI_HOME/procs/clicall "ec2 describe-instances --instance-id $instance_id" "$AWSCLI_HOME/tempfiles/start.assignment.instance.3" "$AWSCLI_HOME/tempfiles/start.assignment.instance.3.error"
+   if [ $? -ne 0 ]; then
+      $AWSCLI_HOME/procs/log "Error starting assignment instance $instance in AWS -  please capture any output, zip up entire directory and send to professor for review...."
+      exit 1
+   fi
+   export json=`cat $AWSCLI_HOME/tempfiles/start.assignment.instance.3`
+   export instance_running=`$AWSCLI_HOME/procs/json-read "Name:" | grep running`
+   if [ "$instance_running" != "" ]; then
+      running=1
+      break
+   else
+      let count=count+1
+      sleep 2
+      continue
+   fi
+done
+if [ $running -eq 0 ]; then
+   $AWSCLI_HOME/procs/log "Did not see assignment $instance instance $instance start - please retry...."
+   exit 1
+fi
+
+exit
+if [ "$instance" == "IIS1" -o "$instance" == "IIS2" -o "$instance" == "MSSQL" ]; then
+   if [ -f "$AWSCLI_HOME/secfiles/$instance.password" ]; then
+      rm $AWSCLI_HOME/secfiles/$instance.password
+   fi
+   $AWSCLI_HOME/procs/log "Waiting to acquire password for assignment $instance instance $instance_id - this may take several minutes...."
+   count=0
+   while [ $count -le 60 ]; do
+      $AWSCLI_HOME/procs/clicall "ec2 get-password-data --instance-id  $instance_id --priv-launch-key $AWSCLI_HOME/secfiles/$AWSVPCB_KEYPAIR.u.pem" "$AWSCLI_HOME/tempfiles/start.assignment.instance.4" "$AWSCLI_HOME/tempfiles/start.assignment.instance.4.error"
+      if [ $? -ne 0 ]; then
+         $AWSCLI_HOME/procs/log "Error extracting password for instance $instance - manually acquire the password through the AWS console...."
+         break
+      else
+         export json=`cat $AWSCLI_HOME/tempfiles/start.assignment.instance.4`
+         export instance_password=`$AWSCLI_HOME/procs/json-read "PasswordData:"`
+         if [ "$instance_password" == "" ]; then
+            let count=count+1
+            sleep 10
+            continue
+         else
+            break
+         fi
+      fi
+   done
+   if [ "$instance_password" == "" ]; then
+      $AWSCLI_HOME/procs/log "Error extracting password for instance $instance - manually acquire the password through the AWS console...."
+   else
+      echo "$instance_password" > $AWSCLI_HOME/secfiles/$instance.password
+      $AWSCLI_HOME/procs/log "Password file succesfully created for instance $instance...."
+   fi
+fi
+
+$AWSCLI_HOME/procs/log "Assignment $instance instance $instance_id started...."

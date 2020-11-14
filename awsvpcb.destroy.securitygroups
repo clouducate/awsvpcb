@@ -1,0 +1,28 @@
+# Destroy the registered security groups
+#
+$AWSCLI_HOME/procs/log "Starting VPC security group destroy process...."
+
+secgroups="PUBLIC WEB DB ELB"
+for s in $secgroups
+do
+   secgroup=AWS-VPCB-${s}
+   secgroup_var=AWSVPCB_${s}_SECGROUPID
+   eval "secgroupid=\${$secgroup_var}"
+   if [ "$secgroupid" != "" ]; then
+      $AWSCLI_HOME/procs/clicall "ec2 delete-security-group --group-id $secgroupid" "$AWSCLI_HOME/tempfiles/destroy.securitygroups.1" "$AWSCLI_HOME/tempfiles/destroy.securitygroups.1.error"
+      if [ $? -ne 0 ]; then
+         $AWSCLI_HOME/procs/log "An error occurred deleting security group $secgroup - please capture any output, zip up entire directory and send to professor for review....."
+         exit 1
+      else
+         $AWSCLI_HOME/procs/log "Security group $secgroup deleted...."
+         $AWSCLI_HOME/procs/log "Unregistering security group $secgroupid...."
+         cat $AWSCLI_HOME/procs/aws-dynamic-vars | grep -v $secgroup_var > $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp
+         cat $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp > $AWSCLI_HOME/procs/aws-dynamic-vars
+      fi
+   else
+      $AWSCLI_HOME/procs/log "Security group $secgroup not registered - moving on...."
+   fi
+done
+cat $AWSCLI_HOME/procs/aws-dynamic-vars | grep -v AWSVPCB_DEFAULT_SECGROUPID > $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp
+cat $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp > $AWSCLI_HOME/procs/aws-dynamic-vars
+

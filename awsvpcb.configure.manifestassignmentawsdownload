@@ -1,0 +1,39 @@
+# Download Assignment Manifest from AWS
+#
+if [ "$2" == "DISPLAY" ]; then
+   ASSIGNMENT_NUM=$1
+fi
+
+if [ ! -d "$AWSCLI_HOME/secfiles/assignment$ASSIGNMENT_NUM" ]; then
+   mkdir $AWSCLI_HOME/secfiles/assignment$ASSIGNMENT_NUM
+fi
+
+$AWSCLI_HOME/procs/clicall "s3api get-object --bucket $MANIFEST_S3BUCKET --key assignment$ASSIGNMENT_NUM/awsvpcb.assignment$ASSIGNMENT_NUM.json --profile manifest $AWSCLI_HOME/secfiles/assignment$ASSIGNMENT_NUM/awsvpcb.assignment$ASSIGNMENT_NUM.json" "$AWSCLI_HOME/tempfiles/configure.manifestassignmentdownload.1" "$AWSCLI_HOME/tempfiles/configure.manifestassignmentdownload.1.error"
+if [ $? -ne 0 ]; then
+   test=`grep "NoSuchKey" $AWSCLI_HOME/tempfiles/configure.manifestassignmentdownload.1.error `
+   if [ "$test" == "" ]; then
+      $AWSCLI_HOME/procs/log "Error downloading assignment$ASSIGNMENT_NUM manifest from AWS - please capture any output, zip up entire directory and send to professor for review...."
+   else
+      $AWSCLI_HOME/procs/log "Manifest assignment$ASSIGNMENT_NUM/awsvpcb.assignment$ASSIGNMENT_NUM.json does not exist in S3 Bucket $MANIFEST_S3BUCKET - cancelling operation...."
+   fi
+   exit 1
+fi
+
+export json=`cat $AWSCLI_HOME/secfiles/assignment$ASSIGNMENT_NUM/awsvpcb.assignment$ASSIGNMENT_NUM.json`
+export DNS_Entries_File=`$AWSCLI_HOME/procs/json-read "DNSEntriesFile:"`
+if [ "$DNS_Entries_File" == "" ]; then
+   $AWSCLI_HOME/procs/log "DNS Entries File not found in assignment$ASSIGNMENT_NUM/awsvpcb.assignment$ASSIGNMENT_NUM.json - cancelling operations....."
+   exit 1
+fi
+
+$AWSCLI_HOME/procs/clicall "s3api get-object --bucket $MANIFEST_S3BUCKET --key $DNS_Entries_File --profile manifest $AWSCLI_HOME/secfiles/$DNS_Entries_File" "$AWSCLI_HOME/tempfiles/configure.manifestassignmentdownload.2" "$AWSCLI_HOME/tempfiles/configure.manifestassignmentdownload.2.error"
+if [ $? -ne 0 ]; then
+   test=`grep "NoSuchKey" $AWSCLI_HOME/tempfiles/configure.manifestassignmentdownload.2.error `
+   if [ "$test" == "" ]; then
+      $AWSCLI_HOME/procs/log "Error downloading $DNS_Entries_File DNS manifest from AWS - please capture any output, zip up entire directory and send to professor for review...."
+   else
+      $AWSCLI_HOME/procs/log "Manifest $DNS_Entries_File does not exist in S3 Bucket $MANIFEST_S3BUCKET - cancelling operation...."
+   fi
+   exit 1
+fi
+

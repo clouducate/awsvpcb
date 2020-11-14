@@ -1,0 +1,46 @@
+# Stop assignment High level script
+#
+export SCRIPT=AWSVPCB.ASSIGNMENT.STOP
+if [ ! -f ./vpcb-config ]; then
+   echo "Cannot find the vpcb-config file. You do not appear to be in the correct directory.  Please cd to the root directory of the scripts."
+   exit
+fi
+
+. ./vpcb-config
+$AWSCLI_HOME/procs/aws-check
+if [ $? -ne 0 ]; then
+   exit 1
+fi 
+. $AWSCLI_HOME/vpcb-config
+
+if [ "$1" != "SKIP" ]; then
+   $AWSCLI_HOME/procs/awsvpcb.stop.assignment.clientvpnendpoint
+   if [ $? -ne 0 ]; then
+      $AWSCLI_HOME/procs/log "Assignment stop of Client VPN Endpoint association failed - cancelling operations...."
+      exit 1
+   fi
+fi
+. $AWSCLI_HOME/vpcb-config
+
+$AWSCLI_HOME/procs/awsvpcb.stop.assignment.route53-2
+if [ $? -ne 0 ]; then
+   $AWSCLI_HOME/procs/log "Assignment stop of Route 53 inbound endpoint (Phase 1) failed - cancelling operations...."
+   exit 1
+fi
+. $AWSCLI_HOME/vpcb-config
+
+$AWSCLI_HOME/procs/awsvpcb.stop.assignment.route53-1
+if [ $? -ne 0 ]; then
+   $AWSCLI_HOME/procs/log "Assignment stop of Route 53 deletion (Phase 2) failed - cancelling operations...."
+   exit 1
+fi
+. $AWSCLI_HOME/vpcb-config
+
+$AWSCLI_HOME/procs/awsvpcb.stop.assignment.instances
+if [ $? -ne 0 ]; then
+   $AWSCLI_HOME/procs/log "Assignment stop of instances failed - cancelling operations...."
+   exit 1
+fi
+. $AWSCLI_HOME/vpcb-config
+
+$AWSCLI_HOME/procs/log "Completed the stop of assignment $ASSIGNMENT_NUM process."

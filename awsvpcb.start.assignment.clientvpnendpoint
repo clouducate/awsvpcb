@@ -1,0 +1,52 @@
+# Start assignment Client VPN Endpoint create associattion  
+#
+$AWSCLI_HOME/procs/log "Starting assignment Client VPN Endpoint target association create process...."
+
+if [ "$AWSVPCB_CLIENTVPNID" == "" ]; then
+   $AWSCLI_HOME/procs/log "Error Client VPN Endpoint not registerd -  please capture any output, zip up entire directory and send to professor for review...."
+   exit 1
+fi
+if [ "$AWSVPCB_CLIENTVPN_ASSOCID" != "" ]; then
+   $AWSCLI_HOME/procs/log "Client VPN Endpoint association already registered - moving on...."
+   exit 
+fi
+
+$AWSCLI_HOME/procs/clicall "ec2 associate-client-vpn-target-network --client-vpn-endpoint-id $AWSVPCB_CLIENTVPNID --subnet-id $AWSVPCB_CLIENTVPN_SUBNETID" "$AWSCLI_HOME/tempfiles/start.assignment.clientvpnendpoint.1" "$AWSCLI_HOME/tempfiles/start.assignment.clientvpnendpoint.1.error"
+if [ $? -ne 0 ]; then
+   $AWSCLI_HOME/procs/log "Error creating Client VPN Endpoint target association in AWS -  please capture any output, zip up entire directory and send to professor for review...."
+   exit 1
+fi
+export json=`cat $AWSCLI_HOME/tempfiles/start.assignment.clientvpnendpoint.1`
+export AWSVPCB_CLIENTVPN_ASSOCID=`$AWSCLI_HOME/procs/json-read "AssociationId:"` 
+if [ "$AWSVPCB_CLIENTVPN_ASSOCID" != "" ]; then
+   echo "export AWSVPCB_CLIENTVPN_ASSOCID=$AWSVPCB_CLIENTVPN_ASSOCID" >> $AWSCLI_HOME/procs/aws-dynamic-vars
+   $AWSCLI_HOME/procs/log "New Client VPN Endpoint target association $AWSVPCB_CLIENTVPN_ASSOCID created and registered - waiting for association to complete; this will take a few minutes...."
+   associated=0
+   count=0
+   while [ $count -le 600 ]; do
+      $AWSCLI_HOME/procs/clicall "ec2 describe-client-vpn-target-networks --client-vpn-endpoint-id $AWSVPCB_CLIENTVPNID --association-ids $AWSVPCB_CLIENTVPN_ASSOCID" "$AWSCLI_HOME/tempfiles/start.assignment.clientvpnendpoint.2" "$AWSCLI_HOME/tempfiles/start.assignment.clientvpnendpoint.2.error"
+      if [ $? -ne 0 ]; then
+         $AWSCLI_HOME/procs/log "Error associating Client VPN Endpoint in AWS -  please capture any output, zip up entire directory and send to professor for review
+...."
+         exit 1
+      fi
+      export json=`cat $AWSCLI_HOME/tempfiles/start.assignment.clientvpnendpoint.2`
+      export vpn_associated=`$AWSCLI_HOME/procs/json-read "Code:" | grep -i associated`
+      if [ "$vpn_associated" != "" ]; then
+         associated=1
+         break
+      else
+         let count=count+1
+         sleep 2
+         continue
+      fi
+   done
+   if [ $associated -eq 0 ]; then
+      $AWSCLI_HOME/procs/log "Did not see Client VPN Endpoint complete association $AWSVPCB_CLIENTVPN_ASSOCID - please look in AWS to see if it completed...."
+      exit 1
+   fi
+else
+   $AWSCLI_HOME/procs/log "An error occurred creating CLient VPN Endpoint association in AWS - please capture any output, zip up entire directory and send to professor for review....."
+   exit
+fi
+$AWSCLI_HOME/procs/log "Client VPN Endpoint target association $AWSVPCB_CLIENTVPN_ASSOCID completed successfully...."

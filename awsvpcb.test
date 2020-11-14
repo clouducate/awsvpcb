@@ -1,0 +1,20 @@
+# Test connectivity to AWS and return theconnected user
+#
+$AWSCLI_HOME/procs/log "Starting AWS Connectivity test process...."
+
+$AWSCLI_HOME/procs/clicall "sts get-caller-identity" "$AWSCLI_HOME/tempfiles/test.1" "$AWSCLI_HOME/tempfiles/test.1.error"
+if [ $? -ne 0 ]; then
+   $AWSCLI_HOME/procs/log "Error testing connectivity to AWS -  please capture any output, zip up entire directory and send to professor for review...."
+   exit 1
+fi
+export json=`cat $AWSCLI_HOME/tempfiles/test.1`
+export AWSVPCB_AWSID=`$AWSCLI_HOME/procs/json-read "Arn:"` 
+if [ "$AWSVPCB_AWSID" != "" ]; then
+   cat $AWSCLI_HOME/procs/aws-dynamic-vars | grep -v AWSVPCB_AWSID > $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp
+   cat $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp > $AWSCLI_HOME/procs/aws-dynamic-vars
+   echo "export AWSVPCB_AWSID=$AWSVPCB_AWSID" >> $AWSCLI_HOME/procs/aws-dynamic-vars
+   $AWSCLI_HOME/procs/log "Userid $AWSVPCB_AWSID successfully connected to AWS and registered...."
+else
+   $AWSCLI_HOME/procs/log "An error occurred testing connectivity to AWS - please capture any output, zip up entire directory and send to professor for review....."
+   exit
+fi

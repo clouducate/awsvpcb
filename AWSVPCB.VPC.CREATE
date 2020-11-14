@@ -1,0 +1,124 @@
+# Create VPC High level script
+#
+export SCRIPT=AWSVPCB.VPC.CREATE
+if [ ! -f ./vpcb-config ]; then
+   echo "Cannot find the vpcb-config file. You do not appear to be in the correct directory.  Please cd to the root directory of the scripts."
+   exit
+fi
+
+. ./vpcb-config
+$AWSCLI_HOME/procs/aws-check
+if [ $? -ne 0 ]; then
+   exit 1
+fi 
+
+if [ "$1" != "" ]; then
+   [ -n "$1" ] && [ "$1" -eq "$1" ] 2>/dev/null
+   if [ $? -ne 0 ]; then
+      $AWSCLI_HOME/procs/log "Parameter (VPC number) must be a number or nothing (default 0) - cancelling operations...."
+      exit 1
+   fi
+fi
+if [ "$1" == "" ]; then
+   VPC_NUM=0
+   $AWSCLI_HOME/procs/log "Using VPC0...."
+else
+   VPC_NUM=$1
+   $AWSCLI_HOME/procs/log "Using VPC$VPC_NUM...."
+fi
+
+if [ "$MANIFEST_LOCATION" == "aws" ]; then
+   $AWSCLI_HOME/procs/log "AWSVPCB Manifest to be pulled from AWS...."
+   $AWSCLI_HOME/procs/awsvpcb.configure.manifestvpcawsdownload $VPC_NUM
+   if [ $? -ne 0 ]; then
+      $AWSCLI_HOME/procs/log "Error downloading AWSVPCB Manifest from AWS...."
+      exit
+   else
+      $AWSCLI_HOME/procs/awsvpcb.configure.manifestvpcload $VPC_NUM
+      if [ $? -ne 0 ]; then
+         $AWSCLI_HOME/procs/log "Error loading AWSVPCB Manifest downloaded from AWS...."
+         exit
+      else
+         $AWSCLI_HOME/procs/log "AWSVPCB Manifest loaded from AWS...."
+      fi
+   fi
+else
+   $AWSCLI_HOME/procs/log "AWSVPCB Manifest will be loaded from local copy...."
+   $AWSCLI_HOME/procs/awsvpcb.configure.manifestvpcload $VPC_NUM
+   if [ $? -ne 0 ]; then
+      $AWSCLI_HOME/procs/log "Error loading AWSVPCB Manifest from local copy...."
+      exit
+   else
+      $AWSCLI_HOME/procs/log "AWSVPCB Manifest loaded from local copy...."
+   fi
+fi
+
+$AWSCLI_HOME/procs/awsvpcb.create.vpc
+if [ $? -ne 0 ]; then
+   $AWSCLI_HOME/procs/log "VPC creation failed - cancelling operations...."
+   exit 1
+fi
+. $AWSCLI_HOME/vpcb-config
+
+$AWSCLI_HOME/procs/awsvpcb.create.subnets
+if [ $? -ne 0 ]; then
+   $AWSCLI_HOME/procs/log "VPC subnets creation failed - cancelling operations...."
+   exit 1
+fi
+. $AWSCLI_HOME/vpcb-config
+
+$AWSCLI_HOME/procs/awsvpcb.create.securitygroups
+if [ $? -ne 0 ]; then
+   $AWSCLI_HOME/procs/log "VPC security groups creation failed - cancelling operations...."
+   exit 1
+fi
+. $AWSCLI_HOME/vpcb-config
+
+$AWSCLI_HOME/procs/awsvpcb.create.internetgateway
+if [ $? -ne 0 ]; then
+   $AWSCLI_HOME/procs/log "Internet Gateway creation failed - cancelling operations...."
+   exit 1
+fi
+. $AWSCLI_HOME/vpcb-config
+
+$AWSCLI_HOME/procs/awsvpcb.create.keypair
+if [ $? -ne 0 ]; then
+   $AWSCLI_HOME/procs/log "Key Pair import failed - cancelling operations...."
+   exit 1
+fi
+. $AWSCLI_HOME/vpcb-config
+
+$AWSCLI_HOME/procs/awsvpcb.create.natinstance
+if [ $? -ne 0 ]; then
+   $AWSCLI_HOME/procs/log "NAT instance creation failed - cancelling operations...."
+   exit 1
+fi
+. $AWSCLI_HOME/vpcb-config
+
+$AWSCLI_HOME/procs/awsvpcb.create.routingtables
+if [ $? -ne 0 ]; then
+   $AWSCLI_HOME/procs/log "Route tables creation failed - cancelling operations...."
+   exit 1
+fi
+. $AWSCLI_HOME/vpcb-config
+
+$AWSCLI_HOME/procs/awsvpcb.create.clientvpnendpoint
+if [ $? -ne 0 ]; then
+   $AWSCLI_HOME/procs/log "Client VPN Endpoint creation failed - cancelling operations...."
+   exit 1
+fi
+. $AWSCLI_HOME/vpcb-config
+
+$AWSCLI_HOME/procs/awsvpcb.create.sslcerts
+if [ $? -ne 0 ]; then
+   $AWSCLI_HOME/procs/log "ELB SSL certificates creation failed - cancelling operations...."
+   exit 1
+fi
+
+$AWSCLI_HOME/procs/awsvpcb.create.s3bucket
+if [ $? -ne 0 ]; then
+   $AWSCLI_HOME/procs/log "S3 bucket creation failed - cancelling operations...."
+   exit 1
+fi
+
+$AWSCLI_HOME/procs/log "Completed the AWS VPC Create process."

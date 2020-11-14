@@ -1,0 +1,91 @@
+# Register any existing AWSVPCB-VPC tagged VPC
+#
+$AWSCLI_HOME/procs/log "Starting VPC register process...."
+
+manifest_num=0
+echo -n "Which vpc number do you want to register [$manifest_num]: "
+read answer
+if [ "$answer" != "" ]; then
+   [ -n "$answer" ] && [ "$answer" -eq "$answer" ] 2>/dev/null
+   if [ $? -ne 0 ]; then
+      $AWSCLI_HOME/procs/log "Parameter (vpc number) must be a number or nothing (default $manifest_num) - cancelling operations...."
+      exit 1
+   else
+      manifest_num=$answer
+   fi
+fi
+
+$AWSCLI_HOME/procs/log "Using vpc$manifest_num for registration process...."
+
+
+if [ "$MANIFEST_LOCATION" == "aws" ]; then
+   $AWSCLI_HOME/procs/log "AWSVPCB Manifest to be pulled from AWS...."
+   $AWSCLI_HOME/procs/awsvpcb.configure.manifestvpcawsdownload $manifest_num
+   if [ $? -ne 0 ]; then
+      $AWSCLI_HOME/procs/log "Error downloading AWSVPCB Manifest from AWS...."
+      exit
+   else
+      $AWSCLI_HOME/procs/awsvpcb.configure.manifestvpcload $manifest_num
+      if [ $? -ne 0 ]; then
+         $AWSCLI_HOME/procs/log "Error loading AWSVPCB Manifest downloaded from AWS...."
+         exit
+      else
+         $AWSCLI_HOME/procs/log "AWSVPCB Manifest loaded from AWS...."
+      fi
+   fi
+else
+   $AWSCLI_HOME/procs/log "AWSVPCB Manifest will be loaded from local copy...."
+   $AWSCLI_HOME/procs/awsvpcb.configure.manifestvpcload $manifest_num
+   if [ $? -ne 0 ]; then
+      $AWSCLI_HOME/procs/log "Error loading AWSVPCB Manifest from local copy...."
+      exit
+   else
+      $AWSCLI_HOME/procs/log "AWSVPCB Manifest loaded from local copy...."
+   fi
+fi
+
+. $AWSCLI_HOME/vpcb-config
+
+# Determine if existing VPC is on the list
+if [ "$AWSVPCB_VPCID" != "" ]; then
+   $AWSCLI_HOME/procs/log "Identified registered VPC $AWSVPCB_VPCID - checking if it exists...."
+   $AWSCLI_HOME/procs/clicall "ec2 describe-vpcs" "$AWSCLI_HOME/tempfiles/register.vpc.1" "$AWSCLI_HOME/tempfiles/register.vpc.1.error"
+   if [ $? -ne 0 ]; then
+      $AWSCLI_HOME/procs/log "Error looking for VPC in AWS -  please capture any output, zip up entire directory and send to professor for review...." 
+      exit 1
+   fi
+   export json=`cat $AWSCLI_HOME/tempfiles/register.vpc.1`
+   test=`$AWSCLI_HOME/procs/json-read "VpcId:" | grep $AWSVPCB_VPCID`
+   if [ "$test" != "" ]; then
+      $AWSCLI_HOME/procs/log "Registered VPC $AWSVPCB_VPCID found in AWS - moving on...."
+      exit 
+   else
+      $AWSCLI_HOME/procs/log "Registered VPC $AWSVPCB_VPCID not found in AWS - unregistering it...."
+      cat $AWSCLI_HOME/procs/aws-dynamic-vars | grep -v AWSVPCB_VPCID > $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp
+      cat $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp > $AWSCLI_HOME/procs/aws-dynamic-vars 
+      export AWSVPCB_VPCID=
+   fi
+else
+   $AWSCLI_HOME/procs/log "No registered VPC found...."
+fi
+
+$AWSCLI_HOME/procs/log "Looking for any AWS-VPCB-VPC tagged VPC in AWS...."
+$AWSCLI_HOME/procs/clicall "ec2 describe-vpcs --filters Name=tag:Name,Values=AWS-VPCB-VPC" "$AWSCLI_HOME/tempfiles/register.vpc.2" "$AWSCLI_HOME/tempfiles/register.vpc.2.error"
+if [ $? -ne 0 ]; then
+   $AWSCLI_HOME/procs/log "Error looking for VPC in AWS -  please capture any output, zip up entire directory and send to professor for review...."
+   exit 1
+fi
+export json=`cat $AWSCLI_HOME/tempfiles/register.vpc.2`
+AWSVPCB_VPCID=`$AWSCLI_HOME/procs/json-read "VpcId:"`
+dup=`echo $AWSVPCB_VPCID | cut -f3 -d"-"`
+if [ "$dup" != "" ]; then
+   $AWSCLI_HOME/procs/log "Found multiple AWS-VPCB-VPC tagged VPCs in AWS - **needs manual cleanup** - aborting operation...."
+   exit 
+elif [ "$AWSVPCB_VPCID" != "" ]; then
+   $AWSCLI_HOME/procs/log "Found non-registered AWS-VPCB-VPC tagged VPC in AWS - registering it...."
+   echo "export AWSVPCB_VPCID=$AWSVPCB_VPCID" >> $AWSCLI_HOME/procs/aws-dynamic-vars
+   $AWSCLI_HOME/procs/log "VPC $AWSVPCB_VPCID registered...."
+else 
+   $AWSCLI_HOME/procs/log "No AWS-VPCB-VPC tagged VPCs found in AWS - aborting registration process...."
+   exit 1 
+fi

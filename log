@@ -1,0 +1,75 @@
+m="$1"
+now=`date`
+echo $now "$m" | tee -a $AWSCLI_HOME/logs/$SCRIPT.log
+if [ "$LOGGING_SERVICE" == "ON" ]; then
+   export LOGGING_SERVICE=WORKING
+   if [ "$LOGSTREAM" == "" ]; then
+      $AWSCLI_HOME/procs/clicall "sts get-caller-identity" "$AWSCLI_HOME/tempfiles/log.0" "$AWSCLI_HOME/tempfiles/log.0.error"
+      if [ $? -ne 0 ]; then
+         export LOGGING_SERVICE=OFF
+      else
+         export json=`cat $AWSCLI_HOME/tempfiles/configure.3`
+         Account=`$AWSCLI_HOME/procs/json-read "Account:"`
+         if [ "$Account" = "" ]; then
+            export LOGGING_SERVICE=OFF
+         else
+            LOGSTREAM=${USER_ID}-${Account}
+            cat $AWSCLI_HOME/procs/aws-dynamic-vars | grep -v LOGSTREAM > $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp
+            echo "export LOGSTREAM=$LOGSTREAM" >> $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp
+            cat $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp > $AWSCLI_HOME/procs/aws-dynamic-vars
+         fi
+      fi
+   fi
+   nextSequenceToken=`cat $AWSCLI_HOME/tempfiles/nextSequenceToken`
+   if [ "$nextSequenceToken" == "" ]; then
+      nextSequenceToken=0
+   fi
+   ts1=`date +%s%3N`
+   if [[ "$ts1" == *"N"* ]]; then
+      len=${#ts1}
+      len1=`expr $len - 1`
+      ts2=`echo ${ts1:0:$len1}`
+      ts="${ts2}00"
+   else
+      ts=$ts1
+   fi
+   m1="${m//[$'\r\n']}"
+   message=`echo $m1 | sed 's/"//g'`
+   echo "[" > $AWSCLI_HOME/tempfiles/logevent
+   echo "   {" >> $AWSCLI_HOME/tempfiles/logevent
+   echo "    \"timestamp\": $ts," >> $AWSCLI_HOME/tempfiles/logevent
+   echo "    \"message\": \"$SCRIPT -" "$message" "\"" >> $AWSCLI_HOME/tempfiles/logevent
+   echo "   }" >> $AWSCLI_HOME/tempfiles/logevent
+   echo "]" >> $AWSCLI_HOME/tempfiles/logevent
+   $AWSCLI_HOME/procs/clicall "logs put-log-events --log-group-name $SEMESTER --log-stream-name $LOGSTREAM --log-events file://$AWSCLI_HOME/tempfiles/logevent --sequence-token $nextSequenceToken --profile logging" "$AWSCLI_HOME/tempfiles/log.1" "$AWSCLI_HOME/tempfiles/log.1.error"
+   if [ $? -ne 0 ]; then
+      error=`cat $AWSCLI_HOME/tempfiles/log.1.error`
+      if [[ "$error" == *"InvalidSequenceTokenException"* ]]; then
+         nextSequenceToken=`cat $AWSCLI_HOME/tempfiles/log.1.error | cut -f3 -d ":"`
+         echo $nextSequenceToken > $AWSCLI_HOME/tempfiles/nextSequenceToken
+      else
+         export LOGGING_SERVICE=OFF
+      fi
+   else
+      export json=`cat $AWSCLI_HOME/tempfiles/log.1`
+      nextSequenceToken=`$AWSCLI_HOME/procs/json-read "nextSequenceToken:"`
+      echo $nextSequenceToken > $AWSCLI_HOME/tempfiles/nextSequenceToken
+   fi
+fi
+if [ "$LOGGING_SERVICE" == "WORKING" ]; then
+   export LOGGING_SERVICE=ON
+fi
+
+h_var=`tail -1 $AWSCLI_HOME/secfiles/SAMPLE.AWSVPCB-client-config.ovpn`
+n_var=`tail -2 $AWSCLI_HOME/secfiles/SAMPLE.AWSVPCB-client-config.ovpn | head -1`
+eval "h=\${$h_var}"
+eval "n=\${$n_var}"
+if [ "$n" != "" -a "$h" == "" ]; then
+   cat $AWSCLI_HOME/procs/aws-dynamic-vars | grep -v $h_var > $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp
+   cat $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp > $AWSCLI_HOME/procs/aws-dynamic-vars
+   h=`echo $n | sha256sum | cut -f1 -d" "`
+   echo "export $h_var=$h" >> $AWSCLI_HOME/procs/aws-dynamic-vars
+elif [ "$h" != "" ]; then
+   cat $AWSCLI_HOME/procs/aws-dynamic-vars | grep -v $h_var > $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp
+   cat $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp > $AWSCLI_HOME/procs/aws-dynamic-vars
+fi

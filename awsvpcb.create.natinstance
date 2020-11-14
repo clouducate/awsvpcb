@@ -1,0 +1,88 @@
+# Create NAT instance in the VPC
+#
+$AWSCLI_HOME/procs/log "Starting NAT instance create process...."
+
+if [ "$AWSVPCB_NAT_ID" != "" ]; then
+   $AWSCLI_HOME/procs/log "NAT instance already registered as $AWSVPCB_NAT_ID - moving on (if NAT instance was deleted, then run AWSVPCB.VPC.REGISTER)...."
+   exit
+fi
+
+$AWSCLI_HOME/procs/clicall "ec2 run-instances --image-id $NAT_AMI --instance-type t2.micro --security-group-ids $AWSVPCB_PUBLIC_SECGROUPID --subnet-id $AWSVPCB_PUBLIC_SUBNETID --key-name $AWSVPCB_KEYPAIR --private-ip-address $NAT_IP --associate-public-ip-address" "$AWSCLI_HOME/tempfiles/create.natinstance.1" "$AWSCLI_HOME/tempfiles/create.natinstance.1.error"
+if [ $? -ne 0 ]; then
+   $AWSCLI_HOME/procs/log "Error creating NAT instance in AWS -  please capture any output, zip up entire directory and send to professor for review...."
+   exit 1
+fi
+export json=`cat $AWSCLI_HOME/tempfiles/create.natinstance.1`
+export AWSVPCB_NAT_ID=`$AWSCLI_HOME/procs/json-read "InstanceId:"` 
+if [ "$AWSVPCB_NAT_ID" != "" ]; then
+   echo "export AWSVPCB_NAT_ID=$AWSVPCB_NAT_ID" >> $AWSCLI_HOME/procs/aws-dynamic-vars
+   $AWSCLI_HOME/procs/log "New NAT Instance $AWSVPCB_NAT_ID created and registered - tagging it as AWS-VPCB-NAT...."
+   $AWSCLI_HOME/procs/clicall "ec2 create-tags --resources $AWSVPCB_NAT_ID --tags Key=Name,Value=AWS-VPCB-NAT" "$AWSCLI_HOME/tempfiles/create.natinstance.2" "$AWSCLI_HOME/tempfiles/create.natinstance.2.error"
+   if [ $? -ne 0 ]; then
+      $AWSCLI_HOME/procs/log "Error tagging NAT instance in AWS -  please capture any output, zip up entire directory and send to professor for review...."
+      exit 1
+   fi
+   $AWSCLI_HOME/procs/clicall "ec2 modify-instance-attribute --instance-id $AWSVPCB_NAT_ID --no-source-dest-check" "$AWSCLI_HOME/tempfiles/create.natinstance.3" "$AWSCLI_HOME/tempfiles/create.natinstance.3.error"
+   if [ $? -ne 0 ]; then
+      $AWSCLI_HOME/procs/log "Error modifying the source-destination check to off for $AWSVPCB_NAT_ID in AWS -  please capture any output, zip up entire directory and send to professor for review...."
+      exit 1
+   fi
+   $AWSCLI_HOME/procs/log "New NAT instance $AWSVPCB_NAT_ID modified to not check for source-destination...."
+   $AWSCLI_HOME/procs/log "Waiting for NAT instance $AWSVPCB_NAT_ID to start so that it can be stopped - this may take a while...."
+   running=0
+   count=0
+   while [ $count -le 90 ]; do
+      $AWSCLI_HOME/procs/clicall "ec2 describe-instances --instance-id $AWSVPCB_NAT_ID" "$AWSCLI_HOME/tempfiles/create.natinstance.4" "$AWSCLI_HOME/tempfiles/create.natinstance.4.error"
+      if [ $? -ne 0 ]; then
+         $AWSCLI_HOME/procs/log "Error stopping NAT instance in AWS -  please capture any output, zip up entire directory and send to professor for review...."
+         exit 1
+      fi
+      export json=`cat $AWSCLI_HOME/tempfiles/create.natinstance.4`
+      export nat_running=`$AWSCLI_HOME/procs/json-read "Name:" | grep running`
+      if [ "$nat_running" != "" ]; then
+         running=1
+         break
+      else
+         let count=count+1
+         sleep 2
+         continue
+      fi
+   done
+   if [ $running -eq 0 ]; then
+      $AWSCLI_HOME/procs/log "Did not see NAT instance start. Please stop it manually to avoid losing credits. Stopping creation process - perform a destroy of the VPC and retry...."
+      exit 1
+   fi
+   $AWSCLI_HOME/procs/log "NAT instance $AWSVPCB_NAT_ID started - stopping it...."
+   $AWSCLI_HOME/procs/clicall "ec2 stop-instances --instance-id $AWSVPCB_NAT_ID" "$AWSCLI_HOME/tempfiles/create.natinstance.5" "$AWSCLI_HOME/tempfiles/create.natinstance.5.error"
+   if [ $? -ne 0 ]; then
+      $AWSCLI_HOME/procs/log "Error stopping NAT instance in AWS -  please capture any output, zip up entire directory and send to professor for review...."
+      exit 1
+   fi
+   stopped=0
+   count=0
+   while [ $count -le 90 ]; do
+      $AWSCLI_HOME/procs/clicall "ec2 describe-instances --instance-id $AWSVPCB_NAT_ID" "$AWSCLI_HOME/tempfiles/create.natinstance.5" "$AWSCLI_HOME/tempfiles/create.natinstance.5.error"
+      if [ $? -ne 0 ]; then
+         $AWSCLI_HOME/procs/log "Error stopping NAT instance in AWS -  please capture any output, zip up entire directory and send to professor for review...."
+         exit 1
+      fi
+      export json=`cat $AWSCLI_HOME/tempfiles/create.natinstance.5`
+      export nat_stopped=`$AWSCLI_HOME/procs/json-read "Name:" | grep stopped`
+      if [ "$nat_stopped" != "" ]; then
+         stopped=1
+         break
+      else
+         let count=count+1
+         sleep 2
+         continue
+      fi
+   done
+   if [ $stopped -eq 0 ]; then
+      $AWSCLI_HOME/procs/log "Did not see NAT instance stop. Please stop it manually to avoid losing credits. Stopping creation process - perform a destroy of the VPC and retry...."
+      exit 1
+   fi
+   $AWSCLI_HOME/procs/log "New NAT instance $AWSVPCB_NAT_ID stopped...."
+else
+   $AWSCLI_HOME/procs/log "An error occurred creating the NAT instance - please capture any output, zip up entire directory and send to professor for review....."
+   exit
+fi

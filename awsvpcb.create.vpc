@@ -1,0 +1,74 @@
+# Create new VPC, but first check if one exists and abort if one does
+#
+$AWSCLI_HOME/procs/log "Starting VPC create process...."
+
+# Determine if existing VPC is on the list
+if [ "$AWSVPCB_VPCID" != "" ]; then
+   $AWSCLI_HOME/procs/log "Identified registered VPC $AWSVPCB_VPCID - checking if it exists...."
+   $AWSCLI_HOME/procs/clicall "ec2 describe-vpcs" "$AWSCLI_HOME/tempfiles/create.vpc.1" "$AWSCLI_HOME/tempfiles/create.vpc.1.error"
+   if [ $? -ne 0 ]; then
+      $AWSCLI_HOME/procs/log "Error looking for VPC in AWS -  please capture any output, zip up entire directory and send to professor for review...." 
+      exit 1
+   fi
+   export json=`cat $AWSCLI_HOME/tempfiles/create.vpc.1`
+   test=`$AWSCLI_HOME/procs/json-read "VpcId:" | grep $AWSVPCB_VPCID`
+   if [ "$test" != "" ]; then
+      $AWSCLI_HOME/procs/log "Registered VPC $AWSVPCB_VPCID found in AWS - If portions of the VPC are unregistered, then run AWSVPCB.VPC.REGISTER; If the VPC is corrupted, then run AWSVPCB.VPC.DESTROY and then re-run the create...."
+      exit 1
+   else
+      $AWSCLI_HOME/procs/log "Registered VPC $AWSVPCB_VPCID not found in AWS - unregistering it...."
+      cat $AWSCLI_HOME/procs/aws-dynamic-vars | grep -v AWSVPCB_VPCID > $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp
+      cat $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp > $AWSCLI_HOME/procs/aws-dynamic-vars 
+      export AWSVPCB_VPCID=
+   fi
+else
+   $AWSCLI_HOME/procs/log "No registered VPC found...."
+fi
+
+if [ "$AWSVPCB_VPCID" == "" ]; then
+   $AWSCLI_HOME/procs/log "Looking for any AWS-VPCB VPC in AWS...."
+   $AWSCLI_HOME/procs/clicall "ec2 describe-vpcs" "$AWSCLI_HOME/tempfiles/create.vpc.2" "$AWSCLI_HOME/tempfiles/create.vpc.2.error"
+   if [ $? -ne 0 ]; then
+      $AWSCLI_HOME/procs/log "Error looking for VPC in AWS -  please capture any output, zip up entire directory and send to professor for review...."
+      exit 1
+   fi
+   export json=`cat $AWSCLI_HOME/tempfiles/create.vpc.2`
+   test=`$AWSCLI_HOME/procs/json-read "AWS-VPCB-VPC" 2`
+   if [ "$test" != "" ]; then
+      $AWSCLI_HOME/procs/log "Found at least one non-registered AWS-VPCB VPC in AWS - cancelling operation; need to destroy first...."
+      exit 1
+   fi
+   $AWSCLI_HOME/procs/log "No AWS-VPCB VPCs found in AWS - creating new VPC...."
+
+   $AWSCLI_HOME/procs/clicall "ec2 create-vpc --cidr-block $VPC_CIDR" "$AWSCLI_HOME/tempfiles/create.vpc.3" "$AWSCLI_HOME/tempfiles/create.vpc.3.error"
+   if [ $? -ne 0 ]; then
+      $AWSCLI_HOME/procs/log "Error creating VPC in AWS -  please capture any output, zip up entire directory and send to professor for review...."
+      exit 1
+   fi
+   export json=`cat $AWSCLI_HOME/tempfiles/create.vpc.3`
+   export AWSVPCB_VPCID=`$AWSCLI_HOME/procs/json-read "VpcId:"` 
+   if [ "$AWSVPCB_VPCID" != "" ]; then
+      echo "export AWSVPCB_VPCID=$AWSVPCB_VPCID" >> $AWSCLI_HOME/procs/aws-dynamic-vars
+      $AWSCLI_HOME/procs/log "New VPC $AWSVPCB_VPCID created and registered - tagging it as AWS-VPCB VPC...."
+      $AWSCLI_HOME/procs/clicall "ec2 create-tags --resources $AWSVPCB_VPCID --tags Key=Name,Value=AWS-VPCB-VPC" "$AWSCLI_HOME/tempfiles/create.vpc.4" "$AWSCLI_HOME/tempfiles/create.vpc.4.error"
+      if [ $? -ne 0 ]; then
+         $AWSCLI_HOME/procs/log "Error creating VPC in AWS -  please capture any output, zip up entire directory and send to professor for review...."
+         exit 1
+      fi
+   else
+      $AWSCLI_HOME/procs/log "An error occurred creating VPC - please capture any output, zip up entire directory and send to professor for review....."
+      exit
+   fi
+fi
+$AWSCLI_HOME/procs/log "New VPC $AWSVPCB_VPCID tagged as AWS-VPCB VPC - enabling DNS support within VPC...."
+$AWSCLI_HOME/procs/clicall "ec2 modify-vpc-attribute --vpc-id $AWSVPCB_VPCID --enable-dns-support" "$AWSCLI_HOME/tempfiles/create.vpc.5" "$AWSCLI_HOME/tempfiles/create.vpc.5.error"
+if [ $? -ne 0 ]; then
+   $AWSCLI_HOME/procs/log "Error creating VPC in AWS -  please capture any output, zip up entire directory and send to professor for review...."
+   exit 1
+fi
+$AWSCLI_HOME/procs/clicall "ec2 modify-vpc-attribute --vpc-id $AWSVPCB_VPCID --enable-dns-hostnames" "$AWSCLI_HOME/tempfiles/create.vpc.6" "$AWSCLI_HOME/tempfiles/create.vpc.6.error"
+if [ $? -ne 0 ]; then
+   $AWSCLI_HOME/procs/log "Error creating VPC in AWS -  please capture any output, zip up entire directory and send to professor for review...."
+   exit 1
+fi
+$AWSCLI_HOME/procs/log "New VPC $AWSVPCB_VPCID DNS support enabled - moving on to creating components within VPC...."

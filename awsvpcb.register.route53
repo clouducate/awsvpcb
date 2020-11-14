@@ -1,0 +1,80 @@
+# Register Route 53 Private zone & inbound endpoint, if they exist
+#
+$AWSCLI_HOME/procs/log "Starting Route 53 registration process...."
+
+if [ "$AWSVPCB_DNS_HOSTZONEID" != "" ]; then
+   $AWSCLI_HOME/procs/log "Route 53 Private zone registered as $AWSVPCB_DNS_HOSTZONEID - checking if it exists...."
+   $AWSCLI_HOME/procs/clicall "route53 get-hosted-zone --id $AWSVPCB_DNS_HOSTZONEID" "$AWSCLI_HOME/tempfiles/register.route53.1" "$AWSCLI_HOME/tempfiles/register.route53.1.error"
+   if [ $? -ne 0 ]; then
+      $AWSCLI_HOME/procs/log "Error looking up Route 53 Private zone in AWS -  please capture any output, zip up entire directory and send to professor for review...."
+      exit 1
+   fi
+   export json=`cat $AWSCLI_HOME/tempfiles/register.route53.1`
+   export test=`$AWSCLI_HOME/procs/json-read "Id:"`
+   if [ "$test" != "" ]; then
+      $AWSCLI_HOME/procs/log "Registered Route 53 Hosted Zone $AWSVPCB_DNS_HOSTZONEID found in AWS - moving on...."
+   else
+      $AWSCLI_HOME/procs/log "Registered Route 53 Hosted Zone $AWSVPCB_DNS_HOSTZONEID not found in AWS - unregistering it...."
+      cat $AWSCLI_HOME/procs/aws-dynamic-vars | grep -v AWSVPCB_DNS_HOSTZONEID > $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp
+      cat $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp > $AWSCLI_HOME/procs/aws-dynamic-vars
+   fi
+else
+   $AWSCLI_HOME/procs/clicall "route53 list-hosted-zones" "$AWSCLI_HOME/tempfiles/register.route53.2" "$AWSCLI_HOME/tempfiles/register.route53.2.error"
+   if [ $? -ne 0 ]; then
+      $AWSCLI_HOME/procs/log "Error looking up Route 53 Private zone in AWS -  please capture any output, zip up entire directory and send to professor for review...."
+      exit 1
+   fi
+   export json=`cat $AWSCLI_HOME/tempfiles/register.route53.2`
+   export AWSVPCB_DNS_HOSTZONEID=`$AWSCLI_HOME/procs/json-read "Id:" | cut -f3 -d"/"`
+   export test=`$AWSCLI_HOME/procs/json-read "Comment:"`
+   dup=`$AWSCLI_HOME/procs/json-read "Id:" | cut -f4 -d"/"`
+   if [ "$dup" != "" ]; then
+      $AWSCLI_HOME/procs/log "Found multiple Route 53 Private zones in AWS - **needs manual cleanup** - aborting operation...."
+   elif [ "$test" == "" ]; then 
+      $AWSCLI_HOME/procs/log "No tagged Route 53 Private zones found in AWS - moving on...."
+   elif [ "$AWSVPCB_DNS_HOSTZONEID" != "" ]; then
+      echo "export AWSVPCB_DNS_HOSTZONEID=$AWSVPCB_DNS_HOSTZONEID" >> $AWSCLI_HOME/procs/aws-dynamic-vars
+      $AWSCLI_HOME/procs/log "Route 53 Private zone $AWSVPCB_DNS_HOSTZONEID registered...."
+   else
+      $AWSCLI_HOME/procs/log "Error identifying tagged Route 53 Private zone in AWS - **needs manual cleanup** - aborting operation...."
+      exit
+   fi
+fi
+
+if [ "$AWSVPCB_DNS_INBOUNDID" != "" ]; then
+   $AWSCLI_HOME/procs/log "Route 53 inbound endpoint $AWSVPCB_DNS_INBOUNDID registered - checking if it exists...."
+   $AWSCLI_HOME/procs/clicall "route53resolver get-resolver-endpoint --resolver-endpoint-id $AWSVPCB_DNS_INBOUNDID" "$AWSCLI_HOME/tempfiles/register.route53.3" "$AWSCLI_HOME/tempfiles/register.route53.3.error"
+   if [ $? -ne 0 ]; then
+      $AWSCLI_HOME/procs/log "Error looking up Route 53 inbound endpoint in AWS -  please capture any output, zip up entire directory and send to professor for review...."
+      exit 1
+   fi
+   export json=`cat $AWSCLI_HOME/tempfiles/register.route53.3`
+   export test=`$AWSCLI_HOME/procs/json-read "Id:"`
+   if [ "$test" != "" ]; then
+      $AWSCLI_HOME/procs/log "Registered Route 53 inbound endpoint $AWSVPCB_DNS_INBOUNDID found in AWS - moving on...."
+      exit
+   else
+      $AWSCLI_HOME/procs/log "Registered Route 53 inbound endpoint $AWSVPCB_DNS_INBOUNDID not found in AWS - unregistering it...."
+      cat $AWSCLI_HOME/procs/aws-dynamic-vars | grep -v AWSVPCB_DNS_INBOUNDID > $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp
+      cat $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp > $AWSCLI_HOME/procs/aws-dynamic-vars
+   fi
+fi
+
+$AWSCLI_HOME/procs/clicall "route53resolver list-resolver-endpoints --filters Name=Name,Values=AWS-VPCB-DNS" "$AWSCLI_HOME/tempfiles/register.route53.4" "$AWSCLI_HOME/tempfiles/register.route53.4.error"
+if [ $? -ne 0 ]; then
+   $AWSCLI_HOME/procs/log "Error looking up Route 53 inbound endpoint in AWS -  please capture any output, zip up entire directory and send to professor for review...."
+   exit 1
+fi
+export json=`cat $AWSCLI_HOME/tempfiles/register.route53.4`
+export AWSVPCB_DNS_INBOUNDID=`$AWSCLI_HOME/procs/json-read "Id:"` 
+dup=`$AWSCLI_HOME/procs/json-read "Id:" | cut -f4 -d"-"`
+if [ "$dup" != "" ]; then
+   $AWSCLI_HOME/procs/log "Found multiple AWS-VPCB-DNS tagged Route 53 inbound endpoints in AWS - **needs manual cleanup** - aborting operation...."
+elif [ "$AWSVPCB_DNS_INBOUNDID" != "" ]; then
+   echo "export AWSVPCB_DNS_INBOUNDID=$AWSVPCB_DNS_INBOUNDID" >> $AWSCLI_HOME/procs/aws-dynamic-vars
+   $AWSCLI_HOME/procs/log "Route 53 inbound endpoint $AWSVPCB_DNS_INBOUNDID registered...."
+else
+   $AWSCLI_HOME/procs/log "No tagged Route 53 inbound endpoint found in AWS - moving on...."
+   exit
+fi
+

@@ -1,0 +1,51 @@
+# Start assignment High level script
+#
+export SCRIPT=AWSVPCB.ASSIGNMENT.START
+if [ ! -f ./vpcb-config ]; then
+   echo "Cannot find the vpcb-config file. You do not appear to be in the correct directory.  Please cd to the root directory of the scripts."
+   exit
+fi
+
+. ./vpcb-config
+$AWSCLI_HOME/procs/aws-check
+if [ $? -ne 0 ]; then
+   exit 1
+fi 
+. $AWSCLI_HOME/vpcb-config
+
+$AWSCLI_HOME/procs/awsvpcb.start.assignment.clientvpnendpoint
+if [ $? -ne 0 ]; then
+   $AWSCLI_HOME/procs/log "Assignment start of Client VPN Endpoint association failed - cancelling operations...."
+   exit 1
+fi
+. $AWSCLI_HOME/vpcb-config
+
+$AWSCLI_HOME/procs/awsvpcb.start.assignment.route53-1
+if [ $? -ne 0 ]; then
+   $AWSCLI_HOME/procs/log "Assignment start of Route 53 creation (phase 1) failed - cancelling operations...."
+   exit 1
+fi
+. $AWSCLI_HOME/vpcb-config
+
+$AWSCLI_HOME/procs/awsvpcb.start.assignment.instances
+if [ $? -ne 0 ]; then
+   $AWSCLI_HOME/procs/log "Assignment start of instances failed - cancelling operations...."
+   exit 1
+fi
+. $AWSCLI_HOME/vpcb-config
+
+$AWSCLI_HOME/procs/awsvpcb.start.assignment.elb
+if [ $? -ne 0 ]; then
+   $AWSCLI_HOME/procs/log "Assignment start of ELB failed - cancelling operations...."
+   exit 1
+fi
+. $AWSCLI_HOME/vpcb-config
+
+$AWSCLI_HOME/procs/awsvpcb.start.assignment.route53-2
+if [ $? -ne 0 ]; then
+   $AWSCLI_HOME/procs/log "Assignment start of Route 53 inbound endpoint (phase 2) failed - cancelling operations...."
+   exit 1
+fi
+. $AWSCLI_HOME/vpcb-config
+
+$AWSCLI_HOME/procs/log "Completed the start of assignment $ASSIGNMENT_NUM process."

@@ -1,0 +1,34 @@
+# Destroy the registered VPC
+#
+$AWSCLI_HOME/procs/log "Starting VPC destroy process...."
+
+# Determine if existing VPC is on the list
+if [ "$AWSVPCB_VPCID" != "" ]; then
+   $AWSCLI_HOME/procs/log "Identified registered VPC $AWSVPCB_VPCID - looking to to see if it exists in AWS...."
+   $AWSCLI_HOME/procs/clicall "ec2 describe-vpcs" "$AWSCLI_HOME/tempfiles/destroy.vpc.1" "$AWSCLI_HOME/tempfiles/destroy.vpc.1.error"
+   if [ $? -ne 0 ]; then
+      $AWSCLI_HOME/procs/log "An error looking for VPC in AWS - please capture any output, zip up entire directory and send to professor for review....."
+      exit 1
+   fi 
+   export json=`cat $AWSCLI_HOME/tempfiles/destroy.vpc.1`
+   test=`$AWSCLI_HOME/procs/json-read "VpcId:" | grep $AWSVPCB_VPCID` 
+   if [ "$test" != "" ]; then 
+      $AWSCLI_HOME/procs/log "Found VPC $AWSVPCB_VPCID in AWS - deleting VPC...."
+      $AWSCLI_HOME/procs/clicall "ec2 delete-vpc --vpc-id $AWSVPCB_VPCID" "$AWSCLI_HOME/tempfiles/destroy.vpc.2" "$AWSCLI_HOME/tempfiles/destroy.vpc.2.error"
+      if [ $? -ne 0 ]; then
+         $AWSCLI_HOME/procs/log "An error occurred deleting VPC $AWSVPCB_VPCID - please capture any output, zip up entire directory and send to professor for review....."
+         exit 1
+      else
+         $AWSCLI_HOME/procs/log "Registered VPC $AWSVPCB_VPCID deleted...."
+         $AWSCLI_HOME/procs/log "Unregistering VPC $AWSVPCB_VPCID...."
+         cat $AWSCLI_HOME/procs/aws-dynamic-vars | grep -v AWSVPCB_VPCID > $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp
+         cat $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp > $AWSCLI_HOME/procs/aws-dynamic-vars
+         unset AWSVPCB_VPCID
+      fi
+   else
+      $AWSCLI_HOME/procs/log "Registered VPC not foundi in AWS - no work to do...."
+   fi
+else
+   $AWSCLI_HOME/procs/log "No registered VPC found - no work to do - If you have a AWS-VPCB VPC, then you must register it before deleting it...."
+fi
+

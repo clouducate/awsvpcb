@@ -1,0 +1,51 @@
+# Register AWS-VPCB VPC security groups if they exist
+#
+$AWSCLI_HOME/procs/log "Starting VPC ssecurity groups registration process...."
+
+secgroups=$VPC_SECURITYGROUPS
+for s in $secgroups
+do
+   secgroup=AWS-VPCB-${s}
+   secgroupid_var=AWSVPCB_${s}_SECGROUPID
+   eval "secgroupid=\${$secgroupid_var}"
+   if [ "$secgroupid" != "" ]; then 
+      $AWSCLI_HOME/procs/log "Security group $secgroup registered as $secgroupid - checking to see if it exists...."
+      $AWSCLI_HOME/procs/clicall "ec2 describe-security-groups --group-ids $secgroupid" "$AWSCLI_HOME/tempfiles/register.securitygroups.1" "$AWSCLI_HOME/tempfiles/register.securitygroups.1.error"
+      if [ $? -ne 0 ]; then
+         cat $AWSCLI_HOME/procs/aws-dynamic-vars | grep -v $secgroupid_var > $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp
+         cat $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp > $AWSCLI_HOME/procs/aws-dynamic-vars
+         $AWSCLI_HOME/procs/log "Registered security group $secgroupid not found in AWS - unregistered it...."
+      else 
+         export json=`cat $AWSCLI_HOME/tempfiles/register.securitygroups.1`
+         test=`$AWSCLI_HOME/procs/json-read "GroupId:"` 
+         if [ "$test" != "" ]; then
+            $AWSCLI_HOME/procs/log "Registered security group $secgroupid tagged as $secgroup found in AWS - moving on...."
+            continue 
+         else
+            cat $AWSCLI_HOME/procs/aws-dynamic-vars | grep -v $secgroupid_var > $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp
+            cat $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp > $AWSCLI_HOME/procs/aws-dynamic-vars
+            $AWSCLI_HOME/procs/log "Registered security group $secgroupid not found in AWS - unregistered it...."
+         fi
+      fi
+   fi
+
+   $AWSCLI_HOME/procs/clicall "ec2 describe-security-groups --filters Name=tag:Name,Values=$secgroup" "$AWSCLI_HOME/tempfiles/register.securitygroups.2" "$AWSCLI_HOME/tempfiles/register.securitygroups.2.error"
+   if [ $? -ne 0 ]; then
+      $AWSCLI_HOME/procs/log "Error looking up security group $secgroup in AWS -  please capture any output, zip up entire directory and send to professor for review...."
+      exit 1
+   fi
+   export json=`cat $AWSCLI_HOME/tempfiles/register.securitygroups.2`
+   secgroupid=`$AWSCLI_HOME/procs/json-read "GroupId:"` 
+   dup=`$AWSCLI_HOME/procs/json-read "GroupId:" | cut -f3 -d"-"` 
+   if [ "$dup" != "" ]; then
+      $AWSCLI_HOME/procs/log "Found multiple $secgroup tagged security groups in AWS - **needs manual cleanup** - aborting operation...."
+      continue
+   elif [ "$secgroupid" != "" ]; then
+      echo "export AWSVPCB_${s}_SECGROUPID=$secgroupid" >> $AWSCLI_HOME/procs/aws-dynamic-vars
+      $AWSCLI_HOME/procs/log "Security group $secgroupid registered as $secgroup...."
+   else 
+      $AWSCLI_HOME/procs/log "No $secgroup tagged security groups found in AWS - moving on...."
+      continue 
+   fi
+done
+

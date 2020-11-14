@@ -1,0 +1,10 @@
+# Print to log current Security Groups 
+#
+$AWSCLI_HOME/procs/log "Starting Logging of Security Groups process...."
+
+$AWSCLI_HOME/procs/clicall "ec2 describe-security-groups" "$AWSCLI_HOME/tempfiles/diaglog.securitygroups.1" "$AWSCLI_HOME/tempfiles/diaglog.securitygroups.1.error"
+if [ $? -ne 0 ]; then
+   $AWSCLI_HOME/procs/log "Error looking for security groups in AWS -  please capture any output, zip up entire directory and send to professor for review...." 
+   exit 1
+fi
+$AWSCLI_HOME/procs/awsvpcb.diaglog.logfile $AWSCLI_HOME/tempfiles/diaglog.securitygroups.1

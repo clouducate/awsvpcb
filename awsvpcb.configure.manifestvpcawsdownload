@@ -1,0 +1,17 @@
+# Download VPC Manifest from AWS
+#
+if [ ! -d "$AWSCLI_HOME/secfiles/vpc$1" ]; then
+   mkdir $AWSCLI_HOME/secfiles/vpc$1
+fi
+
+$AWSCLI_HOME/procs/clicall "s3api get-object --bucket $MANIFEST_S3BUCKET --key vpc$1/vpc.json --profile manifest $AWSCLI_HOME/secfiles/vpc$1/vpc.json" "$AWSCLI_HOME/tempfiles/configure.manifestvpcdownload.1" "$AWSCLI_HOME/tempfiles/configure.manifestvpcdownload.1.error"
+if [ $? -ne 0 ]; then
+   test=`grep "NoSuchKey" $AWSCLI_HOME/tempfiles/configure.manifestvpcdownload.1.error `
+   if [ "$test" == "" ]; then
+      $AWSCLI_HOME/procs/log "Error downloading VPC$1 manifest from AWS - please capture any output, zip up entire directory and send to professor for review...."
+   else
+      $AWSCLI_HOME/procs/log "Manifest vpc$1/vpc.json does not exist in S3 Bucket $MANIFEST_S3BUCKET - cancelling operation...."
+   fi
+   exit 1
+fi
+

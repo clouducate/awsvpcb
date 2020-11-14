@@ -1,0 +1,96 @@
+# Create VPC High level script
+#
+export SCRIPT=AWSVPCB.VPC.CREATE
+if [ ! -f ./vpcb-config ]; then
+   echo "Cannot find the vpcb-config file. You do not appear to be in the correct directory.  Please cd to the root directory of the scripts."
+   exit
+fi
+
+. ./vpcb-config
+$AWSCLI_HOME/procs/aws-check
+if [ $? -ne 0 ]; then
+   exit 1
+fi 
+
+read -p 'Do you want to display a VPC or ASSIGNMENT [VPC]: ' answer
+if [ "$answer" == "" -o "$answer" == "VPC" -o "$answer" == "vpc" ]; then
+   display_type=vpc
+   manifest_num="0"
+elif [ "$answer" == "ASSIGNMENT" -o "$answer" == "assignment" ]; then
+   display_type=assignment
+   manifest_num="1"
+else
+   $AWSCLI_HOME/procs/log "Answer must be nothing (vpc is default), 'vpc' or 'assignment' - cancelling operations...."
+   exit 1
+fi
+
+echo -n "Which $display_type number do you want to display [$manifest_num]: "
+read answer
+if [ "$answer" != "" ]; then
+   [ -n "$answer" ] && [ "$answer" -eq "$answer" ] 2>/dev/null
+   if [ $? -ne 0 ]; then
+      $AWSCLI_HOME/procs/log "Parameter ($display_type number) must be a number or nothing (default $manifest_num) - cancelling operations...."
+      exit 1
+   else  
+      manifest_num=$answer
+   fi
+fi
+
+$AWSCLI_HOME/procs/log "Performing manifest display for $display_type$manifest_num...."
+
+if [ "$MANIFEST_LOCATION" == "aws" ]; then
+   $AWSCLI_HOME/procs/log "AWSVPCB Manifest to be pulled from AWS...."
+   if [ "$display_type" == "vpc" ]; then
+      $AWSCLI_HOME/procs/awsvpcb.configure.manifestvpcawsdownload $manifest_num DISPLAY
+      if [ $? -ne 0 ]; then
+         $AWSCLI_HOME/procs/log "Error downloading AWSVPCB Manifest from AWS...."
+         exit
+      else
+         $AWSCLI_HOME/procs/awsvpcb.configure.manifestvpcload $manifest_num DISPLAY 
+         if [ $? -ne 0 ]; then
+            $AWSCLI_HOME/procs/log "Error loading AWSVPCB Manifest downloaded from AWS...."
+            exit
+         else
+            $AWSCLI_HOME/procs/log "AWSVPCB Manifest loaded from AWS...."
+         fi
+      fi
+   else
+      $AWSCLI_HOME/procs/log "AWSVPCB Assignmnet Manifest to be pulled from AWS...."
+      $AWSCLI_HOME/procs/awsvpcb.configure.manifestassignmentawsdownload $manifest_num DISPLAY
+      if [ $? -ne 0 ]; then
+         $AWSCLI_HOME/procs/log "Error downloading AWSVPCB Assignment Manifest from AWS...."
+         $AWSCLI_HOME/procs/log "Load of assignment manifest failed - cancelling operations...."
+         exit 1
+      else
+         $AWSCLI_HOME/procs/awsvpcb.configure.manifestassignmentload $manifest_num DISPLAY
+         if [ $? -ne 0 ]; then
+            $AWSCLI_HOME/procs/log "Error loading AWSVPCB Assignment Manifest downloaded from AWS...."
+            $AWSCLI_HOME/procs/log "Load of assignment manifest failed - cancelling operations...."
+            exit 1
+         else
+            $AWSCLI_HOME/procs/log "AWSVPCB Assignment Manifest loaded from AWS...."
+         fi
+      fi
+   fi
+else
+   if [ "$display_type" == "vpc" ]; then
+      $AWSCLI_HOME/procs/log "AWSVPCB Manifest will be loaded from local copy...."
+      $AWSCLI_HOME/procs/awsvpcb.configure.manifestvpcload $manifest_num DISPLAY
+      if [ $? -ne 0 ]; then
+         $AWSCLI_HOME/procs/log "Error loading AWSVPCB Manifest from local copy...."
+         exit
+      else
+         $AWSCLI_HOME/procs/log "AWSVPCB Manifest loaded from local copy...."
+      fi
+   else
+      $AWSCLI_HOME/procs/log "AWSVPCB Assignment Manifest will be loaded from local copy...."
+      $AWSCLI_HOME/procs/awsvpcb.configure.manifestassignmentload $manifest_num DISPLAY
+      if [ $? -ne 0 ]; then
+         $AWSCLI_HOME/procs/log "Error loading AWSVPCB Assignment Manifest from local copy...."
+         $AWSCLI_HOME/procs/log "Load of assignment manifest failed - cancelling operations...."
+         exit 1
+      else
+         $AWSCLI_HOME/procs/log "AWSVPCB Assignment Manifest loaded from local copy...."
+      fi
+   fi
+fi
