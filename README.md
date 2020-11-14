@@ -46,7 +46,7 @@ There aren't many settings to worry about in the vpcb-config file and most are s
 MAIN EXECUTABLE SCRIPTS
 #
 AWSVPCB.CONFIGURE - Reads vpcb-config and configures the base settings within the "procs" directory. Can be rerun as often as needed, but does not need to be run unless a change is made to the vpcb-config file.
-AWSVPCB.TEST – Simply tests basic connectivity to AWS
+AWSVPCB.TEST – Simply tests basic connectivity to AWS.
 AWSVPCB.VPC.CREATE – This script optionally accepts a numeric parameter (the VPC number; 0 is the default if no number is provided). The script expects a vpc# directory (where # is the VPC number) to exist in the "secfiles" directory or AWS manifest S3bucket where the vpc.json file can be found and loaded. Using this vpc.json file, this script creates a VPC with associate Internet Gateway, NAT instance, route tables, subnets, security groups, S3Bucket for ELB logs, Client VPN endpoint, OVPN file for the OpenVPN client and registers all AWS unique IDs. This script will fail if a “AWS-VPCB” tagged VPC already exists in the target AWS account. In order to rerun this script, the AWSVPCB.VPC.DESTROY must be run first.
 AWSVPCB.VPC.DESTROY – This script will destroy the registered VPC and everything in it.
 AWSVPCB.VPC.REGISTER – This script compares the AWS object IDs registered with what exists in AWS to adjust the registry files in the "procs" directory appropriately. The script requests the user to provide an optional assignment number such that all of the assignment components are also registered properly.
