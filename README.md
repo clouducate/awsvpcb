@@ -72,12 +72,17 @@ AWSVPCB.MANIFEST.DISPLAY - This script pormpts the user for which manifest to di
 VPC JSON FILES
 #
 The awsvpcb-scripts.zip file includes a sample json configuration file in the "secfiles/vpc0" directory. AWSVPCB allows for the definition of multiple VPCs (default is vpc0), however, there could only be one defined in AWS for a given AWS account at one time. In addition due to the fact the each time you create a VPC a new OVPN file is generated, it's recommended that you limit the number of VPCs used in one course.  For CTS-4743, for exampe, we only use one VPC for the entire semester and use the assignment json files to adjust the environment. VPCs can be created, registered and destroyed. Registering a VPC entails comparing the dynamic files within the "procs" directory with what is actually in AWS. All VPC json parameters are required, albeit the number of subnets, possibleInstanceNames and PossibleELBs is variable. The sample VPC json file includes all the parameters currently available. The below is a summary of these parameters:
+
 VPC-VPCCIDR(required): The range of IPs available for the VPC in CIDR notation
 
 Subnets(required): The number of subnets is variable, but the DEFAULT and PUBLIC subnets are required and should not be touched
+
 Subnets-SubnetName(required): The name of the subnet (no spaces allowed)
+
 Subnets-SubnetCIDR(required): The IP range for the subnet in CIDR notation
+
 Subnets-SecurityGroup(required): "yes" or "no" as to whether this subnet have an equivalently named Security group controlling it's inbound and outbound traffic
+
 Subnets-RoutingTable(required): "DEFAULT" or "PUBLIC" - all subnets other than the PUBLIC, should use the DEFAULT routing table
 
 PossibleInstanceNames(required): The number of PossibleInstanceNames is variable, but at least one must exist. This is necessary to allow the AWSVPCB.VPC.REGISTER script to re-calibrate the scripts registry with what exists in AWS. Simply list the possible instance names that may exist in any assignment to be used with this VPC.
@@ -87,8 +92,11 @@ PossibleELBs(required): The number of PossibleELBs is variable, but at least one
 DNSIPAddresses(required): This is a list of the IP addresses that will be defined in the AWS Route 53 resolver (DNS server). All AMIs should have these IPs in their config in order to appropriately resolve your private domain's DNS names to IPs.
 
 NATDefinition(required): This is unlikely to need to be changed as this is simply defined to allow Internet access from within the VPC.
+
 NATDefinition-IPAddress(required): IP address for the NAT instance.
+
 NATDefinition-Subnet(required): Subnet for the NAT instance.
+
 NATDefinition-AMI: AMI (AWS Machine Image) for the NAT instance.
 #
 #
@@ -96,37 +104,63 @@ NATDefinition-AMI: AMI (AWS Machine Image) for the NAT instance.
 ASSIGNMENT MANIFEST JSON FILES
 #
 The awsvpcb-scripts.zip file includes sample assignment json configuration files in the "secfiles/assignment#" directories (#=1-3). AWSVPCB allows for the definition of multiple assignments (there is no default). Assignments can be created, started, stopped and destoyed. Starting and stopping an assignment preserves all changes made. The option to start and stop an assignment is necessary to allow a student to step away and not unnecessarily use up their allotted AWS credits. The 3 sample assignment json files include all the parameters currently available. Some of these parameters are optional.  The below is a summary of these parameters:
+
 Instances(required): The number of instances is variable, but at least one must exist
+
 Instances-InstanceName(required): The name of the instance (no spaces allowed)
+
 Instances-InstanceIP(required): The IP address for this instance.  Must be within the IP range of the subnet
+
 Instances-InstanceSubnet(required): The subnet for the instance. Must be a subnet defined in the VPC.json file
+
 Instances-InstanceAMI(required): The AMI (AWS Machine Image) for this instance. If the AMI is private, then it must be shared with the student's AWS account
+
 Instances-InstanceType(required): The type/size of the instance. While anything can be chosen here, please be aware that only type t2.micro is currently covered by the AWS "free tier", which allows for many more hours of usage without chewing up a lot of AWS credits.
+
 Instances-StartPreference(optional): Although this can be used for any purpose, it is only necessary for the server that executes the Havoc Circus service and should be set to "first" ("last" is also an available option, but will cause problems if used for the instance running the Havoc Circus service)
+
 Instances-StopPreference(optional): Although this can be used for any purpose, it is only necessary for the server that executes the Havoc Circus service and should be set to "last" ("first" is also an available option, but will cause problems if used for the instance running the Havoc Circus service)
 
 FirewallRules(optional): Syntactically, Firewall Rules do not need to be provided and there is no limit as to how many are provided. However, if rules are not provided, then no access will be allowed into a security group, so generally at least one inbound and one outbound rule per security group is needed to make things functional.
+
 FirewallRules-SecurityGroup(required): The security group to which this particular firewall rule applies
+
 FirewallRules-RuleType(required): Must be "inbound" or "outbound"
+
 FirewallRules-Protocol(required): Can be "all", "udp", "tcp" or "icmp"
+
 FirewallRules-Port(required): Can be "all" or specific port number or port range with hyphen in between (e.g. "137-139")
+
 FirewallRules-SourceGroup(required): The source (for "inbound" rules) or destination (for "outbound" rules) for this firewall rule in CIDR notation 
 
 DNSEntriesFile(required): This is the location of the json file that includes the DNS entries to apply to Route 53 when the assignment is created.  The path is relative to the "secfiles" directory and/or the AWS S3 bucket where the manifest exists
 
 ELBs(optional): Only required if ELBs are defined.  NOTE: There is a log automatically created for each ELB within an S3Bucket within the student's AWS account that will include all the requests into that ELB (equivalent to a web access log). There is also a DNS entry automatically created for the ELB.
+
 ELBs-ELBName(required): The name of the ELB. There should be an SSL certificate (.crt file) and private key (.pkey file) in the "secfiles" directory with this name and the chosen domain appended (e.g. rainforest.awsvpcb.edu.crt and rainforest.awsvpcb.edu.pkey where rainforest is the ELBName and awsvpcb.edu is the DOMAIN).
+
 ELBs-ListenerProtocol(optional): The default is HTTPS. At this time, no other option is supported, although support for HTTP is being built to avoid need for certificates.
+
 ELBs-ListenerPort(optional): The default is 443. Any value recognized by AWS is accepted.
+
 ELBs-InstanceProtocol(optional): The default is HTTP. Any value recognized by AWS is accepted.
+
 ELBs-InstancePort(optional): The default is 80. Any value recognized by AWS is accepted.
+
 ELBs-ELBSubnet(optional): The default is ELB. The name chosen must be a valid subnet as defined in the VPC json file
+
 ELBs-HealthCheckTarget(optional): The default is TCP:80. This will be what AWS uses to validate that the target instances are active. Any value recognized by AWS is accepted.
+
 ELBs-HealthCheckInterval(optional): The default is 5. This indicates how often AWS will execute the Health Check (in secs). Any value recognized by AWS is accepted.
+
 ELBs-HealthCheckTimeout(optional): The default is 3. This indicates how long (in secs) before AWS considers a health check as timed out (failed). Any value recognized by AWS is accepted.
+
 ELBs-HealthCheckUnhealthyThreshold(optional): The default is 2. This indicates how many health checks must fail for the target instance to be taken out offline. Any value recognized by AWS is accepted.
+
 ELBs-HealthCheckHealthyThreshold(optinal): The default is 2. This indicates how many health checks must succeed for the target instance to be brought back online. Any value recognized by AWS is accepted.
+
 ELBs-ELBInstances(required): The number of instances is variable, but at least one instance is required.
+
 ELBs-ELBInstances-InstanceName(required): The name of a target instance for the ELB.  Must be an instance defined in the assignment.
 #
 #
@@ -202,4 +236,3 @@ NEXT STEPS FOR YOUR COURSE
 7) CREATE instructions for students to create their own AWS account
 8) PROVIDE AWS credits and preferably a shared/University controlled Linux server from which the students can run the AWS CLI client
 9) IF USING CUSTOM/PRIVATE AMIs, the grant access to students’ AWS accounts
-
