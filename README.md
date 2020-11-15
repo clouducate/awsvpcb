@@ -8,17 +8,17 @@ STRUCTURE OF AWSVPCB
 #
 The AWSVPCB scripts require a specific directory structure. You can simply download the awsvpcb-scripts.zip file to install this directory structure to get started. The following is an explanation of the directories:
 1) Root directory of the scripts - All the scripts that are meant to be executed by the students reside in this directory and are all fully CAPITALIZED. All the other directories are support directories relevant to the instructor, but not to the students. The root directory also includes the the vpcb-config file which provides for a few configuration settings for the scripts.
-2) The "procs" directory includes all of the detail code for the scripts as well as some dynamic variable files that start off empty, but are modified as the scripts execute and load the json files as well as build the AWS components.  All "code" resides in this directory and the root directory.
+2) The "procs" directory includes all of the detail code for the scripts as well as some dynamic variable files (collectively called the registry) that start off empty, but are modified as the scripts load the json files and build out the AWS components.  All "code" resides in this directory and the root directory.
 3) The "secfiles" directory includes all the supporting information like:
-  - The certificates used by the load balancers
-  - The certificates used by the VPN
+  - The certificates and private keys used by the load balancers
+  - The certificates and private leys used by the VPN (client & server side)
   - The private key used for the AWS instances
   - The certificate authority certificate for all the above
   - The passwords for all of the instances so that the students can login
   - The password for the database so the that students can login
-  - The dynamically generated OVPN file for the students to inmport into their PC for VPN connectivity
+  - The dynamically generated OVPN file for the students to import into their PC for VPN connectivity
   - The dynamic json files and templates used to create and save DNS entries
-  - The downloaded VPC and Assignment-level json files used to build the VPC(s) and assignments
+  - The downloaded VPC and Assignment-level json files used to build the VPC(s) and assignments (these are in sub-directories)
  4) The "tempfiles" directory includes temporary dynamically generated files
  5) The "logs" directory includes all of the output for all the scripts run 
 #
@@ -178,21 +178,22 @@ The below "GETTING STARTED - POC TEST" section will use the default awsvpcb-scri
 #
 #
 GETTING STARTED - POC TEST
-1) CREATE TEST STUDENT AWS ACCOUNT - This will be where the VPC is created
-  - NOTE: Credit must be provided.  AWS credits should be obtained and added to this account to avoid unnecessary charges.  However, the charges for going through this POC are minimal (under $10) as long as everything is destroyed in the end and it is not kept up and running for hours.
+1) CREATE TEST STUDENT AWS ACCOUNT - This will be where the VPC is created 
+  - NOTE: At this time, this cannot be an AWS Educate Starter account as such accounts do not support VPN connectivity
+  - NOTE: Credit card must be provided.  AWS credits should be obtained and added to this account to avoid unnecessary charges.  However, the charges for going through this POC are minimal (under $10) as long as everything is destroyed in the end and it is not kept up and running for hours.
 2) DECIDE which PC you are planning to use to access your VPC (Linux, MAC or Windows)
 3) INSTALL OPENVPN - This will be used later when the OVPN file is created
   - ON MAC: OpenVPN Connect version 3.1 or higher from the MAC App Store 
   - ON WINDOWS: https://www.ovpn.com/en/guides/windows-openvpn-gui 
 4) DECIDE where you are going to run the scripts (must be a Linux or MAC machine) - if using MAC or Linux for the PC where OpenVPN is installed, then it can be the same machine.
-5) INSTALL the AWS CLI (version 2) on the chosen machine - follow instructions provided by AWS (https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2.html) and test with following command to make sure you have the proper access: aws ec2 describe-instances
+5) INSTALL the AWS CLI (version 2) on the chosen machine where the scripts will run - follow instructions provided by AWS (https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2.html) and test with following command to make sure you have the proper access: aws ec2 describe-instances
 6) DOWNLOAD & EXTRACT the awsvpcb-scripts file onto the machine where the AWS CLI is installed 
 7) CD to the root of awsvpcb-scripts directory
 6) RUN ./AWSVPCB.CONFIGURE
 8) RUN ./AWSVPCB.VPC.CREATE
-9) IF NECESSARY, DOWNLOAD the AWSVPCB-client-config.ovpn file created in the "secfiles" directory to the PC you installed the OpenVPN client
+9) IF NECESSARY, DOWNLOAD the AWSVPCB-client-config.ovpn file created in the "secfiles" directory by the AWSVPCB.VPC.CREATE script to the PC where you installed the OpenVPN client.  If the scripts reside on the same machine, then this is unnecessary.
 10) IMPORT the AWSVPCB-client-config.ovpn into the OpenVPN client
-11) IF NECESSARY, DOWNLOAD the ca.crt file in the "secfiles" directory to the PC you installed the OpenVPN client
+11) IF NECESSARY, DOWNLOAD the ca.crt file in the "secfiles" directory to the PC you installed the OpenVPN client. Again, if the scripts reside on the same machine, then this is unnecessary.
 12) ADD the ca.crt root certificate to the trusted store on your PC (Windows, MAC or Linux)
 13) IF NECESSARY, DOWNLOAD other support files from the "secfiles" directory to the PC including:
   - iis1.rdp, iis1.password, iis2.rdp, iis2.password, mssql.rdp, mssql.password, mssql.sa.password, privkey.ppk (if you plan to use putty), privkey.pem (if you plan to use SSH)
@@ -200,11 +201,11 @@ GETTING STARTED - POC TEST
 14) RUN ./AWSVPCB.ASSIGNMENT.START
 15) CONNECT with OpenVPN to your AWS VPC using the OVPN connection you just imported
 16) TEST the following:
-  - RDP to the iis1.awsvpcb.edu server using the iis1.rdp file in the "secfiles" directory
-  - RDP to the mssql.awsvpcb.edu server using the mssql.rdp file in the "secfiles" directory
+  - RDP to the iis1.awsvpcb.edu server using the iis1.rdp file in the "secfiles" directory.  If using a MAC for the VPN connectivity, then download Microsoft Remote Desktop 10 or higher from the MAC App Store.
+  - RDP to the mssql.awsvpcb.edu server using the mssql.rdp file in the "secfiles" directory. If using a MAC for the VPN connectivity, then download Microsoft Remote Desktop 10 or higher from the MAC App Store.
   - SSH to the linux1.awsvpcb.edu server using the privkey.pem file (password is hardcoded to cts4743) or use putty (need to add privkey.ppk to the definition - same password of cts4743)
-  - Use SSMS (Windows) or Azure Data Studio (MAC) to connect to the SQL Server instance onn mssql.awsvpcb.edu
-  - Use a browser to connect to http://myfiu.awsvpcb.edu and/or http://rainforest.awsvpcb.edu
+  - Use SSMS (Windows) or Azure Data Studio (MAC) to connect to the SQL Server instance on mssql.awsvpcb.edu
+  - Use a browser to connect to http://myfiu.awsvpcb.edu (assignments 2 & 3) and/or http://rainforest.awsvpcb.edu (assignments 1 & 3)
 17) RUN ./AWSVPCB.ASSIGNMENT.STOP  # this would only be necessary if you wanted to get back to this later, else you can run ./AWSVPCB.ASSIGNMENT.DESTROY
 #
 #
