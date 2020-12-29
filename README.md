@@ -159,6 +159,8 @@ ELBs-HealthCheckUnhealthyThreshold(optional): The default is 2. This indicates h
 
 ELBs-HealthCheckHealthyThreshold(optinal): The default is 2. This indicates how many health checks must succeed for the target instance to be brought back online. Any value recognized by AWS is accepted.
 
+ELBs-EnableSessionStickiness(optinal): The default is N for "no". This indicates whether the load balancer should enable cookie-based session stickiness such that sessions remain on the same backend server. N for "no" or Y for "yes" are accepted.
+
 ELBs-ELBInstances(required): The number of instances is variable, but at least one instance is required.
 
 ELBs-ELBInstances-InstanceName(required): The name of a target instance for the ELB.  Must be an instance defined in the assignment.
