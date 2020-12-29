@@ -13,7 +13,7 @@ do
       continue
    fi
 
-   $AWSCLI_HOME/procs/clicall "acm import-certificate --certificate file://$AWSCLI_HOME/secfiles/$c.$DOMAIN.crt --private-key file://$AWSCLI_HOME/secfiles/$c.$DOMAIN.key --certificate-chain file://$AWSCLI_HOME/secfiles/$VPN_CA_CERT" "$AWSCLI_HOME/tempfiles/create.clientvpnendpoint.1" "$AWSCLI_HOME/tempfiles/create.clientvpnendpoint.1.error"
+   $AWSCLI_HOME/procs/clicall "acm import-certificate --certificate fileb://$AWSCLI_HOME/secfiles/$c.$DOMAIN.crt --private-key fileb://$AWSCLI_HOME/secfiles/$c.$DOMAIN.key --certificate-chain fileb://$AWSCLI_HOME/secfiles/$VPN_CA_CERT" "$AWSCLI_HOME/tempfiles/create.clientvpnendpoint.1" "$AWSCLI_HOME/tempfiles/create.clientvpnendpoint.1.error"
    if [ $? -ne 0 ]; then
       $AWSCLI_HOME/procs/log "Error importing cert $c.$DOMAIN into AWS -  please capture any output, zip up entire directory and send to professor for review...."
       exit 1

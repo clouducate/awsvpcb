@@ -29,6 +29,9 @@ do
       echo "export AWSVPCB_${s}_SECGROUPID=$secgroupid" >> $AWSCLI_HOME/procs/aws-dynamic-vars
       $AWSCLI_HOME/procs/log "New secgroup $secgroupid created and registered - Tagging as $secgroup...."
       $AWSCLI_HOME/procs/clicall "ec2 create-tags --resources $secgroupid --tags Key=Name,Value=$secgroup" "$AWSCLI_HOME/tempfiles/create.subnets.3" "$AWSCLI_HOME/tempfiles/create.vpc.3.error"
+      if [ "$s" == "DEFAULT" ]; then
+         $AWSCLI_HOME/procs/clicall "ec2 revoke-security-group-ingress --group-id $secgroupid --protocol all --port all --source-group $secgroupid" "$AWSCLI_HOME/tempfiles/create.securitygroups.2" "$AWSCLI_HOME/tempfiles/create.securitygroups.2.error"
+      fi
    else
       $AWSCLI_HOME/procs/log "An error occurred creating security group $secgroup - please capture any output, zip up entire directory and send to professor for review....."
       exit 1

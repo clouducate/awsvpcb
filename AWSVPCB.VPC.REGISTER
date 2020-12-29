@@ -20,9 +20,10 @@ if [ $? -ne 0 ]; then
    exit 1
 fi
 if [ $answer -ne 0 ]; then
+   export ASSIGNMENT_NUM=$answer
    if [ "$MANIFEST_LOCATION" == "aws" ]; then
       $AWSCLI_HOME/procs/log "AWSVPCB Assignmnet Manifest to be pulled from AWS...."
-      $AWSCLI_HOME/procs/awsvpcb.configure.manifestassignmentawsdownload
+      $AWSCLI_HOME/procs/awsvpcb.configure.manifestassignmentawsdownload 
       if [ $? -ne 0 ]; then
          $AWSCLI_HOME/procs/log "Error downloading AWSVPCB Assignment Manifest from AWS...."
          $AWSCLI_HOME/procs/log "Load of assignment manifest failed - cancelling operations...."

@@ -3,7 +3,7 @@
 $AWSCLI_HOME/procs/log "Starting ELB create process...."
 
 input="$AWSCLI_HOME/tempfiles/assignment.ELBs"
-while read -r c protocol port iprotocol iport subnet target interval timeout uthreshold hthreshold
+while read -r c protocol port iprotocol iport subnet target interval timeout uthreshold hthreshold stickiness
 do
    if [ "$c" == "#" ]; then
       continue
@@ -42,6 +42,9 @@ do
    elif [ "$hthreshold" == "-"  ]; then
       $AWSCLI_HOME/procs/log "Warning with ELB definition - healthy threshold not provided - defaulting to 2...."
       hthreshold="2"
+   elif [ "$stickiness" == "-"  ]; then
+      $AWSCLI_HOME/procs/log "Warning with ELB definition - Session Stickinees not provided - defaulting to N...."
+      stickiness="N"
    elif [ "$protocol" == "" ]; then
       $AWSCLI_HOME/procs/log "ERROR with ELB definition - protocol missing - please capture any output, zip up entire directory and send to professor for review..."
       exit 1
@@ -70,6 +73,9 @@ do
       $AWSCLI_HOME/procs/log "Warning with ELB definition - unhealthy threshold missing - please capture any output, zip up entire directory and send to professor for review...."
       exit 1
    elif [ "$hthreshold" == ""  ]; then
+      $AWSCLI_HOME/procs/log "Warning with ELB definition - healthy threshold missing - please capture any output, zip up entire directory and send to professor for review...."
+      exit 1
+   elif [ "$stickiness" == ""  ]; then
       $AWSCLI_HOME/procs/log "Warning with ELB definition - healthy threshold missing - please capture any output, zip up entire directory and send to professor for review...."
       exit 1
    fi
@@ -130,5 +136,19 @@ do
    if [ $? -ne 0 ]; then
       $AWSCLI_HOME/procs/log "Error configuring ELB $cert in AWS -  please capture any output, zip up entire directory and send to professor for review...."
       exit 1
+   fi
+
+   if [ "$stickiness" = "y" -o "$stickiness" = "Y" ]; then
+      $AWSCLI_HOME/procs/clicall "elb create-lb-cookie-stickiness-policy --load-balancer-name $cert --policy-name Session_$cert" "$AWSCLI_HOME/tempfiles/start.assignment.elb.6" "$AWSCLI_HOME/tempfiles/start.assignment.elb.6.error"
+      if [ $? -ne 0 ]; then
+         $AWSCLI_HOME/procs/log "Error configuring ELB $cert in AWS -  please capture any output, zip up entire directory and send to professor for review...."
+         exit 1
+      fi
+
+      $AWSCLI_HOME/procs/clicall "elb set-load-balancer-policies-of-listener --load-balancer-name $cert --load-balancer-port $port --policy-names Session_$cert" "$AWSCLI_HOME/tempfiles/start.assignment.elb.7" "$AWSCLI_HOME/tempfiles/start.assignment.elb.7.error"
+      if [ $? -ne 0 ]; then
+         $AWSCLI_HOME/procs/log "Error configuring ELB $cert in AWS -  please capture any output, zip up entire directory and send to professor for review...."
+         exit 1
+      fi
    fi
 done < "$input"

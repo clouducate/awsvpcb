@@ -14,9 +14,9 @@ if [ "$keyname" != "" ]; then
    exit
 fi
 
-$AWSCLI_HOME/procs/clicall "ec2 import-key-pair --key-name $AWSVPCB_KEYPAIR --public-key-material file://$AWSCLI_HOME/secfiles/$AWSVPCB_KEYPAIR.pub" "$AWSCLI_HOME/tempfiles/create.keypair.1" "$AWSCLI_HOME/tempfiles/create.keypair.1.error"
+$AWSCLI_HOME/procs/clicall "ec2 import-key-pair --key-name $AWSVPCB_KEYPAIR --public-key-material fileb://$AWSCLI_HOME/secfiles/$AWSVPCB_KEYPAIR.pub" "$AWSCLI_HOME/tempfiles/create.keypair.2" "$AWSCLI_HOME/tempfiles/create.keypair.2.error"
 if [ $? -ne 0 ]; then
-   $AWSCLI_HOME/procs/log "Error importing Key Pair into AWS -  please capture any output, zip up entire directory and send to professor for review...."
+   $AWSCLI_HOME/procs/log "Error importing Key Pair $AWSVPCB_KEYPAIR into AWS -  please capture any output, zip up entire directory and send to professor for review...."
    exit 1
 fi
 $AWSCLI_HOME/procs/log "Key Pair $AWSVPCB_KEYPAIR imported into AWS...."

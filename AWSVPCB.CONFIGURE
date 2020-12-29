@@ -1,7 +1,6 @@
 # AWSVPCB Configuration script 
 #
 export SCRIPT=AWSVPCB.CONFIGURE
-. ./vpcb-config
 echo "Welcome to $COURSE!  We will be configuring the root directory for the scripts that will communicate with AWS and your current userid."
 AWSCLI_HOME=$PWD
 ID=`whoami`
