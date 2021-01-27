@@ -29,7 +29,7 @@ fi
 $AWSCLI_HOME/procs/log "Waiting for assignment $instance instance $instance_id to start - this may take a while...."
 running=0
 count=0
-while [ $count -le 90 ]; do
+while [ $count -le 180 ]; do
    $AWSCLI_HOME/procs/clicall "ec2 describe-instances --instance-id $instance_id" "$AWSCLI_HOME/tempfiles/start.assignment.instance.3" "$AWSCLI_HOME/tempfiles/start.assignment.instance.3.error"
    if [ $? -ne 0 ]; then
       $AWSCLI_HOME/procs/log "Error starting assignment instance $instance in AWS -  please capture any output, zip up entire directory and send to professor for review...."
@@ -58,7 +58,7 @@ if [ "$instance" == "IIS1" -o "$instance" == "IIS2" -o "$instance" == "MSSQL" ];
    fi
    $AWSCLI_HOME/procs/log "Waiting to acquire password for assignment $instance instance $instance_id - this may take several minutes...."
    count=0
-   while [ $count -le 60 ]; do
+   while [ $count -le 120 ]; do
       $AWSCLI_HOME/procs/clicall "ec2 get-password-data --instance-id  $instance_id --priv-launch-key $AWSCLI_HOME/secfiles/$AWSVPCB_KEYPAIR.u.pem" "$AWSCLI_HOME/tempfiles/start.assignment.instance.4" "$AWSCLI_HOME/tempfiles/start.assignment.instance.4.error"
       if [ $? -ne 0 ]; then
          $AWSCLI_HOME/procs/log "Error extracting password for instance $instance - manually acquire the password through the AWS console...."

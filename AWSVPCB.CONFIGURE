@@ -1,7 +1,6 @@
 # AWSVPCB Configuration script 
 #
 export SCRIPT=AWSVPCB.CONFIGURE
-echo "Welcome to $COURSE!  We will be configuring the root directory for the scripts that will communicate with AWS and your current userid."
 AWSCLI_HOME=$PWD
 ID=`whoami`
 USER_ID=`echo "$ID" | tr '[:upper:]' '[:lower:]'`
@@ -26,6 +25,7 @@ cat $AWSCLI_HOME/procs/aws-vpcb-vars.temp > $AWSCLI_HOME/procs/aws-vpcb-vars
 rm $AWSCLI_HOME/procs/aws-vpcb-vars.temp
 . ./vpcb-config
 
+$AWSCLI_HOME/procs/log "Welcome to $COURSE!  We will be configuring the root directory for the scripts that will communicate with AWS and your current userid."
 $AWSCLI_HOME/procs/log "Logging service disabled during AWSVPCB.CONFIGURE startup."
 $AWSCLI_HOME/procs/log "AWS CLI Scripts directory configured as $AWSCLI_HOME."
 $AWSCLI_HOME/procs/log "Local UserID configured as $USER_ID."

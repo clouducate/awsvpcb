@@ -20,7 +20,7 @@ do
    $AWSCLI_HOME/procs/log "Waiting for assignment $instance instance $instance_id to terminate so that the destroy can continue - this may take a while...."
    terminated=0
    count=0
-   while [ $count -le 60 ]; do
+   while [ $count -le 120 ]; do
       $AWSCLI_HOME/procs/clicall "ec2 describe-instances --instance-id $instance_id" "$AWSCLI_HOME/tempfiles/destroy.assignment.instance.2" "$AWSCLI_HOME/tempfiles/destroy.assignment.instance.2.error"
       if [ $? -ne 0 ]; then
          $AWSCLI_HOME/procs/log "Error terminating assignment $instance instance in AWS -  please capture any output, zip up entire directory and send to professor for review...."

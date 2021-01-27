@@ -31,7 +31,7 @@ if [ "$AWSVPCB_NAT_ID" != "" ]; then
    $AWSCLI_HOME/procs/log "Waiting for NAT instance $AWSVPCB_NAT_ID to start so that it can be stopped - this may take a while...."
    running=0
    count=0
-   while [ $count -le 90 ]; do
+   while [ $count -le 180 ]; do
       $AWSCLI_HOME/procs/clicall "ec2 describe-instances --instance-id $AWSVPCB_NAT_ID" "$AWSCLI_HOME/tempfiles/create.natinstance.4" "$AWSCLI_HOME/tempfiles/create.natinstance.4.error"
       if [ $? -ne 0 ]; then
          $AWSCLI_HOME/procs/log "Error stopping NAT instance in AWS -  please capture any output, zip up entire directory and send to professor for review...."
