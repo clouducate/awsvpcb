@@ -29,7 +29,7 @@ ASSIGNMENT_ELBS=
 while IFS= read -r line
 do
   open1=`tr -dc '{' <<<"$line" | wc -c`
-  let level=$level+$open1
+  let level=level+open1
   if [ $level -eq 2 ]; then
      if [[ $line == *"Instances"* ]]; then
         level2=Instances
@@ -109,8 +109,8 @@ do
   open2=`tr -dc '[' <<<"$line" | wc -c`
   close1=`tr -dc '}' <<<"$line" | wc -c`
   close2=`tr -dc ']' <<<"$line" | wc -c`
-  let level=$level+$open2
-  let level=$level-$close1-$close2
+  let level=level+open2
+  let level=level-close1-close2
   if [[ $level -eq 3 && $level3Switch -eq 1 ]]; then
      level3Switch=0
      if [[ "$level2" == "Instances" ]]; then

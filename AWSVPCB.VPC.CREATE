@@ -53,6 +53,7 @@ else
    fi
 fi
 
+. $AWSCLI_HOME/vpcb-config
 $AWSCLI_HOME/procs/awsvpcb.create.vpc
 if [ $? -ne 0 ]; then
    $AWSCLI_HOME/procs/log "VPC creation failed - cancelling operations...."

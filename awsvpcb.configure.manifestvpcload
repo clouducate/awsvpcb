@@ -15,10 +15,11 @@ POSSIBLE_ELBS=
 VPC_SUBNETS=
 VPC_SECURITYGROUPS=
 DNS_NUM=0
-while IFS= read -r line
+#while IFS= read -r line
+while read -r line
 do
   open1=`tr -dc '{' <<<"$line" | wc -c`
-  let level=$level+$open1
+  let level=level+open1
   if [ $level -eq 2 ]; then
      if [[ $line == *"VPC"* ]]; then
         level2=VPC
@@ -81,7 +82,7 @@ do
         POSSIBLE_ELB=`echo $line | cut -d"\"" -f4`
         POSSIBLE_ELBS=`echo $POSSIBLE_ELBS $POSSIBLE_ELB`
      elif [[ "$level2" == "DNSIPAddresses" && $line == *"IPAddress"* ]]; then
-        let DNS_NUM=$DNS_NUM+1
+        let DNS_NUM=DNS_NUM+1
         if [ $DNS_NUM -eq 1 ]; then
            DNS1_IP=`echo $line | cut -d"\"" -f4`
            echo "export DNS1_IP=$DNS1_IP" >> $output
@@ -94,8 +95,8 @@ do
   open2=`tr -dc '[' <<<"$line" | wc -c`
   close1=`tr -dc '}' <<<"$line" | wc -c`
   close2=`tr -dc ']' <<<"$line" | wc -c`
-  let level=$level+$open2
-  let level=$level-$close1-$close2
+  let level=level+open2
+  let level=level-close1-close2
   if [[ $level -eq 3 && $level3Switch -eq 1 ]]; then
      level3Switch=0
      if [[ "$level2" == "Subnets" ]]; then
