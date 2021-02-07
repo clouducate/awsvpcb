@@ -88,10 +88,10 @@ fi
 
 if [ $enable_logging -eq 1 ]; then
    $AWSCLI_HOME/procs/log "Logging service configured successfully.  Enabling logging service."
-   cat $AWSCLI_HOME/procs/aws-vpc-vars | grep -v LOGGING_SERVICE > $AWSCLI_HOME/procs/aws-vpc-vars.temp
-   echo "export LOGGING_SERVICE=ON" >> $AWSCLI_HOME/procs/aws-vpc-vars.temp
-   cat $AWSCLI_HOME/procs/aws-vpc-vars.temp > $AWSCLI_HOME/procs/aws-vpc-vars
-   rm $AWSCLI_HOME/procs/aws-vpc-vars.temp
+   cat $AWSCLI_HOME/procs/aws-vpcb-vars | grep -v LOGGING_SERVICE > $AWSCLI_HOME/procs/aws-vpcb-vars.temp
+   echo "export LOGGING_SERVICE=ON" >> $AWSCLI_HOME/procs/aws-vpcb-vars.temp
+   cat $AWSCLI_HOME/procs/aws-vpcb-vars.temp > $AWSCLI_HOME/procs/aws-vpcb-vars
+   rm $AWSCLI_HOME/procs/aws-vpcb-vars.temp
    $AWSCLI_HOME/procs/log "Logging service enabled."
 else
    $AWSCLI_HOME/procs/log "Logging service could not be configured.  This will not stop further work, but let your professor know."
