@@ -1,6 +1,6 @@
 . procs/aws-vpcb-vars
 export COURSE=CTS-4743
-export SEMESTER=$COURSE-Fall2020
+export SEMESTER=$COURSE-Spring2021
 export DOMAIN=awsvpcb.edu
 export AWSCMD=aws
 export ENABLE_AWS_LOGGING=no
@@ -8,14 +8,14 @@ export ENABLE_AWS_LOGGING=no
 export MANIFEST_LOCATION=aws
 #export MANIFEST_LOCATION=local
 
-export AWS_REGION=us-east-2
+export AWS_REGION=us-east-2                                                  #Only us-east-2 region is currently supported
 export AWS_AZ=us-east-2a
 
-#export LOGGING_ACCESS_KEY=                                                   #Only used if ENABLE_AWS_LOGGING=yes
-#export LOGGING_SECRET_KEY=                                                   #Only used if ENABLE_AWS_LOGGING=yes
-#export MANIFEST_ACCESS_KEY=                                                 #Only used if MANIFEST_LOCATION=aws 
-#export MANIFEST_SECRET_KEY=                                                 #Only used if MANIFEST_LOCATION=aws
-#export MANIFEST_S3BUCKET=manifest.awsvpcb.edu                               #Only used if MANIFEST_LOCATION=aws
+#export LOGGING_ACCESS_KEY=                                                  #Only used if ENABLE_AWS_LOGGING=yes
+#export LOGGING_SECRET_KEY=                                                  #Only used if ENABLE_AWS_LOGGING=yes
+export MANIFEST_ACCESS_KEY=AKIA2JUQXSCKF6OLZLON                              #Only used if MANIFEST_LOCATION=aws  
+export MANIFEST_SECRET_KEY=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          #Only used if MANIFEST_LOCATION=aws   
+export MANIFEST_S3BUCKET=public.awsvpcb.edu                                  #Only used if MANIFEST_LOCATION=aws
 
 . $AWSCLI_HOME/procs/aws-vpc-vars
 . $AWSCLI_HOME/procs/aws-assignment-vars
