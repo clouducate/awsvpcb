@@ -35,7 +35,7 @@ $AWSCLI_HOME/procs/log "Previous assignment deleted - beginning create of assign
 . $AWSCLI_HOME/vpcb-config
 
 if [ "$MANIFEST_LOCATION" == "aws" ]; then
-   $AWSCLI_HOME/procs/log "AWSVPCB Assignmnet Manifest to be pulled from AWS...."
+   $AWSCLI_HOME/procs/log "AWSVPCB Assignment Manifest to be pulled from AWS...."
    $AWSCLI_HOME/procs/awsvpcb.configure.manifestassignmentawsdownload
    if [ $? -ne 0 ]; then
       $AWSCLI_HOME/procs/log "Error downloading AWSVPCB Assignment Manifest from AWS...."

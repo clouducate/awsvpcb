@@ -55,7 +55,7 @@ if [ "$MANIFEST_LOCATION" == "aws" ]; then
          fi
       fi
    else
-      $AWSCLI_HOME/procs/log "AWSVPCB Assignmnet Manifest to be pulled from AWS...."
+      $AWSCLI_HOME/procs/log "AWSVPCB Assignment Manifest to be pulled from AWS...."
       $AWSCLI_HOME/procs/awsvpcb.configure.manifestassignmentawsdownload $manifest_num DISPLAY
       if [ $? -ne 0 ]; then
          $AWSCLI_HOME/procs/log "Error downloading AWSVPCB Assignment Manifest from AWS...."
