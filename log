@@ -51,8 +51,9 @@ if [ "$LOGGING_SERVICE" == "ON" ]; then
       echo "    \"message\": \"$SCRIPT -" "$message" "\"" >> $AWSCLI_HOME/tempfiles/logevent
       echo "   }" >> $AWSCLI_HOME/tempfiles/logevent
       echo "]" >> $AWSCLI_HOME/tempfiles/logevent
-      $AWSCLI_HOME/procs/clicall "logs put-log-events --log-group-name $SEMESTER --log-stream-name $LOGSTREAM --log-events file://$AWSCLI_HOME/tempfiles/logevent --sequence-token $nextSequenceToken --profile logging" "$AWSCLI_HOME/tempfiles/log.1" "$AWSCLI_HOME/tempfiles/log.1.error"
+      $AWSCLI_HOME/procs/clicall "logs put-log-events --log-group-name $SEMESTER --log-stream-name $LOGSTREAM --log-events file://$AWSCLI_HOME/tempfiles/logevent --sequence-token $nextSequenceToken --profile logging" "$AWSCLI_HOME/tempfiles/log.1" "$AWSCLI_HOME/tempfiles/log.1.error" NOLOG
       if [ $? -ne 0 ]; then
+         cat $AWSCLI_HOME/tempfiles/log.1.error
          error=`cat $AWSCLI_HOME/tempfiles/log.1.error`
          if [[ "$error" == *"InvalidSequenceTokenException"* ]]; then
             nextSequenceToken=`cat $AWSCLI_HOME/tempfiles/log.1.error | cut -f3 -d ":"`

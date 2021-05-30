@@ -12,14 +12,21 @@ if [ $? -ne 0 ]; then
    $AWSCLI_HOME/procs/log "Error deleting DNS records in private zone $DOMAIN in AWS -  please capture any output, zip up entire directory and send to professor for review...."
    exit 1
 fi
-$AWSCLI_HOME/procs/awsvpcb.stop.assignment.resourcerecords.makefile $AWSCLI_HOME/tempfiles/stop.assignment.route53-1.1
-$AWSCLI_HOME/procs/awsvpcb.start.assignment.resourcerecords.makefile $AWSCLI_HOME/tempfiles/stop.assignment.route53-1.1
-echo "export AWSVPCB_DNS_HISTORY=ON" >> $AWSCLI_HOME/procs/aws-dynamic-vars
-
-$AWSCLI_HOME/procs/clicall "route53 change-resource-record-sets --hosted-zone-id $AWSVPCB_DNS_HOSTZONEID --change-batch file://$AWSCLI_HOME/secfiles/route53-delete.json" "$AWSCLI_HOME/tempfiles/stop.assignment.route53-1.2" "$AWSCLI_HOME/tempfiles/stop.assignment.route53-1.2.error"
-if [ $? -ne 0 ]; then
-   $AWSCLI_HOME/procs/log "Error deleting DNS records in private zone $DOMAIN in AWS -  please capture any output, zip up entire directory and send to professor for review...."
-   exit 1
+test=`grep "\"A\"" $AWSCLI_HOME/tempfiles/stop.assignment.route53-1.1`
+if [ "$test" != "" ]; then
+   $AWSCLI_HOME/procs/awsvpcb.stop.assignment.resourcerecords.makefile $AWSCLI_HOME/tempfiles/stop.assignment.route53-1.1
+   $AWSCLI_HOME/procs/awsvpcb.start.assignment.resourcerecords.makefile $AWSCLI_HOME/tempfiles/stop.assignment.route53-1.1
+   cat $AWSCLI_HOME/procs/aws-dynamic-vars | grep -v AWSVPCB_DNS_HISTORY > $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp
+   cat $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp > $AWSCLI_HOME/procs/aws-dynamic-vars
+   echo "export AWSVPCB_DNS_HISTORY=ON" >> $AWSCLI_HOME/procs/aws-dynamic-vars
+   $AWSCLI_HOME/procs/clicall "route53 change-resource-record-sets --hosted-zone-id $AWSVPCB_DNS_HOSTZONEID --change-batch file://$AWSCLI_HOME/secfiles/route53-delete.json" "$AWSCLI_HOME/tempfiles/stop.assignment.route53-1.2" "$AWSCLI_HOME/tempfiles/stop.assignment.route53-1.2.error"
+   if [ $? -ne 0 ]; then
+      $AWSCLI_HOME/procs/log "Error deleting DNS records in private zone $DOMAIN in AWS -  please capture any output, zip up entire directory and send to professor for review...."
+      exit 1
+   fi
+else
+   cat $AWSCLI_HOME/procs/aws-dynamic-vars | grep -v AWSVPCB_DNS_HISTORY > $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp
+   cat $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp > $AWSCLI_HOME/procs/aws-dynamic-vars
 fi
 
 $AWSCLI_HOME/procs/clicall "route53 delete-hosted-zone --id $AWSVPCB_DNS_HOSTZONEID" "$AWSCLI_HOME/tempfiles/stop.assignment.route53-1.3" "$AWSCLI_HOME/tempfiles/stop.assignment.route53-1.3.error"

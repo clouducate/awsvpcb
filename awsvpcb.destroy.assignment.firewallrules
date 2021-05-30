@@ -14,103 +14,30 @@ do
          $AWSCLI_HOME/procs/log "Error 1 deleting firewall rules for security group $secgroup in AWS -  please capture any output, zip up entire directory and send to professor for review...."
          exit 1
       fi
-      input="$AWSCLI_HOME/tempfiles/destroy.assignment.firewallrules.3"
-      Rcounter=0
-      Rblock=0
-      IPcounter=0
-      IPblock=0
-      IPdone=0
-      while IFS= read -r line
-      do
-         if [[ $line == *"IpPermissions\""* || $line == *"IpPermissionsEgress\""* ]]; then
-            IPblock=1
-            if [[ $line == *"IpPermissionsEgress\""* ]]; then
-               RuleType=egress
-            else
-               RuleType=ingress
-            fi
+      $AWSCLI_HOME/procs/clicall "ec2 describe-security-groups --output json --group-ids $secgroupid --query SecurityGroups[0].IpPermissions" "$AWSCLI_HOME/tempfiles/destroy.assignment.firewallrules.4" "$AWSCLI_HOME/tempfiles/destroy.assignment.firewallrules.4.error"
+      if [ $? -ne 0 ]; then
+         $AWSCLI_HOME/procs/log "Error 2 deleting firewall rules for security group $secgroup in AWS -  please capture any output, zip up entire directory and send to professor for review...."
+         exit 1
+      fi
+      IPperms=
+      IPperms=`cat $AWSCLI_HOME/tempfiles/destroy.assignment.firewallrules.4`
+      if [[ "$IPperms" == *":"* ]]; then
+         $AWSCLI_HOME/procs/clicall "ec2 revoke-security-group-ingress --group-id $secgroupid --ip-permissions file://$AWSCLI_HOME/tempfiles/destroy.assignment.firewallrules.4" "$AWSCLI_HOME/tempfiles/destroy.assignment.firewallrules.5" "$AWSCLI_HOME/tempfiles/destroy.assignment.firewallrules.5.error"
+         if [ $? -ne 0 ]; then
+            $AWSCLI_HOME/procs/log "Error 3 deleting firewall rules for security group $secgroup in AWS -  please capture any output, zip up entire directory and send to professor for review...."
+            exit 1
          fi
-         if [[ $line == *"["* && $IPblock == 1 && $IPdone == 0 ]]; then
-            let IPcounter=IPcounter+1
+      fi
+      $AWSCLI_HOME/procs/clicall "ec2 describe-security-groups --output json --group-ids $secgroupid --query SecurityGroups[0].IpPermissionsEgress" "$AWSCLI_HOME/tempfiles/destroy.assignment.firewallrules.6" "$AWSCLI_HOME/tempfiles/destroy.assignment.firewallrules.6.error"
+      IPperms=
+      IPperms=`cat $AWSCLI_HOME/tempfiles/destroy.assignment.firewallrules.6`
+      if [[ "$IPperms" == *":"* ]]; then
+         $AWSCLI_HOME/procs/clicall "ec2 revoke-security-group-egress --group-id $secgroupid --ip-permissions file://$AWSCLI_HOME/tempfiles/destroy.assignment.firewallrules.6" "$AWSCLI_HOME/tempfiles/destroy.assignment.firewallrules.7" "$AWSCLI_HOME/tempfiles/destroy.assignment.firewallrules.7.error"
+         if [ $? -ne 0 ]; then
+            $AWSCLI_HOME/procs/log "Error 4 deleting firewall rules for security group $secgroup in AWS -  please capture any output, zip up entire directory and send to professor for review...."
+            exit 1
          fi
-         if [[ $line == *"]"* && $IPblock == 1 && $IPdone == 0 ]]; then
-            let IPcounter=IPcounter-1
-            if [ $IPcounter == 0 ]; then
-               IPblock=0
-               IPdone=1
-            fi
-         fi
-         if [[ $line == *"{"* && $IPblock == 1 ]]; then
-            if [ $Rblock == 0 ]; then
-               Rblock=1
-               port="all"
-            fi
-            let Rcounter=Rcounter+1
-         fi
-         if [[ $line == *"}"* && $IPblock == 1 ]]; then
-            let Rcounter=Rcounter-1
-            if [ $Rcounter == 0 ]; then
-               Rblock=0
-               if [ "$protocol" != "" ]; then
-                  #$AWSCLI_HOME/procs/log "$c $cidr"
-                  for c in $cidr
-                  do
-                     if [[ "$Fport" == "$Tport" && "$Tport" != "" ]]; then
-                        port=$Tport
-                     elif [ "$Fport" != "" ]; then
-                        port=`echo $Fport"-"$Tport`
-                     fi
-                     if [ "$RuleType" == "ingress" ]; then
-                        $AWSCLI_HOME/procs/clicall "ec2 revoke-security-group-ingress --group-id $secgroupid --protocol $protocol --port $port --cidr $c" "$AWSCLI_HOME/tempfiles/destroy.assignment.firewallrules.4" "$AWSCLI_HOME/tempfiles/destroy.assignment.firewallrules.4.error"
-                        if [ $? -ne 0 ]; then
-                           $AWSCLI_HOME/procs/log "Error deleting inbound rules for security group $secgroup in AWS -  please capture any output, zip up entire directory and send to professor for review...."
-                           exit 1
-                        fi
-                     else
-                        $AWSCLI_HOME/procs/clicall "ec2 revoke-security-group-egress --group-id $secgroupid --protocol $protocol --port $port --cidr $c" "$AWSCLI_HOME/tempfiles/destroy.assignment.firewallrules.4" "$AWSCLI_HOME/tempfiles/destroy.assignment.firewallrules.4.error"
-                        if [ $? -ne 0 ]; then
-                           $AWSCLI_HOME/procs/log "Error deleting outbound rules for security group $secgroup in AWS -  please capture any output, zip up entire directory and send to professor for review...."
-                           exit 1
-                        fi
-                     fi
-                  done
-                  cidr=
-                  cidr1=
-                  port=
-                  Fport=
-                  Tport=
-               fi
-            fi
-         fi
-         if [[ $line == *"ToPort"* && $Rblock == 1 ]]; then
-            if [[ $line == *","* ]]; then
-               T1Tport=`echo $line | cut -f2 -d":" | cut -f1 -d","`
-               Tport="$(echo -e "${T1Tport}" | tr -d '[:space:]')"
-            else
-               T1Tport=`echo $line | cut -f2 -d":"`
-               Tport="$(echo -e "${T1Tport}" | tr -d '[:space:]')"
-            fi
-         elif [[ $line == *"FromPort"* && $Rblock == 1 ]]; then
-            if [[ $line == *","* ]]; then
-               T1Fport=`echo $line | cut -f2 -d":" | cut -f1 -d","`
-               Fport="$(echo -e "${T1Fport}" | tr -d '[:space:]')"
-            else
-               T1Fport=`echo $line | cut -f2 -d":"`
-               Fport="$(echo -e "${T1Fport}" | tr -d '[:space:]')"
-            fi
-         elif [[ $line == *"IpProtocol"* && $Rblock == 1 ]]; then
-            protocol=`echo $line | cut -f4 -d"\""`
-            if [ "$protocol" == "-1" ]; then
-               protocol="all"
-            fi
-         elif [[ $line == *"CidrIp"* && $Rblock == 1 ]]; then
-            cidr1=`echo $line | cut -f4 -d"\""`
-            cidr=`echo $cidr $cidr1`
-         elif [[ $line == *"GroupId"* && $Rblock == 1 ]]; then
-            cidr1=`echo $line | cut -f4 -d"\""`
-            cidr=`echo $cidr $cidr1`
-         fi
-      done < "$input"
+      fi
    else
       $AWSCLI_HOME/procs/log "Security group $secgroup not registered - moving on....."
       continue 
