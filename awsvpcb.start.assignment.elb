@@ -80,7 +80,7 @@ do
       exit 1
    fi
 
-   cert=AWS-VPCB-${c}
+   cert=AWSVPCB${c}
    certid_var=AWSVPCB_${c}_CERTID
    elb_var=AWSVPCB_${c}_ELBDNS
    elb_subnet_var=AWSVPCB_${subnet}_SUBNETID
@@ -139,13 +139,13 @@ do
    fi
 
    if [ "$stickiness" = "y" -o "$stickiness" = "Y" ]; then
-      $AWSCLI_HOME/procs/clicall "elb create-lb-cookie-stickiness-policy --load-balancer-name $cert --policy-name Session_$cert" "$AWSCLI_HOME/tempfiles/start.assignment.elb.6" "$AWSCLI_HOME/tempfiles/start.assignment.elb.6.error"
+      $AWSCLI_HOME/procs/clicall "elb create-lb-cookie-stickiness-policy --load-balancer-name $cert --policy-name Session$cert" "$AWSCLI_HOME/tempfiles/start.assignment.elb.6" "$AWSCLI_HOME/tempfiles/start.assignment.elb.6.error"
       if [ $? -ne 0 ]; then
          $AWSCLI_HOME/procs/log "Error configuring ELB $cert in AWS -  please capture any output, zip up entire directory and send to professor for review...."
          exit 1
       fi
 
-      $AWSCLI_HOME/procs/clicall "elb set-load-balancer-policies-of-listener --load-balancer-name $cert --load-balancer-port $port --policy-names Session_$cert" "$AWSCLI_HOME/tempfiles/start.assignment.elb.7" "$AWSCLI_HOME/tempfiles/start.assignment.elb.7.error"
+      $AWSCLI_HOME/procs/clicall "elb set-load-balancer-policies-of-listener --load-balancer-name $cert --load-balancer-port $port --policy-names Session$cert" "$AWSCLI_HOME/tempfiles/start.assignment.elb.7" "$AWSCLI_HOME/tempfiles/start.assignment.elb.7.error"
       if [ $? -ne 0 ]; then
          $AWSCLI_HOME/procs/log "Error configuring ELB $cert in AWS -  please capture any output, zip up entire directory and send to professor for review...."
          exit 1
