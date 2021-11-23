@@ -13,13 +13,6 @@ if [ $? -ne 0 ]; then
 fi 
 . $AWSCLI_HOME/vpcb-config
 
-$AWSCLI_HOME/procs/awsvpcb.start.assignment.clientvpnendpoint
-if [ $? -ne 0 ]; then
-   $AWSCLI_HOME/procs/log "Assignment start of Client VPN Endpoint association failed - cancelling operations...."
-   exit 1
-fi
-. $AWSCLI_HOME/vpcb-config
-
 $AWSCLI_HOME/procs/awsvpcb.start.assignment.route53-1
 if [ $? -ne 0 ]; then
    $AWSCLI_HOME/procs/log "Assignment start of Route 53 creation (phase 1) failed - cancelling operations...."
@@ -44,6 +37,13 @@ fi
 $AWSCLI_HOME/procs/awsvpcb.start.assignment.route53-2
 if [ $? -ne 0 ]; then
    $AWSCLI_HOME/procs/log "Assignment start of Route 53 inbound endpoint (phase 2) failed - cancelling operations...."
+   exit 1
+fi
+. $AWSCLI_HOME/vpcb-config
+
+$AWSCLI_HOME/procs/awsvpcb.start.assignment.clientvpnendpoint
+if [ $? -ne 0 ]; then
+   $AWSCLI_HOME/procs/log "Assignment start of Client VPN Endpoint association failed - cancelling operations...."
    exit 1
 fi
 . $AWSCLI_HOME/vpcb-config
