@@ -5,7 +5,7 @@ $AWSCLI_HOME/procs/log "Starting ELB delete process...."
 certs=$ASSIGNMENT_ELBS
 for c in $certs
 do
-   cert=AWS-VPCB-${c}
+   cert=AWSVPCB${c}
    elb_var=AWSVPCB_${c}_ELBDNS
    eval "elbdns=\${$elb_var}"
    if [ "$elbdns" == "" ]; then
