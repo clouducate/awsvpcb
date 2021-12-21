@@ -2,13 +2,13 @@
 #
 $AWSCLI_HOME/procs/log "Starting VPC security group destroy process...."
 
-secgroups="PUBLIC WEB DB ELB"
+secgroups=$VPC_SECURITYGROUPS
 for s in $secgroups
 do
    secgroup=AWS-VPCB-${s}
    secgroup_var=AWSVPCB_${s}_SECGROUPID
    eval "secgroupid=\${$secgroup_var}"
-   if [ "$secgroupid" != "" ]; then
+   if [ "$secgroupid" != "" -a "$s" != "DEFAULT" ]; then
       $AWSCLI_HOME/procs/clicall "ec2 delete-security-group --group-id $secgroupid" "$AWSCLI_HOME/tempfiles/destroy.securitygroups.1" "$AWSCLI_HOME/tempfiles/destroy.securitygroups.1.error"
       if [ $? -ne 0 ]; then
          $AWSCLI_HOME/procs/log "An error occurred deleting security group $secgroup - please capture any output, zip up entire directory and send to professor for review....."

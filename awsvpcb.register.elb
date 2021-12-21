@@ -6,13 +6,19 @@ certs=$POSSIBLE_ELBS
 for c in $certs
 do
    cert=AWSVPCB${c}
-   elb_var=AWSVPCB_${c}_ELBDNS
-   eval "elbdns=\${$elb_var}"
-   if [ "$elbdns" != "" ]; then
+   elb_vararn=AWSVPCB_${c}_ELBARN
+   elb_vardns=AWSVPCB_${c}_ELBDNS
+   tg_vararn=AWSVPCB_${c}_TARGETGROUPARN
+   eval "elbarn=\${$elb_vararn}"
+   eval "elbdns=\${$elb_vardns}"
+   eval "tgarn=\${$tg_vararn}"
+   if [ "$elbarn" != "" ]; then
       $AWSCLI_HOME/procs/log "ELB $cert registered - checking if it exists...."
-      $AWSCLI_HOME/procs/clicall "elb describe-load-balancers --load-balancer-names $cert" "$AWSCLI_HOME/tempfiles/register.elb.1" "$AWSCLI_HOME/tempfiles/register.elb.1.error"
+      $AWSCLI_HOME/procs/clicall "elbv2 describe-load-balancers --load-balancer-arns $elbarn" "$AWSCLI_HOME/tempfiles/register.elb.1" "$AWSCLI_HOME/tempfiles/register.elb.1.error"
       if [ $? -ne 0 ]; then
          cat $AWSCLI_HOME/procs/aws-dynamic-vars | grep -v $elbdns > $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp
+         cat $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp > $AWSCLI_HOME/procs/aws-dynamic-vars
+         cat $AWSCLI_HOME/procs/aws-dynamic-vars | grep -v $elbarn > $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp
          cat $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp > $AWSCLI_HOME/procs/aws-dynamic-vars
          $AWSCLI_HOME/procs/log "ELB $cert not found in AWS - unregistered it...."
       else
@@ -23,23 +29,64 @@ do
          else
             cat $AWSCLI_HOME/procs/aws-dynamic-vars | grep -v $elbdns > $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp
             cat $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp > $AWSCLI_HOME/procs/aws-dynamic-vars
+            cat $AWSCLI_HOME/procs/aws-dynamic-vars | grep -v $elbarn > $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp
+            cat $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp > $AWSCLI_HOME/procs/aws-dynamic-vars
             $AWSCLI_HOME/procs/log "ELB $cert not found in AWS - unregistered it...."
          fi
       fi
    else
-      $AWSCLI_HOME/procs/clicall "elb describe-load-balancers --load-balancer-names $cert" "$AWSCLI_HOME/tempfiles/register.elb.2" "$AWSCLI_HOME/tempfiles/register.elb.2.error"
+      $AWSCLI_HOME/procs/clicall "elbv2 describe-load-balancers --names $cert" "$AWSCLI_HOME/tempfiles/register.elb.2" "$AWSCLI_HOME/tempfiles/register.elb.2.error"
       if [ $? -ne 0 ]; then
          $AWSCLI_HOME/procs/log "ELB $cert not found in AWS - moving on...."
-         continue
-      fi
-      export json=`cat $AWSCLI_HOME/tempfiles/register.elb.2`
-      export elbdns=`$AWSCLI_HOME/procs/json-read "DNSName:"`
-      if [ "$elbdns" != "" ]; then
-         echo "export AWSVPCB_${c}_ELBDNS=$elbdns" >> $AWSCLI_HOME/procs/aws-dynamic-vars
-         $AWSCLI_HOME/procs/log "ELB $cert found in AWS and registered...."
-      else
-         $AWSCLI_HOME/procs/log "No ELB found in AWS for $cert - moving on...."
+      else 
+         export json=`cat $AWSCLI_HOME/tempfiles/register.elb.2`
+         export elbdns=`$AWSCLI_HOME/procs/json-read "DNSName:"`
+         if [ "$elbdns" != "" ]; then
+            echo "export AWSVPCB_${c}_ELBDNS=$elbdns" >> $AWSCLI_HOME/procs/aws-dynamic-vars
+            $AWSCLI_HOME/procs/log "ELB $cert found in AWS and registered...."
+            export elbarn=`$AWSCLI_HOME/procs/json-read "LoadBalancerArn:"`
+            if [ "$elbarn" != "" ]; then
+               echo "export AWSVPCB_${c}_ELBARN=$elbarn" >> $AWSCLI_HOME/procs/aws-dynamic-vars
+            fi
+         else
+            $AWSCLI_HOME/procs/log "No ELB found in AWS for $cert - moving on...."
+         fi
       fi
    fi
+
+   if [ "$tgarn" != "" ]; then
+      $AWSCLI_HOME/procs/log "TARGET GROUP $cert registered - checking if it exists...."
+      $AWSCLI_HOME/procs/clicall "elbv2 describe-target-groups --target-group-arns $tgarn" "$AWSCLI_HOME/tempfiles/register.elb.3" "$AWSCLI_HOME/tempfiles/register.elb.3.error"
+      if [ $? -ne 0 ]; then
+         cat $AWSCLI_HOME/procs/aws-dynamic-vars | grep -v $tgarn > $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp
+         cat $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp > $AWSCLI_HOME/procs/aws-dynamic-vars
+         $AWSCLI_HOME/procs/log "TARGET GROUP $cert not found in AWS - unregistered it...."
+      else
+         export json=`cat $AWSCLI_HOME/tempfiles/register.elb.3`
+         export test=`$AWSCLI_HOME/procs/json-read "TargetGroupArn:"`
+         if [ "$test" != "" ]; then
+            $AWSCLI_HOME/procs/log "TARGET GROUP $cert found in AWS - moving on...."
+         else
+            cat $AWSCLI_HOME/procs/aws-dynamic-vars | grep -v $tgarn > $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp
+            cat $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp > $AWSCLI_HOME/procs/aws-dynamic-vars
+            $AWSCLI_HOME/procs/log "TARGET GROUP $cert not found in AWS - unregistered it...."
+         fi
+      fi
+   else
+      $AWSCLI_HOME/procs/clicall "elbv2 describe-target-groups --names $cert" "$AWSCLI_HOME/tempfiles/register.elb.4" "$AWSCLI_HOME/tempfiles/register.elb.4.error"
+      if [ $? -ne 0 ]; then
+         $AWSCLI_HOME/procs/log "TARGET GROUP $cert not found in AWS - moving on...."
+         continue
+      fi
+      export json=`cat $AWSCLI_HOME/tempfiles/register.elb.4`
+      export tgarn=`$AWSCLI_HOME/procs/json-read "TargetGroupArn:"`
+      if [ "$tgarn" != "" ]; then
+         echo "export AWSVPCB_${c}_TARGETGROUPARN=$tgarn" >> $AWSCLI_HOME/procs/aws-dynamic-vars
+         $AWSCLI_HOME/procs/log "TARGET GROUP $cert found in AWS and registered...."
+      else
+         $AWSCLI_HOME/procs/log "No TARGET GROUP found in AWS for $cert - moving on...."
+      fi
+   fi
+
 done
 

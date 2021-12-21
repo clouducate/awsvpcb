@@ -57,6 +57,8 @@ do
         L4INSTANCESUBNET=`echo $line | cut -d"\"" -f4`
      elif [[ "$level2" == "Instances" && $line == *"InstanceAMI"* ]]; then
         L4INSTANCEAMI=`echo $line | cut -d"\"" -f4`
+     elif [[ "$level2" == "Instances" && $line == *"InstanceSecGroup"* ]]; then
+        L4INSTANCESECGROUP=`echo $line | cut -d"\"" -f4`
      elif [[ "$level2" == "Instances" && $line == *"InstanceType"* ]]; then
         L4INSTANCETYPE=`echo $line | cut -d"\"" -f4`
      elif [[ "$level2" == "Instances" && $line == *"StartPreference"* ]]; then
@@ -83,10 +85,14 @@ do
         L4ELBINSTANCEPROTOCOL=`echo $line | cut -d"\"" -f4`
      elif [[ "$level2" == "ELBs" && $line == *"InstancePort"* ]]; then
         L4ELBINSTANCEPORT=`echo $line | cut -d"\"" -f4`
-     elif [[ "$level2" == "ELBs" && $line == *"ELBSubnet"* ]]; then
-        L4ELBSUBNET=`echo $line | cut -d"\"" -f4`
-     elif [[ "$level2" == "ELBs" && $line == *"HealthCheckTarget"* ]]; then
-        L4ELBHEALTHCHECKTARGET=`echo $line | cut -d"\"" -f4`
+     elif [[ "$level2" == "ELBs" && $line == *"ELBSecGroupName"* ]]; then
+        L4ELBSECGROUP=`echo $line | cut -d"\"" -f4`
+     elif [[ "$level2" == "ELBs" && $line == *"HealthCheckTargetProtocol"* ]]; then
+        L4ELBHEALTHCHECKTARGETPROTOCOL=`echo $line | cut -d"\"" -f4`
+     elif [[ "$level2" == "ELBs" && $line == *"HealthCheckTargetPort"* ]]; then
+        L4ELBHEALTHCHECKTARGETPORT=`echo $line | cut -d"\"" -f4`
+     elif [[ "$level2" == "ELBs" && $line == *"HealthCheckTargetPath"* ]]; then
+        L4ELBHEALTHCHECKTARGETPATH=`echo $line | cut -d"\"" -f4`
      elif [[ "$level2" == "ELBs" && $line == *"HealthCheckInterval"* ]]; then
         L4ELBHEALTHCHECKINTERVAL=`echo $line | cut -d"\"" -f4`
      elif [[ "$level2" == "ELBs" && $line == *"HealthCheckTimeout"* ]]; then
@@ -97,11 +103,17 @@ do
         L4ELBHEALTHCHECKHEALTHYTHRESHOLD=`echo $line | cut -d"\"" -f4`
      elif [[ "$level2" == "ELBs" && $line == *"EnableSessionStickiness"* ]]; then
         L4ELBENABLESESSIONSTICKINESS=`echo $line | cut -d"\"" -f4`
+     elif [[ "$level2" == "ELBs" && $line == *"ELBSubnets"* ]]; then
+        level4=ELBSubnets
      elif [[ "$level2" == "ELBs" && $line == *"ELBInstances"* ]]; then
         level4=ELBInstances
      fi
-  elif [ $level -eq 6 ]; then
-     if [[ "$level2" == "ELBs" && $line == *"InstanceName"* ]]; then
+  elif [[ $level -eq 6 && "$level2" == "ELBs" ]]; then
+     if [[ "$level4" == "ELBSubnets" && $line == *"SubnetName"* ]]; then
+        L6SUBNET=`echo $line | cut -d"\"" -f4`
+        echo $L6SUBNET >> tempfiles/assignment.elb.$L4ELBNAME.subnets
+     fi
+     if [[ "$level4" == "ELBInstances" && $line == *"InstanceName"* ]]; then
         L6INSTANCE=`echo $line | cut -d"\"" -f4`
         echo $L6INSTANCE >> tempfiles/assignment.elb.$L4ELBNAME.instances
      fi
@@ -125,7 +137,7 @@ do
        eval "instance_subnet_id=\${$var2}"
        echo "export $var=$instance_subnet_id" >> $output
        var=${L4INSTANCE}_SECGROUP
-       var2=AWSVPCB_${L4INSTANCESUBNET}_SECGROUPID
+       var2=AWSVPCB_${L4INSTANCESECGROUP}_SECGROUPID
        eval "instance_secgroup_id=\${$var2}"
        echo "export $var=$instance_secgroup_id" >> $output
        if [[ "$L4STARTPREFERENCE" == "first" ]]; then
@@ -146,7 +158,7 @@ do
         echo "$L4FWSECURITYGROUP $L4FWTYPE $L4FWPROTOCOL $L4FWPORT $L4FWSOURCEGROUP" >> $FWoutput
      elif [[ "$level2" == "ELBs" ]]; then
         ASSIGNMENT_ELBS=`echo $ASSIGNMENT_ELBS $L4ELBNAME`
-        echo "$L4ELBNAME $L4ELBLISTENERPROTOCOL $L4ELBLISTENERPORT $L4ELBINSTANCEPROTOCOL $L4ELBINSTANCEPORT $L4ELBSUBNET $L4ELBHEALTHCHECKTARGET $L4ELBHEALTHCHECKINTERVAL $L4ELBHEALTHCHECKTIMEOUT $L4ELBHEALTHCHECKUNHEALTHYTHRESHOLD $L4ELBHEALTHCHECKHEALTHYTHRESHOLD $L4ELBENABLESESSIONSTICKINESS" >> $ELBoutput
+        echo "$L4ELBNAME $L4ELBLISTENERPROTOCOL $L4ELBLISTENERPORT $L4ELBINSTANCEPROTOCOL $L4ELBINSTANCEPORT $L4ELBSECGROUP $L4ELBHEALTHCHECKTARGETPROTOCOL $L4ELBHEALTHCHECKTARGETPORT $L4ELBHEALTHCHECKTARGETPATH $L4ELBHEALTHCHECKINTERVAL $L4ELBHEALTHCHECKTIMEOUT $L4ELBHEALTHCHECKUNHEALTHYTHRESHOLD $L4ELBHEALTHCHECKHEALTHYTHRESHOLD $L4ELBENABLESESSIONSTICKINESS" >> $ELBoutput
      fi 
      . $AWSCLI_HOME/procs/awsvpcb.configure.clearassignmentmanifestvars
   fi

@@ -2,7 +2,7 @@
 #
 $AWSCLI_HOME/procs/log "Starting VPC subnet destroy process...."
 
-subnets="PUBLIC CLIENTVPN DEFAULT WEB DB ELB"
+subnets=$VPC_SUBNETS
 for s in $subnets
 do
    subnet=AWS-VPCB-${s}

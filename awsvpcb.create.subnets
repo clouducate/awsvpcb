@@ -8,13 +8,18 @@ do
    subnet=AWS-VPCB-${s}
    subnetid_var=AWSVPCB_${s}_SUBNETID
    subnet_cidr_var=VPC_${s}_CIDR
+   subnet_az_var=VPC_${s}_AZ
    eval "subnet_cidr=\${$subnet_cidr_var}"
    eval "subnetid=\${$subnetid_var}"
+   eval "subnet_az=\${$subnet_az_var}"
    if [ "$subnetid" != "" ]; then 
       $AWSCLI_HOME/procs/log "Subnet $subnet already registered as $subnetid - moving on (if subnet was deleted, then run AWSVPCB.VPC.REGISTER)...."
       continue
    fi
-   $AWSCLI_HOME/procs/clicall "ec2 create-subnet --availability-zone $AWS_AZ --cidr-block $subnet_cidr --vpc-id $AWSVPCB_VPCID" "$AWSCLI_HOME/tempfiles/create.subnets.1" "$AWSCLI_HOME/tempfiles/create.subnets.1.error"
+   if [ "$subnet_az" = "" ]; then 
+      subnet_az=$PRIMARY_AWS_AZ
+   fi
+   $AWSCLI_HOME/procs/clicall "ec2 create-subnet --availability-zone $subnet_az --cidr-block $subnet_cidr --vpc-id $AWSVPCB_VPCID" "$AWSCLI_HOME/tempfiles/create.subnets.1" "$AWSCLI_HOME/tempfiles/create.subnets.1.error"
    if [ $? -ne 0 ]; then
       $AWSCLI_HOME/procs/log "Error creating subnet $subnet in AWS -  please capture any output, zip up entire directory and send to professor for review...."
       exit 1

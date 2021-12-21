@@ -6,19 +6,40 @@ certs=$ASSIGNMENT_ELBS
 for c in $certs
 do
    cert=AWSVPCB${c}
-   elb_var=AWSVPCB_${c}_ELBDNS
-   eval "elbdns=\${$elb_var}"
+   elb_vardns=AWSVPCB_${c}_ELBDNS
+   elb_vararn=AWSVPCB_${c}_ELBARN
+   tg_vararn=AWSVPCB_${c}_TARGETGROUPARN
+   eval "elbdns=\${$elb_vardns}"
+   eval "elbarn=\${$elb_vararn}"
+   eval "tgarn=\${$tg_vararn}"
    if [ "$elbdns" == "" ]; then
       $AWSCLI_HOME/procs/log "ELB $cert not registered - moving on (if ELB exists, then run AWSVPCB.VPC.REGISTER)...."
-      continue
    else
-      $AWSCLI_HOME/procs/clicall "elb delete-load-balancer --load-balancer-name $cert" "$AWSCLI_HOME/tempfiles/stop.assignment.elb.1" "$AWSCLI_HOME/tempfiles/stop.assignment.elb.1.error"
+      $AWSCLI_HOME/procs/clicall "elbv2 delete-load-balancer --load-balancer-arn $elbarn" "$AWSCLI_HOME/tempfiles/destroy.assignment.elb.1" "$AWSCLI_HOME/tempfiles/destroy.assignment.elb.1.error"
       if [ $? -ne 0 ]; then
          $AWSCLI_HOME/procs/log "Error deleting ELB $cert in AWS -  please capture any output, zip up entire directory and send to professor for review...."
          exit 1
       fi
-      cat $AWSCLI_HOME/procs/aws-dynamic-vars | grep -v $elb_var > $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp
+      cat $AWSCLI_HOME/procs/aws-dynamic-vars | grep -v $elb_vardns > $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp
+      cat $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp > $AWSCLI_HOME/procs/aws-dynamic-vars
+      cat $AWSCLI_HOME/procs/aws-dynamic-vars | grep -v $elb_vararn > $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp
       cat $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp > $AWSCLI_HOME/procs/aws-dynamic-vars
       $AWSCLI_HOME/procs/log "Deleted and unregistered ELB $cert...."
    fi
+
+   sleep 15
+
+   if [ "$tgarn" == "" ]; then
+      $AWSCLI_HOME/procs/log "TARGET GROUP $cert not registered - moving on (if TARGET GROUP exists, then run AWSVPCB.VPC.REGISTER)...."
+   else
+      $AWSCLI_HOME/procs/clicall "elbv2 delete-target-group --target-group-arn $tgarn" "$AWSCLI_HOME/tempfiles/destroy.assignment.elb.2" "$AWSCLI_HOME/tempfiles/destroy.assignment.elb.2.error"
+      if [ $? -ne 0 ]; then
+         $AWSCLI_HOME/procs/log "Error deleting TARGET GROUP $cert in AWS -  please capture any output, zip up entire directory and send to professor for review...."
+         exit 1
+      fi
+      cat $AWSCLI_HOME/procs/aws-dynamic-vars | grep -v $tg_vararn > $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp
+      cat $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp > $AWSCLI_HOME/procs/aws-dynamic-vars
+      $AWSCLI_HOME/procs/log "Deleted and unregistered TARGET GROUP $cert...."
+   fi
+
 done

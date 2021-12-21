@@ -73,6 +73,8 @@ do
         L4SUBNETCIDR=`echo $line | cut -d"\"" -f4`
      elif [[ "$level2" == "Subnets" && $line == *"SecurityGroup"* ]]; then
         L4SECURITYGROUP=`echo $line | cut -d"\"" -f4`
+     elif [[ "$level2" == "Subnets" && $line == *"AvailabilityZone"* ]]; then
+        L4AZ=`echo $line | cut -d"\"" -f4`
      elif [[ "$level2" == "Subnets" && $line == *"RoutingTable"* ]]; then
         L4SUBNETROUTINGTABLE=`echo $line | cut -d"\"" -f4`
      elif [[ "$level2" == "PossibleInstanceNames" && $line == *"InstanceName"* ]]; then
@@ -103,6 +105,10 @@ do
        VPC_SUBNETS=`echo $VPC_SUBNETS $L4SUBNET`
        var=VPC_${L4SUBNET}_CIDR
        echo "export $var=$L4SUBNETCIDR" >> $output
+       if [ "$L4AZ" != "" ]; then
+          var=VPC_${L4SUBNET}_AZ
+          echo "export $var=$L4AZ" >> $output
+       fi
        var=VPC_${L4SUBNET}_ROUTINGTABLE
        echo "export $var=$L4SUBNETROUTINGTABLE" >> $output
        if [ "$L4SECURITYGROUP" == "yes" ]; then
@@ -112,6 +118,7 @@ do
        L4SUBNETCIDR=
        L4SUBNETROUTINGTABLE=
        L4SECURITYGROUP=
+       L4AZ=
      fi
 #     echo "LEVEL="$level " " $level2 " " $line
   fi

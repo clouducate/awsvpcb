@@ -3,7 +3,7 @@
 $AWSCLI_HOME/procs/log "Starting ELB create process...."
 
 input="$AWSCLI_HOME/tempfiles/assignment.ELBs"
-while read -r c protocol port iprotocol iport subnet target interval timeout uthreshold hthreshold stickiness
+while read -r c protocol port iprotocol iport secgroup targetprotocol targetport targetpath interval timeout uthreshold hthreshold stickiness
 do
    if [ "$c" == "#" ]; then
       continue
@@ -24,12 +24,20 @@ do
    elif [ "$iport" == "-"  ]; then
       $AWSCLI_HOME/procs/log "Warning with ELB definition - instance port not provided - defaulting to 80...."
       port="80"
-   elif [ "$subnet" == "-"  ]; then
-      $AWSCLI_HOME/procs/log "Warning with ELB definition - subnet not provided - defaulting to ELB...."
-      subnet="ELB"
-   elif [ "$target" == "-"  ]; then
-      $AWSCLI_HOME/procs/log "Warning with ELB definition - target not provided - defaulting to TCP:80...."
-      target="TCP:80"
+   elif [ "$secgroup" == "-"  ]; then
+      $AWSCLI_HOME/procs/log "Warning with ELB definition - secgroup not provided - defaulting to ELB...."
+      secgroup="ELB"
+   elif [ "$targetprotocol" == "-"  ]; then
+      $AWSCLI_HOME/procs/log "Warning with ELB definition - target protocol not provided - defaulting to HTTP...."
+      targetprotocol="TCP"
+   elif [ "$targetport" == "-"  ]; then
+      $AWSCLI_HOME/procs/log "Warning with ELB definition - target port not provided - defaulting to 80...."
+      targetport="80"
+   elif [ "$targetpath" == "-"  ]; then
+      if [ "$targetprotocol" == "HTTP" -o "$targetprotocol" == "HTTPS" ]; then
+         $AWSCLI_HOME/procs/log "Warning with ELB definition - target path not provided - defaulting to /...."
+         targetpath="/"
+      fi
    elif [ "$interval" == "-"  ]; then
       $AWSCLI_HOME/procs/log "Warning with ELB definition - interval not provided - defaulting to 5...."
       interval="5"
@@ -57,11 +65,17 @@ do
    elif [ "$iport" == ""  ]; then
       $AWSCLI_HOME/procs/log "Warning with ELB definition - instance port missing - please capture any output, zip up entire directory and send to professor for review...."
       exit 1
-   elif [ "$subnet" == ""  ]; then
-      $AWSCLI_HOME/procs/log "Warning with ELB definition - subnet missing - please capture any output, zip up entire directory and send to professor for review...."
+   elif [ "$secgroup" == ""  ]; then
+      $AWSCLI_HOME/procs/log "Warning with ELB definition - secgroup missing - please capture any output, zip up entire directory and send to professor for review...."
       exit 1
-   elif [ "$target" == ""  ]; then
-      $AWSCLI_HOME/procs/log "Warning with ELB definition - target missing - please capture any output, zip up entire directory and send to professor for review...."
+   elif [ "$targetprotocol" == ""  ]; then
+      $AWSCLI_HOME/procs/log "Warning with ELB definition - target protocol missing - please capture any output, zip up entire directory and send to professor for review...."
+      exit 1
+   elif [ "$targetport" == ""  ]; then
+      $AWSCLI_HOME/procs/log "Warning with ELB definition - target port missing - please capture any output, zip up entire directory and send to professor for review...."
+      exit 1
+   elif [ "$targetpath" == ""  ]; then
+      $AWSCLI_HOME/procs/log "Warning with ELB definition - target path missing - please capture any output, zip up entire directory and send to professor for review...."
       exit 1
    elif [ "$interval" == ""  ]; then
       $AWSCLI_HOME/procs/log "Warning with ELB definition - interval missing - please capture any output, zip up entire directory and send to professor for review...."
@@ -83,11 +97,11 @@ do
    cert=AWSVPCB${c}
    certid_var=AWSVPCB_${c}_CERTID
    elb_var=AWSVPCB_${c}_ELBDNS
-   elb_subnet_var=AWSVPCB_${subnet}_SUBNETID
-   elb_secgroup_var=AWSVPCB_${subnet}_SECGROUPID
+   elb_arnvar=AWSVPCB_${c}_ELBARN
+   elb_secgroup_var=AWSVPCB_${secgroup}_SECGROUPID
    eval "elbdns=\${$elb_var}"
+   eval "elbarn=\${$elb_arnvar}"
    eval "certid=\${$certid_var}"
-   eval "subnetid=\${$elb_subnet_var}"
    eval "secgroupid=\${$elb_secgroup_var}"
    if [ "$elbdns" != "" ]; then
       $AWSCLI_HOME/procs/log "ELB $cert already registered - moving on (if certificate was deleted, then run AWSVPCB.VPC.REGISTER)...."
@@ -98,7 +112,16 @@ do
       exit 1
    fi
 
-   $AWSCLI_HOME/procs/clicall "elb create-load-balancer --load-balancer-name $cert --listeners Protocol=$protocol,LoadBalancerPort=$port,InstanceProtocol=$iprotocol,InstancePort=$iport,SSLCertificateId=$certid --subnets $subnetid --security-groups $secgroupid --scheme internal" "$AWSCLI_HOME/tempfiles/start.assignment.elb.1" "$AWSCLI_HOME/tempfiles/start.assignment.elb.1.error"
+   subnetids=
+   input2="$AWSCLI_HOME/tempfiles/assignment.elb.$c.subnets"
+   while read -r s
+   do
+      subnetid=
+      subnet_var=AWSVPCB_${s}_SUBNETID
+      eval "subnetid=\${$subnet_var}"
+      subnetids="$subnetids $subnetid"
+   done < "$input2"
+   $AWSCLI_HOME/procs/clicall "elbv2 create-load-balancer --name $cert --subnets $subnetids --security-groups $secgroupid --scheme internal" "$AWSCLI_HOME/tempfiles/start.assignment.elb.1" "$AWSCLI_HOME/tempfiles/start.assignment.elb.1.error"
    if [ $? -ne 0 ]; then
       $AWSCLI_HOME/procs/log "Error creating ELB $cert in AWS -  please capture any output, zip up entire directory and send to professor for review...."
       exit 1
@@ -112,43 +135,76 @@ do
       $AWSCLI_HOME/procs/log "Error creating ELB $cert in AWS  -  please capture any output, zip up entire directory and send to professor for review...."
       exit 1
    fi
+   export elbarn=`$AWSCLI_HOME/procs/json-read "LoadBalancerArn:"` 
+   if [ "$elbarn" != "" ]; then
+      echo "export AWSVPCB_${c}_ELBARN=$elbarn" >> $AWSCLI_HOME/procs/aws-dynamic-vars
+   else 
+      $AWSCLI_HOME/procs/log "Error finding ELB $cert ARN in AWS  -  please capture any output, zip up entire directory and send to professor for review...."
+      exit 1
+   fi
 
-   input2="$AWSCLI_HOME/tempfiles/assignment.elb.$c.instances"
+   if [ "$targetpath" == "-"  ]; then
+      healthcheckpath=" "
+   else 
+      healthcheckpath="--health-check-path $targetpath"
+   fi
+   $AWSCLI_HOME/procs/clicall "elbv2 create-target-group --name $cert --protocol $iprotocol --port $iport --vpc-id $AWSVPCB_VPCID --health-check-protocol $targetprotocol  --health-check-port $targetport --health-check-enabled $healthcheckpath --health-check-interval-seconds $interval --health-check-timeout-seconds $timeout --healthy-threshold-count $hthreshold --unhealthy-threshold-count $uthreshold" "$AWSCLI_HOME/tempfiles/start.assignment.elb.2" "$AWSCLI_HOME/tempfiles/start.assignment.elb.2.error"
+   if [ $? -ne 0 ]; then
+      $AWSCLI_HOME/procs/log "Error creating TARGET GROUP $cert in AWS -  please capture any output, zip up entire directory and send to professor for review...."
+      exit 1
+   fi
+   export json=`cat $AWSCLI_HOME/tempfiles/start.assignment.elb.2`
+   export targetgrouparn=`$AWSCLI_HOME/procs/json-read "TargetGroupArn:"` 
+   if [ "$targetgrouparn" != "" ]; then
+      echo "export AWSVPCB_${c}_TARGETGROUPARN=$targetgrouparn" >> $AWSCLI_HOME/procs/aws-dynamic-vars
+      $AWSCLI_HOME/procs/log "TARGET GROUP $cert created and registered...."
+   else 
+      $AWSCLI_HOME/procs/log "Error creating TARGET GROUP $cert in AWS  -  please capture any output, zip up entire directory and send to professor for review...."
+      exit 1
+   fi
+
+   input3="$AWSCLI_HOME/tempfiles/assignment.elb.$c.instances"
    while read -r i
    do
       instance_var=AWSVPCB_${i}_ID
       eval "instance=\${$instance_var}"
-      $AWSCLI_HOME/procs/clicall "elb register-instances-with-load-balancer --load-balancer-name $cert --instances $instance" "$AWSCLI_HOME/tempfiles/start.assignment.elb.2" "$AWSCLI_HOME/tempfiles/start.assignment.elb.2.error"
+      $AWSCLI_HOME/procs/clicall "elbv2 register-targets --target-group-arn $targetgrouparn --targets Id=$instance" "$AWSCLI_HOME/tempfiles/start.assignment.elb.3" "$AWSCLI_HOME/tempfiles/start.assignment.elb.3.error"
       if [ $? -ne 0 ]; then
-         $AWSCLI_HOME/procs/log "Error registering instances to ELB $cert in AWS -  please capture any output, zip up entire directory and send to professor for review...."
+         $AWSCLI_HOME/procs/log "Error registering instance $i with TARGET GROUP $cert in AWS -  please capture any output, zip up entire directory and send to professor for review...."
          exit 1
       fi
-   done < "$input2"
+   done < "$input3"
 
 
-   $AWSCLI_HOME/procs/clicall "elb configure-health-check --load-balancer-name $cert --health-check Target=$target,Interval=$interval,Timeout=$timeout,UnhealthyThreshold=$uthreshold,HealthyThreshold=$hthreshold" "$AWSCLI_HOME/tempfiles/start.assignment.elb.4" "$AWSCLI_HOME/tempfiles/start.assignment.elb.4.error"
+
+   $AWSCLI_HOME/procs/clicall "elbv2 create-listener --load-balancer-arn $elbarn --protocol $protocol --port $port --certificates CertificateArn=$certid --default-actions Type=forward,TargetGroupArn=$targetgrouparn" "$AWSCLI_HOME/tempfiles/start.assignment.elb.4" "$AWSCLI_HOME/tempfiles/start.assignment.elb.4.error"
    if [ $? -ne 0 ]; then
-      $AWSCLI_HOME/procs/log "Error setting up ELB $cert in AWS -  please capture any output, zip up entire directory and send to professor for review...."
+      $AWSCLI_HOME/procs/log "Error adding listener to ELB $cert in AWS -  please capture any output, zip up entire directory and send to professor for review...."
       exit 1
    fi
 
-   $AWSCLI_HOME/procs/clicall "elb modify-load-balancer-attributes --load-balancer-name $cert --load-balancer-attributes AccessLog={Enabled=true,S3BucketName=$AWSVPCB_S3BUCKET,EmitInterval=5}" "$AWSCLI_HOME/tempfiles/start.assignment.elb.5" "$AWSCLI_HOME/tempfiles/start.assignment.elb.5.error"
+   if [ "$port" != "80" ]; then 
+      $AWSCLI_HOME/procs/clicall "elbv2 create-listener --load-balancer-arn $elbarn --protocol HTTP --port 80 --default-actions Type=redirect,RedirectConfig={Protocol=$protocol,Port=$port,Host=$c.$DOMAIN,StatusCode=HTTP_302}" "$AWSCLI_HOME/tempfiles/start.assignment.elb.5" "$AWSCLI_HOME/tempfiles/start.assignment.elb.5.error"
+      if [ $? -ne 0 ]; then
+         $AWSCLI_HOME/procs/log "Error adding port 80 listener to ELB $cert in AWS -  please capture any output, zip up entire directory and send to professor for review...."
+         exit 1
+      fi
+   fi
+
+   if [ "$stickiness" == "y" -o "$stickiness" == "Y" ]; then
+      $AWSCLI_HOME/procs/clicall "elbv2 modify-target-group-attributes --target-group-arn $targetgrouparn --attributes Key=stickiness.enabled,Value=true" "$AWSCLI_HOME/tempfiles/start.assignment.elb.6" "$AWSCLI_HOME/tempfiles/start.assignment.elb.6.error"
+      if [ $? -ne 0 ]; then
+         $AWSCLI_HOME/procs/log "Error configuring TARGET GROUP $cert in AWS -  please capture any output, zip up entire directory and send to professor for review...."
+         exit 1
+      fi
+   fi
+
+
+   $AWSCLI_HOME/procs/clicall "elbv2 modify-load-balancer-attributes --load-balancer-arn $elbarn --attributes Key=access_logs.s3.enabled,Value=true Key=access_logs.s3.bucket,Value=$AWSVPCB_S3BUCKET " "$AWSCLI_HOME/tempfiles/start.assignment.elb.7" "$AWSCLI_HOME/tempfiles/start.assignment.elb.7.error"
    if [ $? -ne 0 ]; then
       $AWSCLI_HOME/procs/log "Error configuring ELB $cert in AWS -  please capture any output, zip up entire directory and send to professor for review...."
       exit 1
    fi
 
-   if [ "$stickiness" = "y" -o "$stickiness" = "Y" ]; then
-      $AWSCLI_HOME/procs/clicall "elb create-lb-cookie-stickiness-policy --load-balancer-name $cert --policy-name Session$cert" "$AWSCLI_HOME/tempfiles/start.assignment.elb.6" "$AWSCLI_HOME/tempfiles/start.assignment.elb.6.error"
-      if [ $? -ne 0 ]; then
-         $AWSCLI_HOME/procs/log "Error configuring ELB $cert in AWS -  please capture any output, zip up entire directory and send to professor for review...."
-         exit 1
-      fi
 
-      $AWSCLI_HOME/procs/clicall "elb set-load-balancer-policies-of-listener --load-balancer-name $cert --load-balancer-port $port --policy-names Session$cert" "$AWSCLI_HOME/tempfiles/start.assignment.elb.7" "$AWSCLI_HOME/tempfiles/start.assignment.elb.7.error"
-      if [ $? -ne 0 ]; then
-         $AWSCLI_HOME/procs/log "Error configuring ELB $cert in AWS -  please capture any output, zip up entire directory and send to professor for review...."
-         exit 1
-      fi
-   fi
 done < "$input"
