@@ -81,6 +81,8 @@ Subnets-SubnetName(required): The name of the subnet (no spaces allowed)
 
 Subnets-SubnetCIDR(required): The IP range for the subnet in CIDR notation
 
+Subnets-AvailabilityZone(optional): This is only needed if the subnet will reside in an availability zone that’s different from the default as defined in vpcb-config file.
+
 Subnets-SecurityGroup(required): "yes" or "no" as to whether this subnet have an equivalently named Security group controlling it's inbound and outbound traffic
 
 Subnets-RoutingTable(required): "DEFAULT" or "PUBLIC" - all subnets other than the PUBLIC, should use the DEFAULT routing table
@@ -115,6 +117,8 @@ Instances-InstanceSubnet(required): The subnet for the instance. Must be a subne
 
 Instances-InstanceAMI(required): The AMI (AWS Machine Image) for this instance. If the AMI is private, then it must be shared with the student's AWS account
 
+Instances-InstanceSecGroup(required): The security group assigned to the instance. Must be a security group defined in the VPC.json file
+
 Instances-InstanceType(required): The type/size of the instance. While anything can be chosen here, please be aware that only type t2.micro is currently covered by the AWS "free tier", which allows for many more hours of usage without chewing up a lot of AWS credits.
 
 Instances-StartPreference(optional): Although this can be used for any purpose, it is only necessary for the server that executes the Havoc Circus service and should be set to "first" ("last" is also an available option, but will cause problems if used for the instance running the Havoc Circus service)
@@ -147,9 +151,13 @@ ELBs-InstanceProtocol(optional): The default is HTTP. Any value recognized by AW
 
 ELBs-InstancePort(optional): The default is 80. Any value recognized by AWS is accepted.
 
-ELBs-ELBSubnet(optional): The default is ELB. The name chosen must be a valid subnet as defined in the VPC json file
+ELBs-ELBSecGroupName(optional): The security group to apply to the ELB.  The default is ELB. The name chosen must be a valid security group as defined in the VPC JSON file
 
-ELBs-HealthCheckTarget(optional): The default is TCP:80. This will be what AWS uses to validate that the target instances are active. Any value recognized by AWS is accepted.
+ELBs-HealthCheckTargetProtocol(optional): The default is HTTP. This will be the protocol AWS uses to validate that the target instances are active. Only HTTP and HTTPS are accepted.
+
+ELBs-HealthCheckTargetPort(optional): The default is 80. This will be the port AWS uses to validate that the target instances are active. Any number under 65535 is accepted.
+
+ELBs-HealthCheckTargetPath(optional): The default is “/”. This the URL AWS uses to validate that the target instances are active. 
 
 ELBs-HealthCheckInterval(optional): The default is 5. This indicates how often AWS will execute the Health Check (in secs). Any value recognized by AWS is accepted.
 
