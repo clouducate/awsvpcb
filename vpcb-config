@@ -1,6 +1,6 @@
 . procs/aws-vpcb-vars
 export COURSE=CTS-4743
-export SEMESTER=$COURSE-Spring2021
+export SEMESTER=$COURSE-Spring2022
 export DOMAIN=awsvpcb.edu
 export AWSCMD=aws
 export ENABLE_AWS_LOGGING=no
@@ -9,7 +9,7 @@ export MANIFEST_LOCATION=aws
 #export MANIFEST_LOCATION=local
 
 export AWS_REGION=us-east-2                                                  #Only us-east-2 region is currently supported
-export AWS_AZ=us-east-2a
+export PRIMARY_AWS_AZ=us-east-2a
 
 #export LOGGING_ACCESS_KEY=                                                  #Only used if ENABLE_AWS_LOGGING=yes
 #export LOGGING_SECRET_KEY=                                                  #Only used if ENABLE_AWS_LOGGING=yes
