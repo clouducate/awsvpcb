@@ -2,7 +2,7 @@
 #
 $AWSCLI_HOME/procs/log "Starting instances registration process...."
 
-instances=`echo NAT $POSSIBLE_INSTANCES`
+instances=`echo NAT BASTION $POSSIBLE_INSTANCES`
 for i in $instances
 do
    $AWSCLI_HOME/procs/awsvpcb.register.instance $i

@@ -47,6 +47,13 @@ if [ $? -ne 0 ]; then
 fi
 . $AWSCLI_HOME/vpcb-config
 
+$AWSCLI_HOME/procs/awsvpcb.destroy.bastioninstance
+if [ $? -ne 0 ]; then
+   $AWSCLI_HOME/procs/log "Deletion of BASTION instance failed - cancelling operations...."
+   exit 1
+fi
+. $AWSCLI_HOME/vpcb-config
+
 $AWSCLI_HOME/procs/awsvpcb.destroy.natinstance
 if [ $? -ne 0 ]; then
    $AWSCLI_HOME/procs/log "Deletion of NAT instance failed - cancelling operations...."

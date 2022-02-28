@@ -1,0 +1,36 @@
+# Destroy BASTION Instance 
+#
+$AWSCLI_HOME/procs/log "Starting BASTION Instance delete process...."
+
+if [ "$AWSVPCB_BASTION_ID" == "" ]; then
+   $AWSCLI_HOME/procs/log "No BASTION instance registered - moving on...."
+   exit
+fi
+$AWSCLI_HOME/procs/clicall "ec2 terminate-instances --instance-id $AWSVPCB_BASTION_ID" "$AWSCLI_HOME/tempfiles/destroy.bastioninstance.1" "$AWSCLI_HOME/tempfiles/destroy.bastioninstance.1.error"
+if [ $? -ne 0 ]; then
+   $AWSCLI_HOME/procs/log "Error terminating BASTION instance in AWS -  please capture any output, zip up entire directory and send to professor for review...."
+   exit 1
+fi
+$AWSCLI_HOME/procs/log "Waiting for BASTION instance $AWSVPCB_BASTION_ID to terminate so that the destroy can continue - this may take a while...."
+terminated=0
+count=0
+while [ $count -le 120 ]; do
+   $AWSCLI_HOME/procs/clicall "ec2 describe-instances --instance-id $AWSVPCB_BASTION_ID" "$AWSCLI_HOME/tempfiles/destroy.bastioninstance.2" "$AWSCLI_HOME/tempfiles/destroy.bastioninstance.2.error"
+   if [ $? -ne 0 ]; then
+      $AWSCLI_HOME/procs/log "Error terminating BASTION instance in AWS -  please capture any output, zip up entire directory and send to professor for review...."
+      exit 1
+   fi
+   export json=`cat $AWSCLI_HOME/tempfiles/destroy.bastioninstance.2`
+   export bastion_terminated=`$AWSCLI_HOME/procs/json-read "Name:" | grep terminated`
+   if [ "$bastion_terminated" != "" ]; then
+      terminated=1
+      break
+   else
+      let count=count+1
+      sleep 2
+      continue
+   fi
+done
+cat $AWSCLI_HOME/procs/aws-dynamic-vars | grep -v AWSVPCB_BASTION_ID > $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp
+cat $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp > $AWSCLI_HOME/procs/aws-dynamic-vars
+$AWSCLI_HOME/procs/log "BASTION instance $AWSVPCB_BASTION_ID terminated and unregistered...."

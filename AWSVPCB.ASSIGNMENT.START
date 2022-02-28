@@ -41,10 +41,13 @@ if [ $? -ne 0 ]; then
 fi
 . $AWSCLI_HOME/vpcb-config
 
-$AWSCLI_HOME/procs/awsvpcb.start.assignment.clientvpnendpoint
-if [ $? -ne 0 ]; then
-   $AWSCLI_HOME/procs/log "Assignment start of Client VPN Endpoint association failed - cancelling operations...."
-   exit 1
+VPN_ON=`echo $AWSVPCB_REMOTECONNFLAG |grep -i vpn`
+if [ "$VPN_ON" != "" ]; then
+   $AWSCLI_HOME/procs/awsvpcb.start.assignment.clientvpnendpoint
+   if [ $? -ne 0 ]; then
+      $AWSCLI_HOME/procs/log "Assignment start of Client VPN Endpoint association failed - cancelling operations...."
+      exit 1
+   fi
 fi
 . $AWSCLI_HOME/vpcb-config
 

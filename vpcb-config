@@ -5,8 +5,8 @@ export DOMAIN=awsvpcb.edu
 export AWSCMD=aws
 export ENABLE_AWS_LOGGING=no
 #export ENABLE_AWS_LOGGING=yes
-export MANIFEST_LOCATION=aws
-#export MANIFEST_LOCATION=local
+#export MANIFEST_LOCATION=aws
+export MANIFEST_LOCATION=local
 
 export AWS_REGION=us-east-2                                                  #Only us-east-2 region is currently supported
 export PRIMARY_AWS_AZ=us-east-2a

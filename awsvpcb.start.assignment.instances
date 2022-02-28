@@ -2,7 +2,7 @@
 #
 $AWSCLI_HOME/procs/log "Starting assignment instances start process...."
 
-instances=`echo NAT $ASSIGNMENT_START_INSTANCE_ORDER`
+instances=`echo NAT BASTION $ASSIGNMENT_START_INSTANCE_ORDER`
 for i in $instances
 do
    $AWSCLI_HOME/procs/awsvpcb.start.assignment.instance $i

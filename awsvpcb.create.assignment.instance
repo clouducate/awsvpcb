@@ -12,7 +12,7 @@ eval "instance_type=\${$instance_type_var}"
 eval "instance_subnet_id=\${$instance_subnet_var}"
 eval "instance_secgroup_id=\${$instance_secgroup_var}"
 
-$AWSCLI_HOME/procs/clicall "ec2 run-instances --image-id $instance_ami --instance-type $instance_type --security-group-ids $instance_secgroup_id --subnet-id $instance_subnet_id --key-name $AWSVPCB_KEYPAIR --private-ip-address $instance_ip" "$AWSCLI_HOME/tempfiles/create.assignment.instance.1" "$AWSCLI_HOME/tempfiles/create.assignment.instance.1.error"
+$AWSCLI_HOME/procs/clicall "ec2 run-instances --image-id $instance_ami --instance-type $instance_type --security-group-ids $instance_secgroup_id --subnet-id $instance_subnet_id --key-name $AWSVPCB_KEYPAIR --private-ip-address $instance_ip " "$AWSCLI_HOME/tempfiles/create.assignment.instance.1" "$AWSCLI_HOME/tempfiles/create.assignment.instance.1.error"
 if [ $? -ne 0 ]; then
    $AWSCLI_HOME/procs/log "Error creating assignment instance $instance in AWS -  please capture any output, zip up entire directory and send to professor for review...."
    exit 1
@@ -37,8 +37,8 @@ if [ "$instance_id" != "" ]; then
          exit 1
       fi
       export json=`cat $AWSCLI_HOME/tempfiles/create.assignment.instance.3`
-      export nat_running=`$AWSCLI_HOME/procs/json-read "Name:" | grep running`
-      if [ "$nat_running" != "" ]; then
+      export inst_running=`$AWSCLI_HOME/procs/json-read "Name:" | grep running`
+      if [ "$inst_running" != "" ]; then
          running=1
          break
       else
@@ -51,6 +51,7 @@ if [ "$instance_id" != "" ]; then
       $AWSCLI_HOME/procs/log "Did not see assignment $instance instance $instance start. Please stop it manually to avoid losing credits. Stopping creation process - perform a destroy of the VPC and retry...."
       exit 1
    fi
+
    $AWSCLI_HOME/procs/log "Assignment instance $instance_id started - stopping it...."
    $AWSCLI_HOME/procs/clicall "ec2 stop-instances --instance-id $instance_id" "$AWSCLI_HOME/tempfiles/create.assignment.instance.4" "$AWSCLI_HOME/tempfiles/create.natinstance.4.error"
    if [ $? -ne 0 ]; then
@@ -66,8 +67,8 @@ if [ "$instance_id" != "" ]; then
          exit 1
       fi
       export json=`cat $AWSCLI_HOME/tempfiles/create.assignment.instance.5`
-      export nat_stopped=`$AWSCLI_HOME/procs/json-read "Name:" | grep stopped`
-      if [ "$nat_stopped" != "" ]; then
+      export inst_stopped=`$AWSCLI_HOME/procs/json-read "Name:" | grep stopped`
+      if [ "$inst_stopped" != "" ]; then
          stopped=1
          break
       else

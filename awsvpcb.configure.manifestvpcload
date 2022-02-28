@@ -33,8 +33,14 @@ do
         level2=DNSIPAddresses
      elif [[ $line == *"NATDefinition"* ]]; then
         level2=NATDefinition
+     elif [[ $line == *"BASTIONDefinition"* ]]; then
+        level2=BASTIONDefinition
      elif [[ $line == *"VPNDefinition"* ]]; then
         level2=VPNDefinition
+     elif [[ $line == *"RemoteConnFlag"* ]]; then
+        level2=RemoteConnFlag
+        AWSVPCB_REMOTECONNFLAG=`echo $line | cut -d"\"" -f4`
+        echo "export AWSVPCB_REMOTECONNFLAG=$AWSVPCB_REMOTECONNFLAG" >> $output
      elif [[ $line == *"ServerPrivateKey"* ]]; then
         level2=ServerPrivateKey
         AWSVPCB_KEYPAIR=`echo $line | cut -d"\"" -f4`
@@ -53,6 +59,15 @@ do
      elif [[ "$level2" == "VPNDefinition" && $line == *"ClientCIDR"* ]]; then
         VPC_CLIENT_CIDR=`echo $line | cut -d"\"" -f4`
         echo "export VPC_CLIENT_CIDR=$VPC_CLIENT_CIDR" >> $output
+     elif [[ "$level2" == "BASTIONDefinition" && $line == *"IPAddress"* ]]; then
+        BASTION_IP=`echo $line | cut -d"\"" -f4`
+        echo "export BASTION_IP=$BASTION_IP" >> $output
+     elif [[ "$level2" == "BASTIONDefinition" && $line == *"Subnet"* ]]; then
+        BASTION_SUBNET=`echo $line | cut -d"\"" -f4`
+        echo "export BASTION_SUBNET=$BASTION_SUBNET" >> $output
+     elif [[ "$level2" == "BASTIONDefinition" && $line == *"AMI"* ]]; then
+        BASTION_AMI=`echo $line | cut -d"\"" -f4`
+        echo "export BASTION_AMI=$BASTION_AMI" >> $output
      elif [[ "$level2" == "NATDefinition" && $line == *"IPAddress"* ]]; then
         NAT_IP=`echo $line | cut -d"\"" -f4`
         echo "export NAT_IP=$NAT_IP" >> $output

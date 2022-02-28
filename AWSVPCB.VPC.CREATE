@@ -96,6 +96,16 @@ if [ $? -ne 0 ]; then
 fi
 . $AWSCLI_HOME/vpcb-config
 
+BASTION_ON=`echo $AWSVPCB_REMOTECONNFLAG |grep -i bastion`
+if [ "$BASTION_ON" != "" ]; then
+   $AWSCLI_HOME/procs/awsvpcb.create.bastioninstance
+   if [ $? -ne 0 ]; then
+      $AWSCLI_HOME/procs/log "BASTION instance creation failed - cancelling operations...."
+      exit 1
+   fi
+   . $AWSCLI_HOME/vpcb-config
+fi
+
 $AWSCLI_HOME/procs/awsvpcb.create.routingtables
 if [ $? -ne 0 ]; then
    $AWSCLI_HOME/procs/log "Route tables creation failed - cancelling operations...."
@@ -103,12 +113,15 @@ if [ $? -ne 0 ]; then
 fi
 . $AWSCLI_HOME/vpcb-config
 
-$AWSCLI_HOME/procs/awsvpcb.create.clientvpnendpoint
-if [ $? -ne 0 ]; then
-   $AWSCLI_HOME/procs/log "Client VPN Endpoint creation failed - cancelling operations...."
-   exit 1
+VPN_ON=`echo $AWSVPCB_REMOTECONNFLAG |grep -i vpn`
+if [ "$VPN_ON" != "" ]; then
+   $AWSCLI_HOME/procs/awsvpcb.create.clientvpnendpoint
+   if [ $? -ne 0 ]; then
+      $AWSCLI_HOME/procs/log "Client VPN Endpoint creation failed - cancelling operations...."
+      exit 1
+   fi
+   . $AWSCLI_HOME/vpcb-config
 fi
-. $AWSCLI_HOME/vpcb-config
 
 $AWSCLI_HOME/procs/awsvpcb.create.sslcerts
 if [ $? -ne 0 ]; then
