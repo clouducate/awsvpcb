@@ -21,7 +21,17 @@ elif [ "$answer" != "y" ]; then
    exit 1
 fi
 
-$AWSCLI_HOME/AWSVPCB.ASSIGNMENT.STOP $1
+SKIP=
+CREATE=
+if [ "$1" == "SKIP" ]; then
+   SKIP="SKIP"
+   if [ "$2" == "CREATE" ]; then
+      CREATE="CREATE"
+   fi
+elif [ "$1" == "CREATE" ]; then
+      CREATE="CREATE"
+fi
+$AWSCLI_HOME/AWSVPCB.ASSIGNMENT.STOP $SKIP
 if [ $? -ne 0 ]; then
    $AWSCLI_HOME/procs/log "Assignment stop failed - cancelling operations...."
    exit 1
@@ -49,5 +59,9 @@ if [ $? -ne 0 ]; then
 fi
 . $AWSCLI_HOME/vpcb-config
 
-$AWSCLI_HOME/procs/end-assignment
+if [ "$CREATE" == "CREATE" ]; then
+   $AWSCLI_HOME/procs/clear-assignment
+else
+   $AWSCLI_HOME/procs/end-assignment
+fi
 $AWSCLI_HOME/procs/log "Assignment destroy process completed."

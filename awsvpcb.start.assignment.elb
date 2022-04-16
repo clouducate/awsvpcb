@@ -51,7 +51,7 @@ do
       $AWSCLI_HOME/procs/log "Warning with ELB definition - healthy threshold not provided - defaulting to 2...."
       hthreshold="2"
    elif [ "$stickiness" == "-"  ]; then
-      $AWSCLI_HOME/procs/log "Warning with ELB definition - Session Stickinees not provided - defaulting to N...."
+      $AWSCLI_HOME/procs/log "Warning with ELB definition - Session Stickiness not provided - defaulting to N...."
       stickiness="N"
    elif [ "$protocol" == "" ]; then
       $AWSCLI_HOME/procs/log "ERROR with ELB definition - protocol missing - please capture any output, zip up entire directory and send to professor for review..."
@@ -107,7 +107,7 @@ do
       $AWSCLI_HOME/procs/log "ELB $cert already registered - moving on (if certificate was deleted, then run AWSVPCB.VPC.REGISTER)...."
       exit
    fi
-   if [ "$certid" = "" ]; then
+   if [ "$certid" == "" ]; then
       $AWSCLI_HOME/procs/log "SSL Certificate for ELB $cert is not registered - need to register with AWSVPCB.VPC.REGISTER or re-import; terminating process!!...."
       exit 1
    fi

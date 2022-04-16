@@ -50,10 +50,12 @@ if [ "$AWSVPCB_DNS_HOSTZONEID" != "" ]; then
          $AWSCLI_HOME/procs/log "Error creating assignment DNS records in AWS -  please capture any output, zip up entire directory and send to professor for review...."
          exit 1
       fi
-      $AWSCLI_HOME/procs/clicall "route53 change-resource-record-sets --hosted-zone-id $AWSVPCB_DNS_HOSTZONEID --change-batch file://$AWSCLI_HOME/secfiles/route53-trg.json" "$AWSCLI_HOME/tempfiles/start.assignment.route53-1.4" "$AWSCLI_HOME/tempfiles/start.assignment.route53-1.4.error"
-      if [ $? -ne 0 ]; then
-         $AWSCLI_HOME/procs/log "Error creating private zone $DOMAIN in AWS -  please capture any output, zip up entire directory and send to professor for review...."
-         exit 1
+      if [ "$AWSVPCB_HAVOCCIRCUSUSED" != "false" ]; then
+         $AWSCLI_HOME/procs/clicall "route53 change-resource-record-sets --hosted-zone-id $AWSVPCB_DNS_HOSTZONEID --change-batch file://$AWSCLI_HOME/secfiles/route53-trg.json" "$AWSCLI_HOME/tempfiles/start.assignment.route53-1.4" "$AWSCLI_HOME/tempfiles/start.assignment.route53-1.4.error"
+         if [ $? -ne 0 ]; then
+            $AWSCLI_HOME/procs/log "Error creating private zone $DOMAIN in AWS -  please capture any output, zip up entire directory and send to professor for review...."
+            exit 1
+         fi
       fi
       $AWSCLI_HOME/procs/log "Assignment DNS records created in AWS...."
    fi
@@ -61,3 +63,4 @@ else
    $AWSCLI_HOME/procs/log "An error occurred creating private zone in AWS - please capture any output, zip up entire directory and send to professor for review....."
    exit
 fi
+

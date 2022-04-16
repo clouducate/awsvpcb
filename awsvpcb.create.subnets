@@ -16,7 +16,7 @@ do
       $AWSCLI_HOME/procs/log "Subnet $subnet already registered as $subnetid - moving on (if subnet was deleted, then run AWSVPCB.VPC.REGISTER)...."
       continue
    fi
-   if [ "$subnet_az" = "" ]; then 
+   if [ "$subnet_az" == "" ]; then 
       subnet_az=$PRIMARY_AWS_AZ
    fi
    $AWSCLI_HOME/procs/clicall "ec2 create-subnet --availability-zone $subnet_az --cidr-block $subnet_cidr --vpc-id $AWSVPCB_VPCID" "$AWSCLI_HOME/tempfiles/create.subnets.1" "$AWSCLI_HOME/tempfiles/create.subnets.1.error"

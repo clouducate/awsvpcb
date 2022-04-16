@@ -1,0 +1,39 @@
+# Start assignment Route 53 DNS resolver 
+#
+$AWSCLI_HOME/procs/log "Starting assignment Route 53 Resolver create & start process...."
+
+$AWSCLI_HOME/procs/clicall "route53resolver list-resolver-endpoints --filters Name=Name,Values=AWS-VPCB-DNS" "$AWSCLI_HOME/tempfiles/register.route53-1.5" "$AWSCLI_HOME/tempfiles/register.route53-1.5.error"
+if [ $? -ne 0 ]; then
+   $AWSCLI_HOME/procs/log "Error looking up Route 53 inbound endpoint in AWS -  please capture any output, zip up entire directory and send to professor for review...."
+   exit 1
+fi
+export json=`cat $AWSCLI_HOME/tempfiles/register.route53-1.5`
+export AWSVPCB_DNS_INBOUNDID=`$AWSCLI_HOME/procs/json-read "Id:"`
+dup=`$AWSCLI_HOME/procs/json-read "Id:" | cut -f4 -d"-"`
+if [ "$dup" != "" ]; then
+   $AWSCLI_HOME/procs/log "Found multiple AWS-VPCB-DNS tagged Route 53 inbound endpoints in AWS - **needs manual cleanup** - aborting operation...."
+   exit 1
+elif [ "$AWSVPCB_DNS_INBOUNDID" != "" ]; then
+   echo "export AWSVPCB_DNS_INBOUNDID=$AWSVPCB_DNS_INBOUNDID" >> $AWSCLI_HOME/procs/aws-dynamic-vars
+   $AWSCLI_HOME/procs/log "Route 53 inbound endpoint $AWSVPCB_DNS_INBOUNDID registered...."
+else
+   d=`date`
+   d2=`echo ${d//[[:blank:]]/}`
+   d3=`echo ${d2//[:]/}`
+   $AWSCLI_HOME/procs/clicall "route53resolver create-resolver-endpoint --creator-request-id $d3 --name AWS-VPCB-DNS --security-group-ids $AWSVPCB_DEFAULT_SECGROUPID --direction INBOUND --ip-addresses SubnetId=$AWSVPCB_DEFAULT_SUBNETID,Ip=$DNS1_IP SubnetId=$AWSVPCB_DEFAULT_SUBNETID,Ip=$DNS2_IP" "$AWSCLI_HOME/tempfiles/start.assignment.route53-1.6" "$AWSCLI_HOME/tempfiles/start.assignment.route53-1.6.error"
+   if [ $? -ne 0 ]; then
+      $AWSCLI_HOME/procs/log "Error creating route53 inbound endpoint in AWS -  please capture any output, zip up entire directory and send to professor for review...."
+      exit 1
+   fi
+   export json=`cat $AWSCLI_HOME/tempfiles/start.assignment.route53-1.6`
+   export AWSVPCB_DNS_INBOUNDID=`$AWSCLI_HOME/procs/json-read "Id:"`
+   if [ "$AWSVPCB_DNS_INBOUNDID" != "" ]; then
+      echo "export AWSVPCB_DNS_INBOUNDID=$AWSVPCB_DNS_INBOUNDID" >> $AWSCLI_HOME/procs/aws-dynamic-vars
+      $AWSCLI_HOME/procs/log "New Route 53 inbound endpoint $AWSVPCB_DNS_INBOUNDID created and registered...."
+   else
+      $AWSCLI_HOME/procs/log "An error occurred creating Route 53 inbound endpoint in AWS - please capture any output, zip up entire directory and send to professor for review....."
+      exit
+   fi
+fi
+$AWSCLI_HOME/procs/log "Route 53 Resolver created & started...."
+

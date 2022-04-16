@@ -6,13 +6,24 @@ instance_ip_var=${instance}_IP
 instance_type_var=${instance}_TYPE
 instance_subnet_var=${instance}_SUBNET
 instance_secgroup_var=${instance}_SECGROUP
+instance_userdata_var=${instance}_USERDATA
 eval "instance_ami=\${$instance_ami_var}"
 eval "instance_ip=\${$instance_ip_var}"
 eval "instance_type=\${$instance_type_var}"
 eval "instance_subnet_id=\${$instance_subnet_var}"
 eval "instance_secgroup_id=\${$instance_secgroup_var}"
+eval "instance_userdata_file=\${$instance_userdata_var}"
 
-$AWSCLI_HOME/procs/clicall "ec2 run-instances --image-id $instance_ami --instance-type $instance_type --security-group-ids $instance_secgroup_id --subnet-id $instance_subnet_id --key-name $AWSVPCB_KEYPAIR --private-ip-address $instance_ip " "$AWSCLI_HOME/tempfiles/create.assignment.instance.1" "$AWSCLI_HOME/tempfiles/create.assignment.instance.1.error"
+instance_userdata_command=""
+if [ "$instance_userdata_file" != "" ]; then
+  if [ -s "$AWSCLI_HOME/secfiles/$instance_userdata_file" ]; then
+     instance_userdata_command="--user-data file://$AWSCLI_HOME/secfiles/$instance_userdata_file"
+  else
+     $AWSCLI_HOME/procs/log "NOTE: User-Data File provided does not exist or is empty - will not be used...."
+  fi
+fi
+
+$AWSCLI_HOME/procs/clicall "ec2 run-instances --image-id $instance_ami --instance-type $instance_type --security-group-ids $instance_secgroup_id --subnet-id $instance_subnet_id --key-name $AWSVPCB_KEYPAIR --private-ip-address $instance_ip $instance_userdata_command" "$AWSCLI_HOME/tempfiles/create.assignment.instance.1" "$AWSCLI_HOME/tempfiles/create.assignment.instance.1.error"
 if [ $? -ne 0 ]; then
    $AWSCLI_HOME/procs/log "Error creating assignment instance $instance in AWS -  please capture any output, zip up entire directory and send to professor for review...."
    exit 1
@@ -53,6 +64,10 @@ if [ "$instance_id" != "" ]; then
    fi
 
    $AWSCLI_HOME/procs/log "Assignment instance $instance_id started - stopping it...."
+#   if [ "$instance_userdata_command" != "" ]; then
+#      $AWSCLI_HOME/procs/log "User Data Sleep...."
+#      sleep 180
+#   fi
    $AWSCLI_HOME/procs/clicall "ec2 stop-instances --instance-id $instance_id" "$AWSCLI_HOME/tempfiles/create.assignment.instance.4" "$AWSCLI_HOME/tempfiles/create.natinstance.4.error"
    if [ $? -ne 0 ]; then
       $AWSCLI_HOME/procs/log "Error stopping assignment instance $instance in AWS -  please capture any output, zip up entire directory and send to professor for review...."

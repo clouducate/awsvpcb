@@ -1,0 +1,20 @@
+#
+# This script blanks out all the assignment variables as part of destroying the assignment 
+#
+input="$AWSCLI_HOME/procs/aws-assignment-vars"
+if [ ! -s "$input" ]; then
+   $AWSCLI_HOME/procs/log "File aws-assignment-vars does not exist or is empty - cancelling operations...."
+   exit 1
+fi
+output="$AWSCLI_HOME/tempfiles/aws-assignment-vars.temp"
+echo > $output
+
+while IFS= read -r line
+do
+  command=`grep export <<<"$line" | cut -f1 -d"="`
+  if [ "$command" != "" ]; then
+     echo $command= >> $output
+  fi
+done < "$input"
+
+cp $output $input

@@ -17,17 +17,19 @@ if [ $? -ne 0 ]; then
    $AWSCLI_HOME/procs/log "Parameter (assignment number) must be a number - cancelling operations...."
    exit 1
 fi
-if [ $1 -lt 1 -o $1 -gt 11 ]; then
-   $AWSCLI_HOME/procs/log "Parameter (assignment number) must be between 1 and 11 - cancelling operations...."
+if [ $1 -lt 1 -o $1 -gt 99 ]; then
+   $AWSCLI_HOME/procs/log "Parameter (assignment number) must be between 1 and 99 - cancelling operations...."
    exit 1
 fi
 $AWSCLI_HOME/procs/log "Calling AWSVPCB.ASSIGNMENT.DESTROY script to cleanup before create...."
 
-$AWSCLI_HOME/AWSVPCB.ASSIGNMENT.DESTROY $2
+$AWSCLI_HOME/AWSVPCB.ASSIGNMENT.DESTROY $2 CREATE
 if [ $? -ne 0 ]; then
    $AWSCLI_HOME/procs/log "Deletion of existing assignment failed - cancelling operations...."
    exit 1
 fi
+. $AWSCLI_HOME/vpcb-config
+$AWSCLI_HOME/procs/end-assignment
 export ASSIGNMENT_NUM=$1
 export ASSIGNMENT_HASH=
 $AWSCLI_HOME/procs/reset-assignment
@@ -64,9 +66,23 @@ else
 fi
 . $AWSCLI_HOME/vpcb-config
 
+$AWSCLI_HOME/procs/awsvpcb.start.assignment.route53-resolver
+if [ $? -ne 0 ]; then
+   $AWSCLI_HOME/procs/log "Creation of DNS resolver failed - cancelling operations...."
+   exit 1
+fi
+. $AWSCLI_HOME/vpcb-config
+
 $AWSCLI_HOME/procs/awsvpcb.create.assignment.instances
 if [ $? -ne 0 ]; then
    $AWSCLI_HOME/procs/log "Creation of assignment instances failed - cancelling operations...."
+   exit 1
+fi
+. $AWSCLI_HOME/vpcb-config
+
+$AWSCLI_HOME/procs/awsvpcb.stop.assignment.route53-resolver
+if [ $? -ne 0 ]; then
+   $AWSCLI_HOME/procs/log "Deletion of DNS resolver failed - cancelling operations...."
    exit 1
 fi
 . $AWSCLI_HOME/vpcb-config

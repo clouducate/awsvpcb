@@ -39,6 +39,10 @@ do
         level2=DNSEntriesFile
         AWSVPCB_DNSENTRIESFILE=`echo $line | cut -d"\"" -f4`
         echo "export AWSVPCB_DNSENTRIESFILE=$AWSVPCB_DNSENTRIESFILE" >> $output
+     elif [[ $line == *"HavocCircusUsed"* ]]; then
+        level2=HavocCircusUsed
+        AWSVPCB_HAVOCCIRCUSUSED=`echo $line | cut -d"\"" -f4`
+        echo "export AWSVPCB_HAVOCCIRCUSUSED=$AWSVPCB_HAVOCCIRCUSUSED" >> $output
      elif [[ $line == *"ELBs"* ]]; then
         level2=ELBs
      fi
@@ -61,6 +65,8 @@ do
         L4INSTANCESECGROUP=`echo $line | cut -d"\"" -f4`
      elif [[ "$level2" == "Instances" && $line == *"InstanceType"* ]]; then
         L4INSTANCETYPE=`echo $line | cut -d"\"" -f4`
+     elif [[ "$level2" == "Instances" && $line == *"InstanceUserDataFile"* ]]; then
+        L4INSTANCEUSERDATA=`echo $line | cut -d"\"" -f4`
      elif [[ "$level2" == "Instances" && $line == *"StartPreference"* ]]; then
         L4STARTPREFERENCE=`echo $line | cut -d"\"" -f4`
      elif [[ "$level2" == "Instances" && $line == *"StopPreference"* ]]; then
@@ -111,11 +117,11 @@ do
   elif [[ $level -eq 6 && "$level2" == "ELBs" ]]; then
      if [[ "$level4" == "ELBSubnets" && $line == *"SubnetName"* ]]; then
         L6SUBNET=`echo $line | cut -d"\"" -f4`
-        echo $L6SUBNET >> tempfiles/assignment.elb.$L4ELBNAME.subnets
+        echo $L6SUBNET >> $AWSCLI_HOME/tempfiles/assignment.elb.$L4ELBNAME.subnets
      fi
      if [[ "$level4" == "ELBInstances" && $line == *"InstanceName"* ]]; then
         L6INSTANCE=`echo $line | cut -d"\"" -f4`
-        echo $L6INSTANCE >> tempfiles/assignment.elb.$L4ELBNAME.instances
+        echo $L6INSTANCE >> $AWSCLI_HOME/tempfiles/assignment.elb.$L4ELBNAME.instances
      fi
   fi
   open2=`tr -dc '[' <<<"$line" | wc -c`
@@ -132,6 +138,11 @@ do
        echo "export $var=$L4INSTANCEAMI" >> $output
        var=${L4INSTANCE}_TYPE
        echo "export $var=$L4INSTANCETYPE" >> $output
+       if [ "$L4INSTANCEUSERDATA" != "" ]; then
+          var=${L4INSTANCE}_USERDATA
+          echo "export $var=$L4INSTANCEUSERDATA" >> $output
+          L4INSTANCEUSERDATA=""
+       fi
        var=${L4INSTANCE}_SUBNET
        var2=AWSVPCB_${L4INSTANCESUBNET}_SUBNETID
        eval "instance_subnet_id=\${$var2}"

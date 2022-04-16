@@ -25,16 +25,16 @@ if [ "$VPN_ON" != "" ]; then
 fi
 . $AWSCLI_HOME/vpcb-config
 
-$AWSCLI_HOME/procs/awsvpcb.stop.assignment.route53-2
+$AWSCLI_HOME/procs/awsvpcb.stop.assignment.route53-resolver
 if [ $? -ne 0 ]; then
-   $AWSCLI_HOME/procs/log "Assignment stop of Route 53 inbound endpoint (Phase 1) failed - cancelling operations...."
+   $AWSCLI_HOME/procs/log "Assignment stop of Route 53 DNS resolver failed - cancelling operations...."
    exit 1
 fi
 . $AWSCLI_HOME/vpcb-config
 
 $AWSCLI_HOME/procs/awsvpcb.stop.assignment.route53-1
 if [ $? -ne 0 ]; then
-   $AWSCLI_HOME/procs/log "Assignment stop of Route 53 deletion (Phase 2) failed - cancelling operations...."
+   $AWSCLI_HOME/procs/log "Assignment stop of Route 53 Private zone failed - cancelling operations...."
    exit 1
 fi
 . $AWSCLI_HOME/vpcb-config
