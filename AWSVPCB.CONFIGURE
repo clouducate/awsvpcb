@@ -30,26 +30,30 @@ $AWSCLI_HOME/procs/log "Logging service disabled during AWSVPCB.CONFIGURE startu
 $AWSCLI_HOME/procs/log "AWS CLI Scripts directory configured as $AWSCLI_HOME."
 $AWSCLI_HOME/procs/log "Local UserID configured as $USER_ID."
 
-head -3 $HOME/.aws/credentials > $HOME/.aws/credentials.backup
-cat $HOME/.aws/credentials.backup > $HOME/.aws/credentials
-echo " " >> $HOME/.aws/credentials
-echo "[logging]" >> $HOME/.aws/credentials
-echo "aws_access_key_id=$LOGGING_ACCESS_KEY" >> $HOME/.aws/credentials
-echo "aws_secret_access_key=$LOGGING_SECRET_KEY" >> $HOME/.aws/credentials
-echo "[manifest]" >> $HOME/.aws/credentials
-echo "aws_access_key_id=$MANIFEST_ACCESS_KEY" >> $HOME/.aws/credentials
-echo "aws_secret_access_key=$MANIFEST_SECRET_KEY" >> $HOME/.aws/credentials
+if [ "$AWS_ACADEMY" != "yes" ]; then 
+   head -3 $HOME/.aws/credentials > $HOME/.aws/credentials.backup
+   cat $HOME/.aws/credentials.backup > $HOME/.aws/credentials
+   echo " " >> $HOME/.aws/credentials
+   echo "[logging]" >> $HOME/.aws/credentials
+   echo "aws_access_key_id=$LOGGING_ACCESS_KEY" >> $HOME/.aws/credentials
+   echo "aws_secret_access_key=$LOGGING_SECRET_KEY" >> $HOME/.aws/credentials
+   echo "[manifest]" >> $HOME/.aws/credentials
+   echo "aws_access_key_id=$MANIFEST_ACCESS_KEY" >> $HOME/.aws/credentials
+   echo "aws_secret_access_key=$MANIFEST_SECRET_KEY" >> $HOME/.aws/credentials
 
-
-head -3 $HOME/.aws/config > $HOME/.aws/config.backup
-cat $HOME/.aws/config.backup > $HOME/.aws/config
-echo " " >> $HOME/.aws/config
-echo "[profile logging]" >> $HOME/.aws/config
-echo "region=$AWS_REGION" >> $HOME/.aws/config
-echo "output=json" >> $HOME/.aws/config
-echo "[profile imanifest]" >> $HOME/.aws/config
-echo "region=$AWS_REGION" >> $HOME/.aws/config
-echo "output=json" >> $HOME/.aws/config
+   head -3 $HOME/.aws/config > $HOME/.aws/config.backup
+   cat $HOME/.aws/config.backup > $HOME/.aws/config
+   echo " " >> $HOME/.aws/config
+   echo "[profile logging]" >> $HOME/.aws/config
+   echo "region=$AWS_REGION" >> $HOME/.aws/config
+   echo "output=json" >> $HOME/.aws/config
+   echo "[profile imanifest]" >> $HOME/.aws/config
+   echo "region=$AWS_REGION" >> $HOME/.aws/config
+   echo "output=json" >> $HOME/.aws/config
+else
+   ENABLE_AWS_LOGGING=no
+   MANIFEST_LOCATION=local
+fi
 
 
 if [ "$ENABLE_AWS_LOGGING" == "yes" ]; then
