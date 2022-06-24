@@ -3,7 +3,8 @@
 export SCRIPT=AWSVPCB.CONFIGURE
 AWSCLI_HOME=$PWD
 ID=`whoami`
-USER_ID=`echo "$ID" | tr '[:upper:]' '[:lower:]'`
+VUID=`echo "$ID" | tr '[:upper:]' '[:lower:]'`
+USER_ID=`echo "$VUID" | sed -r 's/_/-/g'`
 
 if [ ! -f $AWSCLI_HOME/vpcb-config ]; then
    echo "Cannot find the vpcb-config file. You do not appear to be in the correct directory.  Please cd to the root directory of the scripts."
