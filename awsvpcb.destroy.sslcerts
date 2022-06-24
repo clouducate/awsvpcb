@@ -2,14 +2,14 @@
 #
 $AWSCLI_HOME/procs/log "Starting SSL Certificate delete process...."
 
-certs="rainforest myfiu"
+certs=$POSSIBLE_ELBS
 for c in $certs
 do
    cert=AWS-VPCB-${c}
    certid_var=AWSVPCB_${c}_CERTID
    eval "certid=\${$certid_var}"
    if [ "$certid" != "" ]; then
-      $AWSCLI_HOME/procs/clicall "iam delete-server-certificate --server-certificate-name $cert" "$AWSCLI_HOME/tempfiles/destroy.sslcerts.1" "$AWSCLI_HOME/tempfiles/destroy.sslcerts.1.error"
+      $AWSCLI_HOME/procs/clicall "acm delete-certificate --certificate-arn $certid" "$AWSCLI_HOME/tempfiles/destroy.sslcerts.1" "$AWSCLI_HOME/tempfiles/destroy.sslcerts.1.error"
       if [ $? -ne 0 ]; then
          $AWSCLI_HOME/procs/log "Error deleting cert $c.$DOMAIN in AWS -  please capture any output, zip up entire directory and send to professor for review...."
          exit 1

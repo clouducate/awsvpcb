@@ -10,14 +10,14 @@ do
    eval "certid=\${$certid_var}"
    if [ "$certid" != "" ]; then
       $AWSCLI_HOME/procs/log "Certificate $cert registered as $certid - checking if it exists...."
-      $AWSCLI_HOME/procs/clicall "iam get-server-certificate --server-certificate-name $cert" "$AWSCLI_HOME/tempfiles/register.sslcerts.1" "$AWSCLI_HOME/tempfiles/register.sslcerts.1.error"
+      $AWSCLI_HOME/procs/clicall "acm describe-certificate --certificate-arn $certid" "$AWSCLI_HOME/tempfiles/register.sslcerts.1" "$AWSCLI_HOME/tempfiles/register.sslcerts.1.error"
       if [ $? -ne 0 ]; then
          cat $AWSCLI_HOME/procs/aws-dynamic-vars | grep -v $certid_var > $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp
          cat $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp > $AWSCLI_HOME/procs/aws-dynamic-vars
          $AWSCLI_HOME/procs/log "Certificate $certid not found in AWS - unregistered it...."
       else
          export json=`cat $AWSCLI_HOME/tempfiles/register.sslcerts.1`
-         export test=`$AWSCLI_HOME/procs/json-read "Arn:"`
+         export test=`$AWSCLI_HOME/procs/json-read "CertificateArn:"`
          if [ "$test" != "" ]; then
             $AWSCLI_HOME/procs/log "Certificate $cert found in AWS - moving on...."
          else
@@ -27,13 +27,22 @@ do
          fi
       fi
    else
-      $AWSCLI_HOME/procs/clicall "iam get-server-certificate --server-certificate-name $cert" "$AWSCLI_HOME/tempfiles/register.sslcerts.2" "$AWSCLI_HOME/tempfiles/register.sslcerts.2.error"
+      $AWSCLI_HOME/procs/clicall "acm list-certificates" "$AWSCLI_HOME/tempfiles/register.sslcerts.2" "$AWSCLI_HOME/tempfiles/register.sslcerts.2.error"
       if [ $? -ne 0 ]; then
          $AWSCLI_HOME/procs/log "Error looking up cert $c.$DOMAIN in AWS -  please capture any output, zip up entire directory and send to professor for review...."
          exit 1
       fi
-      export json=`cat $AWSCLI_HOME/tempfiles/register.sslcerts.2`
-      export certid=`$AWSCLI_HOME/procs/json-read "Arn:"`
+      input="$AWSCLI_HOME/tempfiles/register.sslcerts.2"
+      echo " " > $AWSCLI_HOME/tempfiles/register.sslcerts.3
+      while IFS= read -r line
+      do
+         if [[ $line == *"$c"* ]]; then
+            echo $prev_line > $AWSCLI_HOME/tempfiles/register.sslcerts.3
+         fi
+         prev_line=$line
+      done < "$input"
+      export json=`cat $AWSCLI_HOME/tempfiles/register.sslcerts.3`
+      export certid=`$AWSCLI_HOME/procs/json-read "CertificateArn:"`
       if [ "$certid" != "" ]; then
          echo "export AWSVPCB_${c}_CERTID=$certid" >> $AWSCLI_HOME/procs/aws-dynamic-vars
          $AWSCLI_HOME/procs/log "Certificate $c.$DOMAIN found in AWS and registered...."

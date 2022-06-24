@@ -3,19 +3,26 @@ export COURSE=CTS-4743
 export SEMESTER=$COURSE-Spring2022
 export DOMAIN=awsvpcb.edu
 export AWSCMD=aws
-export ENABLE_AWS_LOGGING=no
-#export ENABLE_AWS_LOGGING=yes
-#export MANIFEST_LOCATION=aws
-export MANIFEST_LOCATION=local
 
-export AWS_REGION=us-east-2                                                  #Only us-east-2 region is currently supported
-export PRIMARY_AWS_AZ=us-east-2a
+export AWS_ACADEMY=no
+#export MANIFEST_LOCATION=aws                                                #Forced to "local" when AWS_ACADEMY=yes
+export MANIFEST_LOCATION=local                                               #Forced to "local" when AWS_ACADEMY=yes
+#export ENABLE_AWS_LOGGING=yes                                               #Forced to "no" when AWS_ACEDEMY=yes
+export ENABLE_AWS_LOGGING=no                                                 #Forced to "no" when AWS_ACEDEMY=yes
+
+export AWS_REGION=us-east-1                                                  #Only us-east-1 region is currently supported
+export PRIMARY_AWS_AZ=us-east-1a
 
 #export LOGGING_ACCESS_KEY=                                                  #Only used if ENABLE_AWS_LOGGING=yes
 #export LOGGING_SECRET_KEY=                                                  #Only used if ENABLE_AWS_LOGGING=yes
 export MANIFEST_ACCESS_KEY=AKIA2JUQXSCKF6OLZLON                              #Only used if MANIFEST_LOCATION=aws  
 export MANIFEST_SECRET_KEY=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          #Only used if MANIFEST_LOCATION=aws   
 export MANIFEST_S3BUCKET=public.awsvpcb.edu                                  #Only used if MANIFEST_LOCATION=aws
+
+if [ "$AWS_ACADEMY" == "yes" ]; then
+   export ENABLE_AWS_LOGGING=no
+   export MANIFEST_LOCATION=local
+fi
 
 . $AWSCLI_HOME/procs/aws-vpc-vars
 . $AWSCLI_HOME/procs/aws-assignment-vars

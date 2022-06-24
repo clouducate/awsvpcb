@@ -13,13 +13,13 @@ do
       continue
    fi
 
-   $AWSCLI_HOME/procs/clicall "iam upload-server-certificate --server-certificate-name AWS-VPCB-$c --certificate-body file://$AWSCLI_HOME/secfiles/$c.$DOMAIN.crt --private-key file://$AWSCLI_HOME/secfiles/$c.$DOMAIN.key --certificate-chain file://$AWSCLI_HOME/secfiles/$VPN_CA_CERT" "$AWSCLI_HOME/tempfiles/create.sslcerts.1" "$AWSCLI_HOME/tempfiles/create.sslcerts.1.error"
+   $AWSCLI_HOME/procs/clicall "acm import-certificate  --tags Key=Name,Value=AWS-VPCB-$c --certificate fileb://$AWSCLI_HOME/secfiles/$c.$DOMAIN.pem --private-key fileb://$AWSCLI_HOME/secfiles/$c.$DOMAIN.key.pem --certificate-chain fileb://$AWSCLI_HOME/secfiles/$VPN_CA_CERT.pem" "$AWSCLI_HOME/tempfiles/create.sslcerts.1" "$AWSCLI_HOME/tempfiles/create.sslcerts.1.error"
    if [ $? -ne 0 ]; then
       $AWSCLI_HOME/procs/log "Error importing cert $c.$DOMAIN into AWS -  please capture any output, zip up entire directory and send to professor for review...."
       exit 1
    fi
    export json=`cat $AWSCLI_HOME/tempfiles/create.sslcerts.1`
-   export certid=`$AWSCLI_HOME/procs/json-read "Arn:"` 
+   export certid=`$AWSCLI_HOME/procs/json-read "CertificateArn:"` 
    if [ "$certid" != "" ]; then
       echo "export AWSVPCB_${c}_CERTID=$certid" >> $AWSCLI_HOME/procs/aws-dynamic-vars
       $AWSCLI_HOME/procs/log "Certificate $c.$DOMAIN imported and registered - tagging it as $cert...."

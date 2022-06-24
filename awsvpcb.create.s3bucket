@@ -4,7 +4,7 @@ $AWSCLI_HOME/procs/log "Starting S3 Bucket create process...."
 t=`echo $(($(date +%s)))`
 AWSVPCB_S3BUCKET=awsvpcb-elb-log-$USER_ID-$t
 
-$AWSCLI_HOME/procs/clicall "s3api create-bucket --bucket $AWSVPCB_S3BUCKET --acl public-read --create-bucket-configuration LocationConstraint=$AWS_REGION" "$AWSCLI_HOME/tempfiles/create.s3bucket.1" "$AWSCLI_HOME/tempfiles/create.s3bucket.1.error"
+$AWSCLI_HOME/procs/clicall "s3api create-bucket --bucket $AWSVPCB_S3BUCKET --acl public-read --region $AWS_REGION" "$AWSCLI_HOME/tempfiles/create.s3bucket.1" "$AWSCLI_HOME/tempfiles/create.s3bucket.1.error"
 if [ $? -ne 0 ]; then
    $AWSCLI_HOME/procs/log "Error creating S3 bucket $AWSVPCB_S3BUCKET in AWS -  please capture any output, zip up entire directory and send to professor for review...."
    exit 1
