@@ -22,13 +22,13 @@ if [ "$AWSVPCB_BASTION_ID" != "" ]; then
       $AWSCLI_HOME/procs/log "Error tagging BASTION instance in AWS -  please capture any output, zip up entire directory and send to professor for review...."
       exit 1
    fi
-   $AWSCLI_HOME/procs/log "Waiting for BASTION instance $AWSVPCB_BASTION_ID to start so that it can be stopped - this may take a while...."
+   $AWSCLI_HOME/procs/log "Waiting for BASTION instance $AWSVPCB_BASTION_ID to start - this may take a while...."
    running=0
    count=0
    while [ $count -le 180 ]; do
       $AWSCLI_HOME/procs/clicall "ec2 describe-instances --instance-id $AWSVPCB_BASTION_ID" "$AWSCLI_HOME/tempfiles/create.bastioninstance.4" "$AWSCLI_HOME/tempfiles/create.bastioninstance.4.error"
       if [ $? -ne 0 ]; then
-         $AWSCLI_HOME/procs/log "Error stopping BASTION instance in AWS -  please capture any output, zip up entire directory and send to professor for review...."
+         $AWSCLI_HOME/procs/log "Error starting BASTION instance in AWS -  please capture any output, zip up entire directory and send to professor for review...."
          exit 1
       fi
       export json=`cat $AWSCLI_HOME/tempfiles/create.bastioninstance.4`
@@ -46,36 +46,38 @@ if [ "$AWSVPCB_BASTION_ID" != "" ]; then
       $AWSCLI_HOME/procs/log "Did not see BASTION instance start. Please stop it manually to avoid losing credits. Stopping creation process - perform a destroy of the VPC and retry...."
       exit 1
    fi
-   $AWSCLI_HOME/procs/log "BASTION instance $AWSVPCB_BASTION_ID started - stopping it...."
-   $AWSCLI_HOME/procs/clicall "ec2 stop-instances --instance-id $AWSVPCB_BASTION_ID" "$AWSCLI_HOME/tempfiles/create.bastioninstance.5" "$AWSCLI_HOME/tempfiles/create.bastioninstance.5.error"
-   if [ $? -ne 0 ]; then
-      $AWSCLI_HOME/procs/log "Error stopping BASTION instance in AWS -  please capture any output, zip up entire directory and send to professor for review...."
-      exit 1
-   fi
-   stopped=0
-   count=0
-   while [ $count -le 90 ]; do
-      $AWSCLI_HOME/procs/clicall "ec2 describe-instances --instance-id $AWSVPCB_BASTION_ID" "$AWSCLI_HOME/tempfiles/create.bastioninstance.5" "$AWSCLI_HOME/tempfiles/create.bastioninstance.5.error"
+   $AWSCLI_HOME/procs/log "BASTION instance $AWSVPCB_BASTION_ID started...."
+   if [ "$AWS_ACADEMY" != "yes" ]; then
+      $AWSCLI_HOME/procs/clicall "ec2 stop-instances --instance-id $AWSVPCB_BASTION_ID" "$AWSCLI_HOME/tempfiles/create.bastioninstance.5" "$AWSCLI_HOME/tempfiles/create.bastioninstance.5.error"
       if [ $? -ne 0 ]; then
          $AWSCLI_HOME/procs/log "Error stopping BASTION instance in AWS -  please capture any output, zip up entire directory and send to professor for review...."
          exit 1
       fi
-      export json=`cat $AWSCLI_HOME/tempfiles/create.bastioninstance.5`
-      export bastion_stopped=`$AWSCLI_HOME/procs/json-read "Name:" | grep stopped`
-      if [ "$bastion_stopped" != "" ]; then
-         stopped=1
-         break
-      else
-         let count=count+1
-         sleep 2
-         continue
+      stopped=0
+      count=0
+      while [ $count -le 90 ]; do
+         $AWSCLI_HOME/procs/clicall "ec2 describe-instances --instance-id $AWSVPCB_BASTION_ID" "$AWSCLI_HOME/tempfiles/create.bastioninstance.5" "$AWSCLI_HOME/tempfiles/create.bastioninstance.5.error"
+         if [ $? -ne 0 ]; then
+            $AWSCLI_HOME/procs/log "Error stopping BASTION instance in AWS -  please capture any output, zip up entire directory and send to professor for review...."
+            exit 1
+         fi
+         export json=`cat $AWSCLI_HOME/tempfiles/create.bastioninstance.5`
+         export bastion_stopped=`$AWSCLI_HOME/procs/json-read "Name:" | grep stopped`
+         if [ "$bastion_stopped" != "" ]; then
+            stopped=1
+            break
+         else
+            let count=count+1
+            sleep 2
+            continue
+         fi
+      done
+      if [ $stopped -eq 0 ]; then
+         $AWSCLI_HOME/procs/log "Did not see BASTION instance stop. Please stop it manually to avoid losing credits. Stopping creation process - perform a destroy of the VPC and retry...."
+         exit 1
       fi
-   done
-   if [ $stopped -eq 0 ]; then
-      $AWSCLI_HOME/procs/log "Did not see BASTION instance stop. Please stop it manually to avoid losing credits. Stopping creation process - perform a destroy of the VPC and retry...."
-      exit 1
+      $AWSCLI_HOME/procs/log "New BASTION instance $AWSVPCB_BASTION_ID stopped...."
    fi
-   $AWSCLI_HOME/procs/log "New BASTION instance $AWSVPCB_BASTION_ID stopped...."
 else
    $AWSCLI_HOME/procs/log "An error occurred creating the BASTION instance - please capture any output, zip up entire directory and send to professor for review....."
    exit
