@@ -7,7 +7,7 @@ if [ "$AWSVPCB_BASTION_ID" != "" ]; then
    exit
 fi
 
-$AWSCLI_HOME/procs/clicall "ec2 run-instances --image-id $BASTION_AMI --instance-type t2.micro --security-group-ids $AWSVPCB_PUBLIC_SECGROUPID --subnet-id $AWSVPCB_PUBLIC_SUBNETID --key-name $AWSVPCB_KEYPAIR --private-ip-address $BASTION_IP --associate-public-ip-address" "$AWSCLI_HOME/tempfiles/create.bastioninstance.1" "$AWSCLI_HOME/tempfiles/create.bastioninstance.1.error"
+$AWSCLI_HOME/procs/clicall "ec2 run-instances --image-id $BASTION_AMI --instance-type t3.small --security-group-ids $AWSVPCB_PUBLIC_SECGROUPID --subnet-id $AWSVPCB_PUBLIC_SUBNETID --key-name $AWSVPCB_KEYPAIR --private-ip-address $BASTION_IP --associate-public-ip-address" "$AWSCLI_HOME/tempfiles/create.bastioninstance.1" "$AWSCLI_HOME/tempfiles/create.bastioninstance.1.error"
 if [ $? -ne 0 ]; then
    $AWSCLI_HOME/procs/log "Error creating BASTION instance in AWS -  please capture any output, zip up entire directory and send to professor for review...."
    exit 1
