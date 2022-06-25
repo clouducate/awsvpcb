@@ -66,12 +66,14 @@ else
 fi
 . $AWSCLI_HOME/vpcb-config
 
-$AWSCLI_HOME/procs/awsvpcb.start.assignment.route53-resolver
-if [ $? -ne 0 ]; then
-   $AWSCLI_HOME/procs/log "Creation of DNS resolver failed - cancelling operations...."
-   exit 1
+if [ "$AWS_ACADEMY" != "yes" ]; then
+   $AWSCLI_HOME/procs/awsvpcb.start.assignment.route53-resolver
+   if [ $? -ne 0 ]; then
+      $AWSCLI_HOME/procs/log "Creation of DNS resolver failed - cancelling operations...."
+      exit 1
+   fi
+   . $AWSCLI_HOME/vpcb-config
 fi
-. $AWSCLI_HOME/vpcb-config
 
 $AWSCLI_HOME/procs/awsvpcb.create.assignment.instances
 if [ $? -ne 0 ]; then
@@ -80,12 +82,14 @@ if [ $? -ne 0 ]; then
 fi
 . $AWSCLI_HOME/vpcb-config
 
-$AWSCLI_HOME/procs/awsvpcb.stop.assignment.route53-resolver
-if [ $? -ne 0 ]; then
-   $AWSCLI_HOME/procs/log "Deletion of DNS resolver failed - cancelling operations...."
-   exit 1
+if [ "$AWS_ACADEMY" != "yes" ]; then
+   $AWSCLI_HOME/procs/awsvpcb.stop.assignment.route53-resolver
+   if [ $? -ne 0 ]; then
+      $AWSCLI_HOME/procs/log "Deletion of DNS resolver failed - cancelling operations...."
+      exit 1
+   fi
+   . $AWSCLI_HOME/vpcb-config
 fi
-. $AWSCLI_HOME/vpcb-config
 
 $AWSCLI_HOME/procs/awsvpcb.create.assignment.firewallrules
 if [ $? -ne 0 ]; then
@@ -94,4 +98,6 @@ if [ $? -ne 0 ]; then
 fi
 . $AWSCLI_HOME/vpcb-config
 
-$AWSCLI_HOME/procs/log "Completed the AWS Assignment $ASSIGNMENT_NUM Create process."
+$AWSCLI_HOME/AWSVPCB.ASSIGNMENT.START 
+
+$AWSCLI_HOME/procs/log "Completed the AWS Assignment $ASSIGNMENT_NUM Create & Start process."

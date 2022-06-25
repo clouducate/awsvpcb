@@ -23,6 +23,8 @@ if [ "$instance_userdata_file" != "" ]; then
   fi
 fi
 
+###$AWSCLI_HOME/procs/clicall "ec2 run-instances --block-device-mappings DeviceName=/dev/sda1,VirtualName=Hibernate,Ebs={VolumeSize=30,Encrypted=true} --hibernation-options Configured=true --image-id $instance_ami --instance-type $instance_type --security-group-ids $instance_secgroup_id --subnet-id $instance_subnet_id --key-name $AWSVPCB_KEYPAIR --private-ip-address $instance_ip $instance_userdata_command" "$AWSCLI_HOME/tempfiles/create.assignment.instance.1" "$AWSCLI_HOME/tempfiles/create.assignment.instance.1.error"
+
 $AWSCLI_HOME/procs/clicall "ec2 run-instances --image-id $instance_ami --instance-type $instance_type --security-group-ids $instance_secgroup_id --subnet-id $instance_subnet_id --key-name $AWSVPCB_KEYPAIR --private-ip-address $instance_ip $instance_userdata_command" "$AWSCLI_HOME/tempfiles/create.assignment.instance.1" "$AWSCLI_HOME/tempfiles/create.assignment.instance.1.error"
 if [ $? -ne 0 ]; then
    $AWSCLI_HOME/procs/log "Error creating assignment instance $instance in AWS -  please capture any output, zip up entire directory and send to professor for review...."
@@ -38,13 +40,13 @@ if [ "$instance_id" != "" ]; then
       $AWSCLI_HOME/procs/log "Error tagging assignment instance $instance in AWS -  please capture any output, zip up entire directory and send to professor for review...."
       exit 1
    fi
-   $AWSCLI_HOME/procs/log "Waiting for assignment $instance instance $instance_id to start so that it can be stopped - this may take a while...."
+   $AWSCLI_HOME/procs/log "Waiting for assignment $instance instance $instance_id to start - this may take a while...."
    running=0
    count=0
    while [ $count -le 120 ]; do
       $AWSCLI_HOME/procs/clicall "ec2 describe-instances --instance-id $instance_id" "$AWSCLI_HOME/tempfiles/create.assignment.instance.3" "$AWSCLI_HOME/tempfiles/create.assignment.instance.3.error"
       if [ $? -ne 0 ]; then
-         $AWSCLI_HOME/procs/log "Error stopping assignment instance $instance in AWS -  please capture any output, zip up entire directory and send to professor for review...."
+         $AWSCLI_HOME/procs/log "Error starting assignment instance $instance in AWS -  please capture any output, zip up entire directory and send to professor for review...."
          exit 1
       fi
       export json=`cat $AWSCLI_HOME/tempfiles/create.assignment.instance.3`
@@ -63,40 +65,7 @@ if [ "$instance_id" != "" ]; then
       exit 1
    fi
 
-   $AWSCLI_HOME/procs/log "Assignment instance $instance_id started - stopping it...."
-#   if [ "$instance_userdata_command" != "" ]; then
-#      $AWSCLI_HOME/procs/log "User Data Sleep...."
-#      sleep 180
-#   fi
-   $AWSCLI_HOME/procs/clicall "ec2 stop-instances --instance-id $instance_id" "$AWSCLI_HOME/tempfiles/create.assignment.instance.4" "$AWSCLI_HOME/tempfiles/create.natinstance.4.error"
-   if [ $? -ne 0 ]; then
-      $AWSCLI_HOME/procs/log "Error stopping assignment instance $instance in AWS -  please capture any output, zip up entire directory and send to professor for review...."
-      exit 1
-   fi
-   stopped=0
-   count=0
-   while [ $count -le 120 ]; do
-      $AWSCLI_HOME/procs/clicall "ec2 describe-instances --instance-id $instance_id" "$AWSCLI_HOME/tempfiles/create.assignment.instance.5" "$AWSCLI_HOME/tempfiles/create.assignment.instance.5.error"
-      if [ $? -ne 0 ]; then
-         $AWSCLI_HOME/procs/log "Error stopping assignment instance $instance in AWS -  please capture any output, zip up entire directory and send to professor for review...."
-         exit 1
-      fi
-      export json=`cat $AWSCLI_HOME/tempfiles/create.assignment.instance.5`
-      export inst_stopped=`$AWSCLI_HOME/procs/json-read "Name:" | grep stopped`
-      if [ "$inst_stopped" != "" ]; then
-         stopped=1
-         break
-      else
-         let count=count+1
-         sleep 2
-         continue
-      fi
-   done
-   if [ $stopped -eq 0 ]; then
-      $AWSCLI_HOME/procs/log "Did not see assignment instance $instance stop. Please stop it manually to avoid losing credits. Stopping creation process - perform a destroy of the assignment and retry...."
-      exit 1
-   fi
-   $AWSCLI_HOME/procs/log "New assignment $instance instance $instance_id stopped...."
+   $AWSCLI_HOME/procs/log "Assignment instance $instance_id started...."
 else
    $AWSCLI_HOME/procs/log "An error occurred creating the assignment instance $instance - please capture any output, zip up entire directory and send to professor for review....."
    exit
