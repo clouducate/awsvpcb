@@ -31,7 +31,7 @@ fi
 . $AWSCLI_HOME/vpcb-config
 $AWSCLI_HOME/procs/end-assignment
 export ASSIGNMENT_NUM=$1
-export ASSIGNMENT_HASH=
+export AWSVPCB_DNS_HOSTZONEID=
 $AWSCLI_HOME/procs/reset-assignment
 $AWSCLI_HOME/procs/log "Previous assignment deleted - beginning create of assignment $ASSIGNMENT_NUM...."
 . $AWSCLI_HOME/vpcb-config

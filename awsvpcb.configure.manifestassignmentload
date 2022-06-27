@@ -67,6 +67,8 @@ do
         L4INSTANCETYPE=`echo $line | cut -d"\"" -f4`
      elif [[ "$level2" == "Instances" && $line == *"InstanceUserDataFile"* ]]; then
         L4INSTANCEUSERDATA=`echo $line | cut -d"\"" -f4`
+     elif [[ "$level2" == "Instances" && $line == *"StopInstance"* ]]; then
+        L4INSTANCESTOP=`echo $line | cut -d"\"" -f4`
      elif [[ "$level2" == "Instances" && $line == *"StartPreference"* ]]; then
         L4STARTPREFERENCE=`echo $line | cut -d"\"" -f4`
      elif [[ "$level2" == "Instances" && $line == *"StopPreference"* ]]; then
@@ -142,6 +144,11 @@ do
           var=${L4INSTANCE}_USERDATA
           echo "export $var=$L4INSTANCEUSERDATA" >> $output
           L4INSTANCEUSERDATA=""
+       fi
+       if [ "$L4INSTANCESTOP" == "yes" ]; then
+          var=${L4INSTANCE}_STOP
+          echo "export $var=$L4INSTANCESTOP" >> $output
+          L4INSTANCESTOP=""
        fi
        var=${L4INSTANCE}_SUBNET
        var2=AWSVPCB_${L4INSTANCESUBNET}_SUBNETID

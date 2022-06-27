@@ -7,12 +7,14 @@ instance_type_var=${instance}_TYPE
 instance_subnet_var=${instance}_SUBNET
 instance_secgroup_var=${instance}_SECGROUP
 instance_userdata_var=${instance}_USERDATA
+instance_stop_var=${instance}_STOP
 eval "instance_ami=\${$instance_ami_var}"
 eval "instance_ip=\${$instance_ip_var}"
 eval "instance_type=\${$instance_type_var}"
 eval "instance_subnet_id=\${$instance_subnet_var}"
 eval "instance_secgroup_id=\${$instance_secgroup_var}"
 eval "instance_userdata_file=\${$instance_userdata_var}"
+eval "instance_stop=\${$instance_stop_var}"
 
 instance_userdata_command=""
 if [ "$instance_userdata_file" != "" ]; then
@@ -64,8 +66,37 @@ if [ "$instance_id" != "" ]; then
       $AWSCLI_HOME/procs/log "Did not see assignment $instance instance $instance start. Please stop it manually to avoid losing credits. Stopping creation process - perform a destroy of the VPC and retry...."
       exit 1
    fi
-
    $AWSCLI_HOME/procs/log "Assignment instance $instance_id started...."
+   if [ "$instance_stop" == "yes" ]; then
+      $AWSCLI_HOME/procs/clicall "ec2 stop-instances --instance-id $instance_id" "$AWSCLI_HOME/tempfiles/create.assignment.instance.4" "$AWSCLI_HOME/tempfiles/create.assignment.instance.4.error"
+      if [ $? -ne 0 ]; then
+         $AWSCLI_HOME/procs/log "Error 1 introducing challenge - please capture any output, zip up entire directory and send to professor for review...."
+         exit 1
+      fi
+      stopped=0
+      count=0
+      while [ $count -le 90 ]; do
+         $AWSCLI_HOME/procs/clicall "ec2 describe-instances --instance-id $instance_id" "$AWSCLI_HOME/tempfiles/create.assignment.instance.5" "$AWSCLI_HOME/tempfiles/create.assignment.instance.5.error"
+         if [ $? -ne 0 ]; then
+            $AWSCLI_HOME/procs/log "Error 2 introducing challenge - please capture any output, zip up entire directory and send to professor for review...."
+            exit 1
+         fi
+         export json=`cat $AWSCLI_HOME/tempfiles/create.assignment.instance.5`
+         export instance_stopped=`$AWSCLI_HOME/procs/json-read "Name:" | grep stopped`
+         if [ "$instance_stopped" != "" ]; then
+            stopped=1
+            break
+         else
+            let count=count+1
+            sleep 2
+            continue
+         fi
+      done
+      if [ $stopped -eq 0 ]; then
+         $AWSCLI_HOME/procs/log "Error 3 introducing challenge - please capture any output, zip up entire directory and send to professor for review...."
+         exit 1
+      fi
+   fi
 else
    $AWSCLI_HOME/procs/log "An error occurred creating the assignment instance $instance - please capture any output, zip up entire directory and send to professor for review....."
    exit

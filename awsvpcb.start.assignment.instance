@@ -2,7 +2,13 @@
 #
 instance=$1
 instance_id_var=AWSVPCB_${instance}_ID
+instance_stop_var=${instance}_STOP
 eval "instance_id=\${$instance_id_var}"
+eval "instance_stop=\${$instance_stop_var}"
+if [ "$instance_stop" == "yes" ]; then
+   exit 0
+fi
+
 if [ "$instance_id" == "" ]; then
    $AWSCLI_HOME/procs/log "Assignment instance $instance not registered (informational only) - moving on...."
    exit
