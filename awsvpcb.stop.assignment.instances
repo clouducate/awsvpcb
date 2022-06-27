@@ -2,7 +2,12 @@
 #
 $AWSCLI_HOME/procs/log "Starting assignment instances stop process...."
 
-instances=`echo NAT BASTION $ASSIGNMENT_STOP_INSTANCE_ORDER`
+if [ "$1" == "CREATE" ]; then 
+   instances=$ASSIGNMENT_STOP_INSTANCE_ORDER
+else
+   instances=`echo NAT BASTION $ASSIGNMENT_STOP_INSTANCE_ORDER`
+fi
+
 for i in $instances
 do
    $AWSCLI_HOME/procs/awsvpcb.stop.assignment.instance $i
