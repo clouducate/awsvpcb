@@ -27,7 +27,8 @@ do
       $AWSCLI_HOME/procs/log "Deleted and unregistered ELB $cert...."
    fi
 
-   sleep 15
+   $AWSCLI_HOME/procs/log "Waiting 45 seconds for ELB to release Target Group $tgarn...."
+   sleep 45
 
    if [ "$tgarn" == "" ]; then
       $AWSCLI_HOME/procs/log "TARGET GROUP $cert not registered - moving on (if TARGET GROUP exists, then run AWSVPCB.VPC.REGISTER)...."
