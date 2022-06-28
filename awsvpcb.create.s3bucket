@@ -12,8 +12,7 @@ fi
 echo "export AWSVPCB_S3BUCKET=$AWSVPCB_S3BUCKET" >> $AWSCLI_HOME/procs/aws-dynamic-vars
 $AWSCLI_HOME/procs/log "New S3 bucket $AWSVPCB_S3BUCKET registered and created in AWS...."
 
-#cp $AWSCLI_HOME/secfiles/s3bucket-policy.json.template $AWSCLI_HOME/secfiles/s3bucket-policy.json
-sed -e "s/AWSVPCB_S3BUCKET/$AWSVPCB_S3BUCKET/g" $AWSCLI_HOME/secfiles/s3bucket-policy.json.template > $AWSCLI_HOME/secfiles/s3bucket-policy.json
+sed -e "s/AWSVPCB_S3BUCKET/$AWSVPCB_S3BUCKET/g" $AWSCLI_HOME/secfiles/s3bucket-policy.json.template.$AWS_REGION > $AWSCLI_HOME/secfiles/s3bucket-policy.json
 
 $AWSCLI_HOME/procs/clicall "s3api put-bucket-policy --bucket $AWSVPCB_S3BUCKET --policy file://$AWSCLI_HOME/secfiles/s3bucket-policy.json" "$AWSCLI_HOME/tempfiles/create.s3bucket.2" "$AWSCLI_HOME/tempfiles/create.s3bucket.2.error"
 if [ $? -ne 0 ]; then
