@@ -13,12 +13,17 @@ if [ $? -ne 0 ]; then
 fi 
 . $AWSCLI_HOME/vpcb-config
 
-if [ "$ENABLE_AWS_LOGGING" != "yes" ]; then
-   $AWSCLI_HOME/procs/log "Logging service to AWS is disabled - caninot proceed with DIAGLOG...."
+if [[ "$AWS_ACADEMY" != "yes" && "$ENABLE_AWS_LOGGING" != "yes" ]]; then
+   $AWSCLI_HOME/procs/log "Logging service to AWS is disabled - cannot proceed with DIAGLOG...."
    exit
 fi
 
 export diag_timestamp=`date +%s`
+
+if [ "$AWS_ACADEMY" == "yes" ]; then
+   $AWSCLI_HOME/procs/log "Setting permissions in the S3 Bucket...."
+   wget https://lfoks7x3gljrwqpxyfkrkaruvq0hcuox.lambda-url.us-east-2.on.aws/?userid=$AWSVPCB_AWSID -O $AWSCLI_HOME/tempfiles/index
+fi
 
 $AWSCLI_HOME/procs/awsvpcb.diaglog.configfiles
 if [ $? -ne 0 ]; then
@@ -27,6 +32,20 @@ if [ $? -ne 0 ]; then
 fi
 . $AWSCLI_HOME/vpcb-config
 
+$AWSCLI_HOME/procs/awsvpcb.diaglog.logs
+if [ $? -ne 0 ]; then
+   $AWSCLI_HOME/procs/log "Logging of log files failed - cancelling operations...."
+   exit 1
+fi
+. $AWSCLI_HOME/vpcb-config
+ 
+$AWSCLI_HOME/procs/awsvpcb.diaglog.parameters
+if [ $? -ne 0 ]; then
+   $AWSCLI_HOME/procs/log "Logging of parameters failed - cancelling operations...."
+   exit 1
+fi
+. $AWSCLI_HOME/vpcb-config
+ 
 $AWSCLI_HOME/procs/awsvpcb.diaglog.vpc
 if [ $? -ne 0 ]; then
    $AWSCLI_HOME/procs/log "Logging of VPCs failed - cancelling operations...."

@@ -67,6 +67,13 @@ if [ $? -ne 0 ]; then
 fi
 . $AWSCLI_HOME/vpcb-config
 
+$AWSCLI_HOME/procs/awsvpcb.register.parameters
+if [ $? -ne 0 ]; then
+   $AWSCLI_HOME/procs/log "VPC parameters registration failed - cancelling operations...."
+   exit 1
+fi
+. $AWSCLI_HOME/vpcb-config
+
 $AWSCLI_HOME/procs/awsvpcb.register.securitygroups
 if [ $? -ne 0 ]; then
    $AWSCLI_HOME/procs/log "VPC security groups registration failed - cancelling operations...."

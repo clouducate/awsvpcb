@@ -89,6 +89,13 @@ if [ $? -ne 0 ]; then
 fi
 . $AWSCLI_HOME/vpcb-config
 
+$AWSCLI_HOME/procs/awsvpcb.destroy.parameters
+if [ $? -ne 0 ]; then
+   $AWSCLI_HOME/procs/log "Deletion of parameters failed - cancelling operations...."
+   exit 1
+fi
+. $AWSCLI_HOME/vpcb-config
+
 $AWSCLI_HOME/procs/awsvpcb.destroy.vpc
 if [ $? -ne 0 ]; then
    $AWSCLI_HOME/procs/log "VPC destroy failed - cancelling operations...."

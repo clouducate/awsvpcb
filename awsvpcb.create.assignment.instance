@@ -27,7 +27,28 @@ fi
 
 ###$AWSCLI_HOME/procs/clicall "ec2 run-instances --block-device-mappings DeviceName=/dev/sda1,VirtualName=Hibernate,Ebs={VolumeSize=30,Encrypted=true} --hibernation-options Configured=true --image-id $instance_ami --instance-type $instance_type --security-group-ids $instance_secgroup_id --subnet-id $instance_subnet_id --key-name $AWSVPCB_KEYPAIR --private-ip-address $instance_ip $instance_userdata_command" "$AWSCLI_HOME/tempfiles/create.assignment.instance.1" "$AWSCLI_HOME/tempfiles/create.assignment.instance.1.error"
 
-$AWSCLI_HOME/procs/clicall "ec2 run-instances --image-id $instance_ami --instance-type $instance_type --security-group-ids $instance_secgroup_id --subnet-id $instance_subnet_id --key-name $AWSVPCB_KEYPAIR --private-ip-address $instance_ip $instance_userdata_command" "$AWSCLI_HOME/tempfiles/create.assignment.instance.1" "$AWSCLI_HOME/tempfiles/create.assignment.instance.1.error"
+if [[ "$instance_ami" == *"PARM-"* ]]; then 
+   ami_parm=${instance_ami#*-}
+   $AWSCLI_HOME/procs/clicall "ssm get-parameters --names $ami_parm"  "$AWSCLI_HOME/tempfiles/create.assignment.instance.0" "$AWSCLI_HOME/tempfiles/create.assignment.instance.0.error"
+   if [ $? -ne 0 ]; then
+      $AWSCLI_HOME/procs/log "Error retrieving parameter $ami_parm in AWS -  please run ./AWSVPCB.DIAGLOG and let the professor know to review...."
+      exit 1
+   fi
+   export json=`cat $AWSCLI_HOME/tempfiles/create.assignment.instance.0`
+   final_ami=`$AWSCLI_HOME/procs/json-read "Value:"`
+   if [ "$final_ami" != "" ]; then
+      parm_value_var=VPC_${ami_parm}_VALUE
+      cat $AWSCLI_HOME/procs/aws-vpc-vars | grep -v $parm_value_var > $AWSCLI_HOME/tempfiles/aws-vpc-vars.temp
+      cat $AWSCLI_HOME/tempfiles/aws-vpc-vars.temp > $AWSCLI_HOME/procs/aws-vpc-vars
+      echo "export VPC_${ami_parm}_VALUE=$final_ami" >> $AWSCLI_HOME/procs/aws-vpc-vars
+   else
+      $AWSCLI_HOME/procs/log "Could not find value for parameter $ami_parm in AWS -  please run ./AWSVPCB.DIAGLOG and let the professor know to review...."
+      exit 1
+   fi
+else
+   final_ami=$instance_ami
+fi   
+$AWSCLI_HOME/procs/clicall "ec2 run-instances --image-id $final_ami --instance-type $instance_type --security-group-ids $instance_secgroup_id --subnet-id $instance_subnet_id --key-name $AWSVPCB_KEYPAIR --private-ip-address $instance_ip $instance_userdata_command" "$AWSCLI_HOME/tempfiles/create.assignment.instance.1" "$AWSCLI_HOME/tempfiles/create.assignment.instance.1.error"
 if [ $? -ne 0 ]; then
    $AWSCLI_HOME/procs/log "Error creating assignment instance $instance in AWS -  please capture any output, zip up entire directory and send to professor for review...."
    exit 1

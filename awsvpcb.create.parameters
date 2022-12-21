@@ -1,0 +1,18 @@
+# Create new VPC Systems Manager parameters
+#
+$AWSCLI_HOME/procs/log "Starting VPC parameters create process...."
+
+parameters=$VPC_PARAMETERS
+for p in $parameters
+do
+   parm_value_var=VPC_${p}_VALUE
+   eval "parm_value=\${$parm_value_var}"
+   $AWSCLI_HOME/procs/clicall "ssm put-parameter --name $p --type String --value $parm_value --overwrite"  "$AWSCLI_HOME/tempfiles/create.parameters.1" "$AWSCLI_HOME/tempfiles/create.parameters.1.error"
+   if [ $? -ne 0 ]; then
+      $AWSCLI_HOME/procs/log "Error creating parameter $p in AWS -  please capture any output, zip up entire directory and send to professor for review...."
+      exit 1
+   fi
+   $AWSCLI_HOME/procs/log "Parameter $p created with the value $parm_value in AWS...."
+done
+. $AWSCLI_HOME/procs/aws-dynamic-vars
+

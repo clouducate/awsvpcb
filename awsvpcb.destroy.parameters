@@ -1,0 +1,27 @@
+# Destroy VPC Systems Manager parameters
+#
+$AWSCLI_HOME/procs/log "Starting VPC parameters destroy process...."
+
+parameters=$VPC_PARAMETERS
+for p in $parameters
+do
+   $AWSCLI_HOME/procs/clicall "ssm get-parameters --names $p"  "$AWSCLI_HOME/tempfiles/delete.parameters.1" "$AWSCLI_HOME/tempfiles/delete.parameters.1.error"
+   if [ $? -ne 0 ]; then
+      $AWSCLI_HOME/procs/log "Error deleting parameter $p in AWS -  please capture any output, zip up entire directory and send to professor for review...."
+      exit 1
+   fi
+   export json=`cat $AWSCLI_HOME/tempfiles/delete.parameters.1`
+   value=`$AWSCLI_HOME/procs/json-read "Value:"`
+   if [ "$value" != "" ]; then
+      $AWSCLI_HOME/procs/clicall "ssm delete-parameter --name $p"  "$AWSCLI_HOME/tempfiles/delete.parameters.2" "$AWSCLI_HOME/tempfiles/delete.parameters.2.error"
+      if [ $? -ne 0 ]; then
+         $AWSCLI_HOME/procs/log "Error deleting parameter $p in AWS -  please capture any output, zip up entire directory and send to professor for review...."
+         exit 1
+      fi
+      $AWSCLI_HOME/procs/log "Parameter $p deleted in AWS...."
+   else
+      $AWSCLI_HOME/procs/log "Parameter $p does not exists in AWS - skipped...."
+   fi
+done
+. $AWSCLI_HOME/procs/aws-dynamic-vars
+

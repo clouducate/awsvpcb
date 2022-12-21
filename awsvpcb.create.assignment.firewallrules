@@ -44,7 +44,7 @@ do
          fi
       fi
    else 
-      $AWSCLI_HOME/procs/clicall "ec2 authorize-security-group-egress --group-id $secgroupid --protocol $protocol --port $port --cidr $source" "$AWSCLI_HOME/tempfiles/create.assignment.firewallsrules.2" "$AWSCLI_HOME/tempfiles/create.assignment.firewallrules.2.error"
+     $AWSCLI_HOME/procs/clicall "ec2 authorize-security-group-egress --group-id $secgroupid --protocol $protocol --port $port --cidr $source" "$AWSCLI_HOME/tempfiles/create.assignment.firewallsrules.2" "$AWSCLI_HOME/tempfiles/create.assignment.firewallrules.2.error"
       if [ $? -ne 0 ]; then
          test=`grep "InvalidPermission.Duplicate" $AWSCLI_HOME/tempfiles/create.assignment.firewallrules.2.error`
          if [ "$test" == "" ]; then

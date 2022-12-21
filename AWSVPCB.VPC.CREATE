@@ -68,6 +68,13 @@ if [ $? -ne 0 ]; then
 fi
 . $AWSCLI_HOME/vpcb-config
 
+$AWSCLI_HOME/procs/awsvpcb.create.parameters
+if [ $? -ne 0 ]; then
+   $AWSCLI_HOME/procs/log "VPC parameters creation failed - cancelling operations...."
+   exit 1
+fi
+. $AWSCLI_HOME/vpcb-config
+
 $AWSCLI_HOME/procs/awsvpcb.create.securitygroups
 if [ $? -ne 0 ]; then
    $AWSCLI_HOME/procs/log "VPC security groups creation failed - cancelling operations...."

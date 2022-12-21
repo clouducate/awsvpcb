@@ -13,6 +13,7 @@ level3Switch=0
 POSSIBLE_INSTANCES=
 POSSIBLE_ELBS=
 VPC_SUBNETS=
+VPC_PARAMETERS=
 VPC_SECURITYGROUPS=
 DNS_NUM=0
 #while IFS= read -r line
@@ -25,6 +26,8 @@ do
         level2=VPC
      elif [[ $line == *"Subnets"* ]]; then
         level2=Subnets
+     elif [[ $line == *"Parameters"* ]]; then
+        level2=Parameters
      elif [[ $line == *"PossibleInstanceNames"* ]]; then
         level2=PossibleInstanceNames
      elif [[ $line == *"PossibleELBs"* ]]; then
@@ -79,10 +82,14 @@ do
         echo "export NAT_AMI=$NAT_AMI" >> $output
      fi
   elif [ $level -eq 4 ]; then
-     if [[ "$level2" == "Subnets" ]]; then
+     if [[ "$level2" == "Subnets" || "$level2" == "Parameters" ]]; then
         level3Switch=1
      fi
-     if [[ "$level2" == "Subnets" && $line == *"SubnetName"* ]]; then
+     if [[ "$level2" == "Parameters" && $line == *"ParameterName"* ]]; then
+        L4PARMNAME=`echo $line | cut -d"\"" -f4`
+     elif [[ "$level2" == "Parameters" && $line == *"ParameterValue"* ]]; then
+        L4PARMVALUE=`echo $line | cut -d"\"" -f4`
+     elif [[ "$level2" == "Subnets" && $line == *"SubnetName"* ]]; then
         L4SUBNET=`echo $line | cut -d"\"" -f4`
      elif [[ "$level2" == "Subnets" && $line == *"SubnetCIDR"* ]]; then
         L4SUBNETCIDR=`echo $line | cut -d"\"" -f4`
@@ -134,11 +141,18 @@ do
        L4SUBNETROUTINGTABLE=
        L4SECURITYGROUP=
        L4AZ=
+     elif [[ "$level2" == "Parameters" ]]; then
+       VPC_PARAMETERS=`echo $VPC_PARAMETERS $L4PARMNAME`
+       var=VPC_${L4PARMNAME}_VALUE
+       echo "export $var=$L4PARMVALUE" >> $output
+       L4PARMNAME=
+       L4PARMVALUE=
      fi
 #     echo "LEVEL="$level " " $level2 " " $line
   fi
 done < "$input"
 echo "export VPC_SUBNETS=\"$VPC_SUBNETS\"" >> $output
+echo "export VPC_PARAMETERS=\"$VPC_PARAMETERS\"" >> $output
 echo "export VPC_SECURITYGROUPS=\"$VPC_SECURITYGROUPS\"" >> $output
 echo "export POSSIBLE_INSTANCES=\"$POSSIBLE_INSTANCES\"" >> $output
 echo "export POSSIBLE_ELBS=\"$POSSIBLE_ELBS\"" >> $output

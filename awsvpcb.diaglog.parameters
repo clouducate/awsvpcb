@@ -1,0 +1,11 @@
+# Print to log current Parameters 
+#
+$AWSCLI_HOME/procs/log "Starting Logging of Parameters process...."
+
+$AWSCLI_HOME/procs/clicall "ssm get-parameters --names $VPC_PARAMETERS"  "$AWSCLI_HOME/tempfiles/diaglog.parameters.1" "$AWSCLI_HOME/tempfiles/delete.parameters.1.error"
+if [ $? -ne 0 ]; then
+   $AWSCLI_HOME/procs/log "Error looking for parameters in AWS -  please capture any output, zip up entire directory and send to professor for review...."
+   exit 1
+fi
+
+$AWSCLI_HOME/procs/awsvpcb.diaglog.logfile $AWSCLI_HOME/tempfiles/diaglog.parameters.1

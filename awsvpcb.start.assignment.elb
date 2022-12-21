@@ -163,6 +163,9 @@ do
       exit 1
    fi
 
+   $AWSCLI_HOME/procs/log "Waiting 30 seconds for target group to be recognized...."
+   sleep 30
+
    input3="$AWSCLI_HOME/tempfiles/assignment.elb.$c.instances"
    while read -r i
    do

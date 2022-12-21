@@ -1,0 +1,13 @@
+# Log contents of the config files
+#
+$AWSCLI_HOME/procs/log "Starting Logging of the log files process...."
+
+$AWSCLI_HOME/procs/awsvpcb.diaglog.logfile $AWSCLI_HOME/logs/AWSVPCB.ASSIGNMENT.CREATE.log 
+$AWSCLI_HOME/procs/awsvpcb.diaglog.logfile $AWSCLI_HOME/logs/AWSVPCB.ASSIGNMENT.DESTROY.log 
+$AWSCLI_HOME/procs/awsvpcb.diaglog.logfile $AWSCLI_HOME/logs/AWSVPCB.ASSIGNMENT.START.log 
+$AWSCLI_HOME/procs/awsvpcb.diaglog.logfile $AWSCLI_HOME/logs/AWSVPCB.ASSIGNMENT.STOP.log 
+$AWSCLI_HOME/procs/awsvpcb.diaglog.logfile $AWSCLI_HOME/logs/AWSVPCB.CONFIGURE.log 
+$AWSCLI_HOME/procs/awsvpcb.diaglog.logfile $AWSCLI_HOME/logs/AWSVPCB.VPC.CREATE.log 
+$AWSCLI_HOME/procs/awsvpcb.diaglog.logfile $AWSCLI_HOME/logs/AWSVPCB.VPC.DESTROY.log 
+$AWSCLI_HOME/procs/awsvpcb.diaglog.logfile $AWSCLI_HOME/logs/AWSVPCB.VPC.REGISTER.log 
+
