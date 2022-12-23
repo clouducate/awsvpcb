@@ -31,6 +31,23 @@ $AWSCLI_HOME/procs/log "Logging service disabled during AWSVPCB.CONFIGURE startu
 $AWSCLI_HOME/procs/log "AWS CLI Scripts directory configured as $AWSCLI_HOME."
 $AWSCLI_HOME/procs/log "Local UserID configured as $USER_ID."
 
+$AWSCLI_HOME/procs/clicall "sts get-caller-identity" "$AWSCLI_HOME/tempfiles/test.1" "$AWSCLI_HOME/tempfiles/test.1.error"
+if [ $? -ne 0 ]; then
+   $AWSCLI_HOME/procs/log "Error testing connectivity to AWS -  please capture any output, zip up entire directory and send to professor for review...."
+   exit 1
+fi
+export json=`cat $AWSCLI_HOME/tempfiles/test.1`
+export AWSVPCB_AWSID=`$AWSCLI_HOME/procs/json-read "Arn:" | sed 's/=/%3D/g'`
+if [ "$AWSVPCB_AWSID" != "" ]; then
+   cat $AWSCLI_HOME/procs/aws-dynamic-vars | grep -v AWSVPCB_AWSID > $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp
+   cat $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp > $AWSCLI_HOME/procs/aws-dynamic-vars
+   echo "export AWSVPCB_AWSID=$AWSVPCB_AWSID" >> $AWSCLI_HOME/procs/aws-dynamic-vars
+   $AWSCLI_HOME/procs/log "Userid $AWSVPCB_AWSID successfully connected to AWS and registered...."
+else
+   $AWSCLI_HOME/procs/log "An error occurred testing connectivity to AWS - please capture any output, zip up entire directory and send to professor for review....."
+   exit
+fi
+
 if [ "$AWS_ACADEMY" != "yes" ]; then 
    head -3 $HOME/.aws/credentials > $HOME/.aws/credentials.backup
    cat $HOME/.aws/credentials.backup > $HOME/.aws/credentials
