@@ -20,11 +20,6 @@ fi
 
 export diag_timestamp=`date +%s`
 
-if [ "$AWS_ACADEMY" == "yes" ]; then
-   $AWSCLI_HOME/procs/log "Setting permissions in the S3 Bucket...."
-   wget https://lfoks7x3gljrwqpxyfkrkaruvq0hcuox.lambda-url.us-east-2.on.aws/?userid=$AWSVPCB_AWSID -O $AWSCLI_HOME/tempfiles/index
-fi
-
 $AWSCLI_HOME/procs/awsvpcb.diaglog.configfiles
 if [ $? -ne 0 ]; then
    $AWSCLI_HOME/procs/log "Logging of configuration files failed - cancelling operations...."
