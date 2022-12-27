@@ -33,7 +33,7 @@ $AWSCLI_HOME/procs/log "Local UserID configured as $USER_ID."
 
 $AWSCLI_HOME/procs/clicall "sts get-caller-identity" "$AWSCLI_HOME/tempfiles/test.1" "$AWSCLI_HOME/tempfiles/test.1.error"
 if [ $? -ne 0 ]; then
-   $AWSCLI_HOME/procs/log "Error testing connectivity to AWS -  please capture any output, zip up entire directory and send to professor for review...."
+   $AWSCLI_HOME/procs/log "Error testing connectivity to AWS -  $ERRORMSG"
    exit 1
 fi
 export json=`cat $AWSCLI_HOME/tempfiles/test.1`
@@ -44,7 +44,7 @@ if [ "$AWSVPCB_AWSID" != "" ]; then
    echo "export AWSVPCB_AWSID=$AWSVPCB_AWSID" >> $AWSCLI_HOME/procs/aws-dynamic-vars
    $AWSCLI_HOME/procs/log "Userid $AWSVPCB_AWSID successfully connected to AWS and registered...."
 else
-   $AWSCLI_HOME/procs/log "An error occurred testing connectivity to AWS - please capture any output, zip up entire directory and send to professor for review....."
+   $AWSCLI_HOME/procs/log "An error occurred testing connectivity to AWS - $ERRORMSG"
    exit
 fi
 

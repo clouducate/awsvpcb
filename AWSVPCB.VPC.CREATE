@@ -56,49 +56,49 @@ fi
 . $AWSCLI_HOME/vpcb-config
 $AWSCLI_HOME/procs/awsvpcb.create.vpc
 if [ $? -ne 0 ]; then
-   $AWSCLI_HOME/procs/log "VPC creation failed - cancelling operations...."
+   $AWSCLI_HOME/procs/log "VPC creation failed - $ERRORMSG"
    exit 1
 fi
 . $AWSCLI_HOME/vpcb-config
 
 $AWSCLI_HOME/procs/awsvpcb.create.subnets
 if [ $? -ne 0 ]; then
-   $AWSCLI_HOME/procs/log "VPC subnets creation failed - cancelling operations...."
+   $AWSCLI_HOME/procs/log "VPC subnets creation failed - $ERRORMSG"
    exit 1
 fi
 . $AWSCLI_HOME/vpcb-config
 
 $AWSCLI_HOME/procs/awsvpcb.create.parameters
 if [ $? -ne 0 ]; then
-   $AWSCLI_HOME/procs/log "VPC parameters creation failed - cancelling operations...."
+   $AWSCLI_HOME/procs/log "VPC parameters creation failed - $ERRORMSG"
    exit 1
 fi
 . $AWSCLI_HOME/vpcb-config
 
 $AWSCLI_HOME/procs/awsvpcb.create.securitygroups
 if [ $? -ne 0 ]; then
-   $AWSCLI_HOME/procs/log "VPC security groups creation failed - cancelling operations...."
+   $AWSCLI_HOME/procs/log "VPC security groups creation failed - $ERRORMSG"
    exit 1
 fi
 . $AWSCLI_HOME/vpcb-config
 
 $AWSCLI_HOME/procs/awsvpcb.create.internetgateway
 if [ $? -ne 0 ]; then
-   $AWSCLI_HOME/procs/log "Internet Gateway creation failed - cancelling operations...."
+   $AWSCLI_HOME/procs/log "Internet Gateway creation failed - $ERRORMSG"
    exit 1
 fi
 . $AWSCLI_HOME/vpcb-config
 
 $AWSCLI_HOME/procs/awsvpcb.create.keypair
 if [ $? -ne 0 ]; then
-   $AWSCLI_HOME/procs/log "Key Pair import failed - cancelling operations...."
+   $AWSCLI_HOME/procs/log "Key Pair import failed - $ERRORMSG"
    exit 1
 fi
 . $AWSCLI_HOME/vpcb-config
 
 $AWSCLI_HOME/procs/awsvpcb.create.natinstance
 if [ $? -ne 0 ]; then
-   $AWSCLI_HOME/procs/log "NAT instance creation failed - cancelling operations...."
+   $AWSCLI_HOME/procs/log "NAT instance creation failed - $ERRORMSG"
    exit 1
 fi
 . $AWSCLI_HOME/vpcb-config
@@ -107,7 +107,7 @@ BASTION_ON=`echo $AWSVPCB_REMOTECONNFLAG |grep -i bastion`
 if [ "$BASTION_ON" != "" ]; then
    $AWSCLI_HOME/procs/awsvpcb.create.bastioninstance
    if [ $? -ne 0 ]; then
-      $AWSCLI_HOME/procs/log "BASTION instance creation failed - cancelling operations...."
+      $AWSCLI_HOME/procs/log "BASTION instance creation failed - $ERRORMSG"
       exit 1
    fi
    . $AWSCLI_HOME/vpcb-config
@@ -115,7 +115,7 @@ fi
 
 $AWSCLI_HOME/procs/awsvpcb.create.routingtables
 if [ $? -ne 0 ]; then
-   $AWSCLI_HOME/procs/log "Route tables creation failed - cancelling operations...."
+   $AWSCLI_HOME/procs/log "Route tables creation failed - $ERRORMSG"
    exit 1
 fi
 . $AWSCLI_HOME/vpcb-config
@@ -124,7 +124,7 @@ VPN_ON=`echo $AWSVPCB_REMOTECONNFLAG |grep -i vpn`
 if [ "$VPN_ON" != "" ]; then
    $AWSCLI_HOME/procs/awsvpcb.create.clientvpnendpoint
    if [ $? -ne 0 ]; then
-      $AWSCLI_HOME/procs/log "Client VPN Endpoint creation failed - cancelling operations...."
+      $AWSCLI_HOME/procs/log "Client VPN Endpoint creation failed - $ERRORMSG"
       exit 1
    fi
    . $AWSCLI_HOME/vpcb-config
@@ -132,13 +132,13 @@ fi
 
 $AWSCLI_HOME/procs/awsvpcb.create.sslcerts
 if [ $? -ne 0 ]; then
-   $AWSCLI_HOME/procs/log "ELB SSL certificates creation failed - cancelling operations...."
+   $AWSCLI_HOME/procs/log "ELB SSL certificates creation failed - $ERRORMSG"
    exit 1
 fi
 
 $AWSCLI_HOME/procs/awsvpcb.create.s3bucket
 if [ $? -ne 0 ]; then
-   $AWSCLI_HOME/procs/log "S3 bucket creation failed - cancelling operations...."
+   $AWSCLI_HOME/procs/log "S3 bucket creation failed - $ERRORMSG"
    exit 1
 fi
 

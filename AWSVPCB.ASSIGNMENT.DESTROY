@@ -33,28 +33,28 @@ elif [ "$1" == "CREATE" ]; then
 fi
 $AWSCLI_HOME/AWSVPCB.ASSIGNMENT.STOP $SKIP $CREATE
 if [ $? -ne 0 ]; then
-   $AWSCLI_HOME/procs/log "Assignment stop failed - cancelling operations...."
+   $AWSCLI_HOME/procs/log "Assignment stop failed - $ERRORMSG"
    exit 1
 fi
 . $AWSCLI_HOME/vpcb-config
 
 $AWSCLI_HOME/procs/awsvpcb.destroy.assignment.elb
 if [ $? -ne 0 ]; then
-   $AWSCLI_HOME/procs/log "ELB deletion failed - cancelling operations...."
+   $AWSCLI_HOME/procs/log "ELB deletion failed - $ERRORMSG"
    exit 1
 fi
 . $AWSCLI_HOME/vpcb-config
 
 $AWSCLI_HOME/procs/awsvpcb.destroy.assignment.firewallrules
 if [ $? -ne 0 ]; then
-   $AWSCLI_HOME/procs/log "Security group inbound rules deletion failed - cancelling operations...."
+   $AWSCLI_HOME/procs/log "Security group inbound rules deletion failed - $ERRORMSG"
    exit 1
 fi
 . $AWSCLI_HOME/vpcb-config
 
 $AWSCLI_HOME/procs/awsvpcb.destroy.assignment.instances
 if [ $? -ne 0 ]; then
-   $AWSCLI_HOME/procs/log "Deletion of assignment instances failed - cancelling operations...."
+   $AWSCLI_HOME/procs/log "Deletion of assignment instances failed - $ERRORMSG"
    exit 1
 fi
 . $AWSCLI_HOME/vpcb-config

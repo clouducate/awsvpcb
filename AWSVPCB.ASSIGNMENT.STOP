@@ -18,7 +18,7 @@ if [ "$VPN_ON" != "" ]; then
    if [ "$1" != "SKIP" ]; then
       $AWSCLI_HOME/procs/awsvpcb.stop.assignment.clientvpnendpoint
       if [ $? -ne 0 ]; then
-         $AWSCLI_HOME/procs/log "Assignment stop of Client VPN Endpoint association failed - cancelling operations...."
+         $AWSCLI_HOME/procs/log "Assignment stop of Client VPN Endpoint association failed - $ERRORMSG"
          exit 1
       fi
    fi
@@ -32,7 +32,7 @@ fi
 if [ "$AWS_ACADEMY" != "yes" ]; then
    $AWSCLI_HOME/procs/awsvpcb.stop.assignment.route53-resolver
    if [ $? -ne 0 ]; then
-      $AWSCLI_HOME/procs/log "Assignment stop of Route 53 DNS resolver failed - cancelling operations...."
+      $AWSCLI_HOME/procs/log "Assignment stop of Route 53 DNS resolver failed - $ERRORMSG"
       exit 1
    fi
    . $AWSCLI_HOME/vpcb-config
@@ -40,14 +40,14 @@ fi
 
 $AWSCLI_HOME/procs/awsvpcb.stop.assignment.route53-1
 if [ $? -ne 0 ]; then
-   $AWSCLI_HOME/procs/log "Assignment stop of Route 53 Private zone failed - cancelling operations...."
+   $AWSCLI_HOME/procs/log "Assignment stop of Route 53 Private zone failed - $ERRORMSG"
    exit 1
 fi
 . $AWSCLI_HOME/vpcb-config
 
 $AWSCLI_HOME/procs/awsvpcb.stop.assignment.instances $CREATE
 if [ $? -ne 0 ]; then
-   $AWSCLI_HOME/procs/log "Assignment stop of instances failed - cancelling operations...."
+   $AWSCLI_HOME/procs/log "Assignment stop of instances failed - $ERRORMSG"
    exit 1
 fi
 . $AWSCLI_HOME/vpcb-config

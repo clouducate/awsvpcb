@@ -15,7 +15,7 @@ fi
 
 $AWSCLI_HOME/procs/awsvpcb.start.assignment.route53-1
 if [ $? -ne 0 ]; then
-   $AWSCLI_HOME/procs/log "Assignment start of Route 53 creation (phase 1) failed - cancelling operations...."
+   $AWSCLI_HOME/procs/log "Assignment start of Route 53 creation (phase 1) failed - $ERRORMSG"
    exit 1
 fi
 . $AWSCLI_HOME/vpcb-config
@@ -23,7 +23,7 @@ fi
 if [ "$AWS_ACADEMY" != "yes" ]; then
    $AWSCLI_HOME/procs/awsvpcb.start.assignment.route53-resolver
    if [ $? -ne 0 ]; then
-      $AWSCLI_HOME/procs/log "Assignment start of Route 53 DNS resolver failed - cancelling operations...."
+      $AWSCLI_HOME/procs/log "Assignment start of Route 53 DNS resolver failed - $ERRORMSG"
       exit 1
    fi
    . $AWSCLI_HOME/vpcb-config
@@ -31,21 +31,21 @@ fi
 
 $AWSCLI_HOME/procs/awsvpcb.start.assignment.instances
 if [ $? -ne 0 ]; then
-   $AWSCLI_HOME/procs/log "Assignment start of instances failed - cancelling operations...."
+   $AWSCLI_HOME/procs/log "Assignment start of instances failed - $ERRORMSG"
    exit 1
 fi
 . $AWSCLI_HOME/vpcb-config
 
 $AWSCLI_HOME/procs/awsvpcb.start.assignment.elb
 if [ $? -ne 0 ]; then
-   $AWSCLI_HOME/procs/log "Assignment start of ELB failed - cancelling operations...."
+   $AWSCLI_HOME/procs/log "Assignment start of ELB failed - $ERRORMSG"
    exit 1
 fi
 . $AWSCLI_HOME/vpcb-config
 
 $AWSCLI_HOME/procs/awsvpcb.start.assignment.route53-2
 if [ $? -ne 0 ]; then
-   $AWSCLI_HOME/procs/log "Assignment start of Route 53 (phase 2) failed - cancelling operations...."
+   $AWSCLI_HOME/procs/log "Assignment start of Route 53 (phase 2) failed - $ERRORMSG"
    exit 1
 fi
 . $AWSCLI_HOME/vpcb-config
@@ -54,7 +54,7 @@ VPN_ON=`echo $AWSVPCB_REMOTECONNFLAG |grep -i vpn`
 if [ "$VPN_ON" != "" ]; then
    $AWSCLI_HOME/procs/awsvpcb.start.assignment.clientvpnendpoint
    if [ $? -ne 0 ]; then
-      $AWSCLI_HOME/procs/log "Assignment start of Client VPN Endpoint association failed - cancelling operations...."
+      $AWSCLI_HOME/procs/log "Assignment start of Client VPN Endpoint association failed - $ERRORMSG"
       exit 1
    fi
 else

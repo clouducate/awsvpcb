@@ -26,7 +26,7 @@ if [ $answer -ne 0 ]; then
       $AWSCLI_HOME/procs/awsvpcb.configure.manifestassignmentawsdownload 
       if [ $? -ne 0 ]; then
          $AWSCLI_HOME/procs/log "Error downloading AWSVPCB Assignment Manifest from AWS...."
-         $AWSCLI_HOME/procs/log "Load of assignment manifest failed - cancelling operations...."
+         $AWSCLI_HOME/procs/log "Load of assignment manifest failed - $ERRORMSG"
          exit 1
       else
          $AWSCLI_HOME/procs/log "AWSVPCB Assignment Manifest downloaded from AWS...."
@@ -40,7 +40,7 @@ if [ $answer -ne 0 ]; then
       $AWSCLI_HOME/procs/awsvpcb.configure.manifestassignmentload
       if [ $? -ne 0 ]; then
          $AWSCLI_HOME/procs/log "Error loading AWSVPCB Assignment Manifest...."
-         $AWSCLI_HOME/procs/log "Load of assignment manifest failed - cancelling operations...."
+         $AWSCLI_HOME/procs/log "Load of assignment manifest failed - $ERRORMSG"
          exit 1
       else
          $AWSCLI_HOME/procs/log "AWSVPCB Assignment Manifest loaded...."
@@ -55,84 +55,84 @@ fi
 
 $AWSCLI_HOME/procs/awsvpcb.register.vpc
 if [ $? -ne 0 ]; then
-   $AWSCLI_HOME/procs/log "VPC registration failed - cancelling operations...."
+   $AWSCLI_HOME/procs/log "VPC registration failed - $ERRORMSG"
    exit 1
 fi
 . $AWSCLI_HOME/vpcb-config
 
 $AWSCLI_HOME/procs/awsvpcb.register.subnets
 if [ $? -ne 0 ]; then
-   $AWSCLI_HOME/procs/log "VPC subnets registration failed - cancelling operations...."
+   $AWSCLI_HOME/procs/log "VPC subnets registration failed - $ERRORMSG"
    exit 1
 fi
 . $AWSCLI_HOME/vpcb-config
 
 $AWSCLI_HOME/procs/awsvpcb.register.parameters
 if [ $? -ne 0 ]; then
-   $AWSCLI_HOME/procs/log "VPC parameters registration failed - cancelling operations...."
+   $AWSCLI_HOME/procs/log "VPC parameters registration failed - $ERRORMSG"
    exit 1
 fi
 . $AWSCLI_HOME/vpcb-config
 
 $AWSCLI_HOME/procs/awsvpcb.register.securitygroups
 if [ $? -ne 0 ]; then
-   $AWSCLI_HOME/procs/log "VPC security groups registration failed - cancelling operations...."
+   $AWSCLI_HOME/procs/log "VPC security groups registration failed - $ERRORMSG"
    exit 1
 fi
 . $AWSCLI_HOME/vpcb-config
 
 $AWSCLI_HOME/procs/awsvpcb.register.internetgateway
 if [ $? -ne 0 ]; then
-   $AWSCLI_HOME/procs/log "Internet Gateway registration failed - cancelling operations...."
+   $AWSCLI_HOME/procs/log "Internet Gateway registration failed - $ERRORMSG"
    exit 1
 fi
 . $AWSCLI_HOME/vpcb-config
 
 $AWSCLI_HOME/procs/awsvpcb.register.routingtables
 if [ $? -ne 0 ]; then
-   $AWSCLI_HOME/procs/log "Route tables registration failed - cancelling operations...."
+   $AWSCLI_HOME/procs/log "Route tables registration failed - $ERRORMSG"
    exit 1
 fi
 . $AWSCLI_HOME/vpcb-config
 
 $AWSCLI_HOME/procs/awsvpcb.register.instances
 if [ $? -ne 0 ]; then
-   $AWSCLI_HOME/procs/log "Instances registration failed - cancelling operations...."
+   $AWSCLI_HOME/procs/log "Instances registration failed - $ERRORMSG"
    exit 1
 fi
 . $AWSCLI_HOME/vpcb-config
 
 $AWSCLI_HOME/procs/awsvpcb.register.clientvpnendpoint
 if [ $? -ne 0 ]; then
-   $AWSCLI_HOME/procs/log "Client VPN Endpoint registration failed - cancelling operations...."
+   $AWSCLI_HOME/procs/log "Client VPN Endpoint registration failed - $ERRORMSG"
    exit 1
 fi
 . $AWSCLI_HOME/vpcb-config
 
 $AWSCLI_HOME/procs/awsvpcb.register.route53
 if [ $? -ne 0 ]; then
-   $AWSCLI_HOME/procs/log "Route 53 registration failed - cancelling operations...."
+   $AWSCLI_HOME/procs/log "Route 53 registration failed - $ERRORMSG"
    exit 1
 fi
 . $AWSCLI_HOME/vpcb-config
 
 $AWSCLI_HOME/procs/awsvpcb.register.sslcerts
 if [ $? -ne 0 ]; then
-   $AWSCLI_HOME/procs/log "SSL Certificate registration failed - cancelling operations...."
+   $AWSCLI_HOME/procs/log "SSL Certificate registration failed - $ERRORMSG"
    exit 1
 fi
 . $AWSCLI_HOME/vpcb-config
 
 $AWSCLI_HOME/procs/awsvpcb.register.elb
 if [ $? -ne 0 ]; then
-   $AWSCLI_HOME/procs/log "ELB registration failed - cancelling operations...."
+   $AWSCLI_HOME/procs/log "ELB registration failed - $ERRORMSG"
    exit 1
 fi
 . $AWSCLI_HOME/vpcb-config
 
 $AWSCLI_HOME/procs/awsvpcb.register.s3bucket
 if [ $? -ne 0 ]; then
-   $AWSCLI_HOME/procs/log "S3 bucket registration failed - cancelling operations...."
+   $AWSCLI_HOME/procs/log "S3 bucket registration failed - $ERRORMSG"
    exit 1
 fi
 . $AWSCLI_HOME/vpcb-config

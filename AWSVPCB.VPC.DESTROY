@@ -14,91 +14,91 @@ fi
 
 $AWSCLI_HOME/AWSVPCB.ASSIGNMENT.DESTROY
 if [ $? -ne 0 ]; then
-   $AWSCLI_HOME/procs/log "Deletion of existing assignment failed - cancelling operations...."
+   $AWSCLI_HOME/procs/log "Deletion of existing assignment failed - $ERRORMSG"
    exit 1
 fi
 . $AWSCLI_HOME/vpcb-config
 
 $AWSCLI_HOME/procs/awsvpcb.destroy.s3bucket
 if [ $? -ne 0 ]; then
-   $AWSCLI_HOME/procs/log "Deletion of s3 bucket failed - cancelling operations...."
+   $AWSCLI_HOME/procs/log "Deletion of s3 bucket failed - $ERRORMSG"
    exit 1
 fi
 . $AWSCLI_HOME/vpcb-config
 
 $AWSCLI_HOME/procs/awsvpcb.destroy.sslcerts
 if [ $? -ne 0 ]; then
-   $AWSCLI_HOME/procs/log "Deletion of SSL Certificates failed - cancelling operations...."
+   $AWSCLI_HOME/procs/log "Deletion of SSL Certificates failed - $ERRORMSG"
    exit 1
 fi
 . $AWSCLI_HOME/vpcb-config
 
 $AWSCLI_HOME/procs/awsvpcb.destroy.clientvpnendpoint
 if [ $? -ne 0 ]; then
-   $AWSCLI_HOME/procs/log "Deletion of Client VPN Endpoint failed - cancelling operations...."
+   $AWSCLI_HOME/procs/log "Deletion of Client VPN Endpoint failed - $ERRORMSG"
    exit 1
 fi
 . $AWSCLI_HOME/vpcb-config
 
 $AWSCLI_HOME/procs/awsvpcb.destroy.routingtables
 if [ $? -ne 0 ]; then
-   $AWSCLI_HOME/procs/log "Deletion of route tables failed - cancelling operations...."
+   $AWSCLI_HOME/procs/log "Deletion of route tables failed - $ERRORMSG"
    exit 1
 fi
 . $AWSCLI_HOME/vpcb-config
 
 $AWSCLI_HOME/procs/awsvpcb.destroy.bastioninstance
 if [ $? -ne 0 ]; then
-   $AWSCLI_HOME/procs/log "Deletion of BASTION instance failed - cancelling operations...."
+   $AWSCLI_HOME/procs/log "Deletion of BASTION instance failed - $ERRORMSG"
    exit 1
 fi
 . $AWSCLI_HOME/vpcb-config
 
 $AWSCLI_HOME/procs/awsvpcb.destroy.natinstance
 if [ $? -ne 0 ]; then
-   $AWSCLI_HOME/procs/log "Deletion of NAT instance failed - cancelling operations...."
+   $AWSCLI_HOME/procs/log "Deletion of NAT instance failed - $ERRORMSG"
    exit 1
 fi
 . $AWSCLI_HOME/vpcb-config
 
 $AWSCLI_HOME/procs/awsvpcb.destroy.keypair
 if [ $? -ne 0 ]; then
-   $AWSCLI_HOME/procs/log "Deletion of Key pair failed - cancelling operations...."
+   $AWSCLI_HOME/procs/log "Deletion of Key pair failed - $ERRORMSG"
    exit 1
 fi
 . $AWSCLI_HOME/vpcb-config
 
 $AWSCLI_HOME/procs/awsvpcb.destroy.internetgateway
 if [ $? -ne 0 ]; then
-   $AWSCLI_HOME/procs/log "Deletion of Internet Gateway failed - cancelling operations...."
+   $AWSCLI_HOME/procs/log "Deletion of Internet Gateway failed - $ERRORMSG"
    exit 1
 fi
 . $AWSCLI_HOME/vpcb-config
 
 $AWSCLI_HOME/procs/awsvpcb.destroy.securitygroups
 if [ $? -ne 0 ]; then
-   $AWSCLI_HOME/procs/log "Deletion of security groups failed - cancelling operations...."
+   $AWSCLI_HOME/procs/log "Deletion of security groups failed - $ERRORMSG"
    exit 1
 fi
 . $AWSCLI_HOME/vpcb-config
 
 $AWSCLI_HOME/procs/awsvpcb.destroy.subnets
 if [ $? -ne 0 ]; then
-   $AWSCLI_HOME/procs/log "Deletion of subnets failed - cancelling operations...."
+   $AWSCLI_HOME/procs/log "Deletion of subnets failed - $ERRORMSG"
    exit 1
 fi
 . $AWSCLI_HOME/vpcb-config
 
 $AWSCLI_HOME/procs/awsvpcb.destroy.parameters
 if [ $? -ne 0 ]; then
-   $AWSCLI_HOME/procs/log "Deletion of parameters failed - cancelling operations...."
+   $AWSCLI_HOME/procs/log "Deletion of parameters failed - $ERRORMSG"
    exit 1
 fi
 . $AWSCLI_HOME/vpcb-config
 
 $AWSCLI_HOME/procs/awsvpcb.destroy.vpc
 if [ $? -ne 0 ]; then
-   $AWSCLI_HOME/procs/log "VPC destroy failed - cancelling operations...."
+   $AWSCLI_HOME/procs/log "VPC destroy failed - $ERRORMSG"
    exit 1
 fi
 . $AWSCLI_HOME/vpcb-config

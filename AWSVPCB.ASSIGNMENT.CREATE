@@ -26,7 +26,7 @@ echo "#" > $AWSCLI_HOME/tempfiles/unset-vars.temp
 
 $AWSCLI_HOME/AWSVPCB.ASSIGNMENT.DESTROY $2 CREATE
 if [ $? -ne 0 ]; then
-   $AWSCLI_HOME/procs/log "Deletion of existing assignment failed - cancelling operations...."
+   $AWSCLI_HOME/procs/log "Deletion of existing assignment failed - cancelling operations - $ERRORMSG"
    exit 1
 fi
 . $AWSCLI_HOME/tempfiles/unset-vars.temp
@@ -44,13 +44,13 @@ if [ "$MANIFEST_LOCATION" == "aws" ]; then
    $AWSCLI_HOME/procs/awsvpcb.configure.manifestassignmentawsdownload
    if [ $? -ne 0 ]; then
       $AWSCLI_HOME/procs/log "Error downloading AWSVPCB Assignment Manifest from AWS...."
-      $AWSCLI_HOME/procs/log "Load of assignment manifest failed - cancelling operations...."
+      $AWSCLI_HOME/procs/log "Load of assignment manifest failed - cancelling operations - $ERRORMSG"
       exit 1
    else
       $AWSCLI_HOME/procs/awsvpcb.configure.manifestassignmentload
       if [ $? -ne 0 ]; then
          $AWSCLI_HOME/procs/log "Error loading AWSVPCB Assignment Manifest downloaded from AWS...."
-         $AWSCLI_HOME/procs/log "Load of assignment manifest failed - cancelling operations...."
+         $AWSCLI_HOME/procs/log "Load of assignment manifest failed - cancelling operations - $ERRORMSG"
          exit 1
       else
          $AWSCLI_HOME/procs/log "AWSVPCB Assignment Manifest loaded from AWS...."
@@ -61,7 +61,7 @@ else
    $AWSCLI_HOME/procs/awsvpcb.configure.manifestassignmentload
    if [ $? -ne 0 ]; then
       $AWSCLI_HOME/procs/log "Error loading AWSVPCB Assignment Manifest from local copy...."
-      $AWSCLI_HOME/procs/log "Load of assignment manifest failed - cancelling operations...."
+      $AWSCLI_HOME/procs/log "Load of assignment manifest failed - cancelling operations - $ERRORMSG"
       exit 1
    else
       $AWSCLI_HOME/procs/log "AWSVPCB Assignment Manifest loaded from local copy...."
@@ -72,7 +72,7 @@ fi
 if [ "$AWS_ACADEMY" != "yes" ]; then
    $AWSCLI_HOME/procs/awsvpcb.start.assignment.route53-resolver
    if [ $? -ne 0 ]; then
-      $AWSCLI_HOME/procs/log "Creation of DNS resolver failed - cancelling operations...."
+      $AWSCLI_HOME/procs/log "Creation of DNS resolver failed - cancelling operations - $ERRORMSG"
       exit 1
    fi
    . $AWSCLI_HOME/vpcb-config
@@ -80,7 +80,7 @@ fi
 
 $AWSCLI_HOME/procs/awsvpcb.create.assignment.instances
 if [ $? -ne 0 ]; then
-   $AWSCLI_HOME/procs/log "Creation of assignment instances failed - cancelling operations...."
+   $AWSCLI_HOME/procs/log "Creation of assignment instances failed - cancelling operations - $ERRORMSG"
    exit 1
 fi
 . $AWSCLI_HOME/vpcb-config
@@ -88,7 +88,7 @@ fi
 if [ "$AWS_ACADEMY" != "yes" ]; then
    $AWSCLI_HOME/procs/awsvpcb.stop.assignment.route53-resolver
    if [ $? -ne 0 ]; then
-      $AWSCLI_HOME/procs/log "Deletion of DNS resolver failed - cancelling operations...."
+      $AWSCLI_HOME/procs/log "Deletion of DNS resolver failed - cancelling operations - $ERRORMSG"
       exit 1
    fi
    . $AWSCLI_HOME/vpcb-config
@@ -96,7 +96,7 @@ fi
 
 $AWSCLI_HOME/procs/awsvpcb.create.assignment.firewallrules
 if [ $? -ne 0 ]; then
-   $AWSCLI_HOME/procs/log "Security group inbound rules creation failed - cancelling operations...."
+   $AWSCLI_HOME/procs/log "Security group inbound rules creation failed - cancelling operations - $ERRORMSG"
    exit 1
 fi
 . $AWSCLI_HOME/vpcb-config
