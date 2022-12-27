@@ -1,6 +1,7 @@
 . procs/aws-vpcb-vars
 export COURSE=CTS-4743
-export SEMESTER=$COURSE-Spring2022
+export SEMESTER=$COURSE-Spring2023
+export ERRORMSG="please run ./AWSVPCB.DIAGLOG and let the professor know to review...."
 export DOMAIN=awsvpcb.edu
 export AWSCMD=aws
 
