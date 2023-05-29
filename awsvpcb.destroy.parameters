@@ -19,6 +19,10 @@ do
          exit 1
       fi
       $AWSCLI_HOME/procs/log "Parameter $p deleted in AWS...."
+      $AWSCLI_HOME/procs/log "Unregistering parameter  $p...."
+      cat $AWSCLI_HOME/procs/aws-dynamic-vars | grep -v $p > $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp
+      cat $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp > $AWSCLI_HOME/procs/aws-dynamic-vars
+
    else
       $AWSCLI_HOME/procs/log "Parameter $p does not exists in AWS - skipped...."
    fi
