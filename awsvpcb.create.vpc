@@ -47,6 +47,7 @@ if [ "$AWSVPCB_VPCID" == "" ]; then
    fi
    export json=`cat $AWSCLI_HOME/tempfiles/create.vpc.3`
    export AWSVPCB_VPCID=`$AWSCLI_HOME/procs/json-read "VpcId:"` 
+   sleep 2
    if [ "$AWSVPCB_VPCID" != "" ]; then
       echo "export AWSVPCB_VPCID=$AWSVPCB_VPCID" >> $AWSCLI_HOME/procs/aws-dynamic-vars
       $AWSCLI_HOME/procs/log "New VPC $AWSVPCB_VPCID created and registered - tagging it as AWS-VPCB VPC...."
