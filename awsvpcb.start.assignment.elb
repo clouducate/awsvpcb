@@ -12,86 +12,113 @@ do
       continue
    elif [ "$c" == "-" ]; then
       continue
-   elif [ "$protocol" == "-" ]; then
+   fi
+   if [ "$protocol" == "-" ]; then
       $AWSCLI_HOME/procs/log "Warning with ELB definition - protocol not provided - defaulting to HTTPS..."
       protocol="HTTPS"
-   elif [ "$port" == "-" ]; then
+   fi
+   if [ "$port" == "-" ]; then
       $AWSCLI_HOME/procs/log "Warning with ELB definition - port not provided - defaulting to 443...."
       port="443"
-   elif [ "$iprotocol" == "-" ]; then
+   fi
+   if [ "$iprotocol" == "-" ]; then
       $AWSCLI_HOME/procs/log "Warning with ELB definition - instance protocol not provided - defaulting to HTTP...."
       iprotocol="HTTP"
-   elif [ "$iport" == "-"  ]; then
+   fi
+   if [ "$iport" == "-"  ]; then
       $AWSCLI_HOME/procs/log "Warning with ELB definition - instance port not provided - defaulting to 80...."
       port="80"
-   elif [ "$secgroup" == "-"  ]; then
+   fi
+   if [ "$secgroup" == "-"  ]; then
       $AWSCLI_HOME/procs/log "Warning with ELB definition - secgroup not provided - defaulting to ELB...."
       secgroup="ELB"
-   elif [ "$targetprotocol" == "-"  ]; then
+   fi
+   if [ "$targetprotocol" == "-"  ]; then
       $AWSCLI_HOME/procs/log "Warning with ELB definition - target protocol not provided - defaulting to HTTP...."
       targetprotocol="TCP"
-   elif [ "$targetport" == "-"  ]; then
+   fi
+   if [ "$targetport" == "-"  ]; then
       $AWSCLI_HOME/procs/log "Warning with ELB definition - target port not provided - defaulting to 80...."
       targetport="80"
-   elif [ "$targetpath" == "-"  ]; then
+   fi
+   if [ "$targetpath" == "-"  ]; then
       if [ "$targetprotocol" == "HTTP" -o "$targetprotocol" == "HTTPS" ]; then
          $AWSCLI_HOME/procs/log "Warning with ELB definition - target path not provided - defaulting to /...."
          targetpath="/"
       fi
-   elif [ "$interval" == "-"  ]; then
+   fi
+   if [ "$interval" == "-"  ]; then
       $AWSCLI_HOME/procs/log "Warning with ELB definition - interval not provided - defaulting to 5...."
       interval="5"
-   elif [ "$timeout" == "-"  ]; then
+   fi
+   if [ "$timeout" == "-"  ]; then
       $AWSCLI_HOME/procs/log "Warning with ELB definition - timeout not provided - defaulting to 3...."
       timeout="3"
-   elif [ "$uthreshold" == "-"  ]; then
+   fi
+   if [ "$uthreshold" == "-"  ]; then
       $AWSCLI_HOME/procs/log "Warning with ELB definition - unhealthy threshold not provided - defaulting to 2...."
       uthreshold="2"
-   elif [ "$hthreshold" == "-"  ]; then
+   fi
+   if [ "$hthreshold" == "-"  ]; then
       $AWSCLI_HOME/procs/log "Warning with ELB definition - healthy threshold not provided - defaulting to 2...."
       hthreshold="2"
-   elif [ "$stickiness" == "-"  ]; then
+   fi
+   if [ "$stickiness" == "-"  ]; then
       $AWSCLI_HOME/procs/log "Warning with ELB definition - Session Stickiness not provided - defaulting to N...."
       stickiness="N"
-   elif [ "$certname" == "-"  ]; then
+   fi
+   if [ "$certname" == "-"  ]; then
       certname=$c 
-   elif [ "$protocol" == "" ]; then
+   fi
+   if [ "$protocol" == "" ]; then
       $AWSCLI_HOME/procs/log "ERROR with ELB definition - protocol missing - please capture any output, zip up entire directory and send to professor for review..."
       exit 1
-   elif [ "$port" == "" ]; then
+   fi
+   if [ "$port" == "" ]; then
       $AWSCLI_HOME/procs/log "Warning with ELB definition - port missing - please capture any output, zip up entire directory and send to professor for review...."
       exit 1
-   elif [ "$iprotocol" == "" ]; then
+   fi
+   if [ "$iprotocol" == "" ]; then
       $AWSCLI_HOME/procs/log "Warning with ELB definition - instance protocol missing - please capture any output, zip up entire directory and send to professor for review...."
       exit 1
-   elif [ "$iport" == ""  ]; then
+   fi
+   if [ "$iport" == ""  ]; then
       $AWSCLI_HOME/procs/log "Warning with ELB definition - instance port missing - please capture any output, zip up entire directory and send to professor for review...."
       exit 1
-   elif [ "$secgroup" == ""  ]; then
+   fi
+   if [ "$secgroup" == ""  ]; then
       $AWSCLI_HOME/procs/log "Warning with ELB definition - secgroup missing - please capture any output, zip up entire directory and send to professor for review...."
       exit 1
-   elif [ "$targetprotocol" == ""  ]; then
+   fi
+   if [ "$targetprotocol" == ""  ]; then
       $AWSCLI_HOME/procs/log "Warning with ELB definition - target protocol missing - please capture any output, zip up entire directory and send to professor for review...."
       exit 1
-   elif [ "$targetport" == ""  ]; then
+   fi
+   if [ "$targetport" == ""  ]; then
       $AWSCLI_HOME/procs/log "Warning with ELB definition - target port missing - please capture any output, zip up entire directory and send to professor for review...."
       exit 1
-   elif [ "$targetpath" == ""  ]; then
+   fi
+   if [ "$targetpath" == ""  ]; then
       $AWSCLI_HOME/procs/log "Warning with ELB definition - target path missing - please capture any output, zip up entire directory and send to professor for review...."
       exit 1
-   elif [ "$interval" == ""  ]; then
+   fi
+   if [ "$interval" == ""  ]; then
       $AWSCLI_HOME/procs/log "Warning with ELB definition - interval missing - please capture any output, zip up entire directory and send to professor for review...."
       exit 1
-   elif [ "$timeout" == ""  ]; then
+   fi
+   if [ "$timeout" == ""  ]; then
       $AWSCLI_HOME/procs/log "Warning with ELB definition - timeout missing - please capture any output, zip up entire directory and send to professor for review...."
       exit 1
-   elif [ "$uthreshold" == ""  ]; then
+   fi
+   if [ "$uthreshold" == ""  ]; then
       $AWSCLI_HOME/procs/log "Warning with ELB definition - unhealthy threshold missing - please capture any output, zip up entire directory and send to professor for review...."
       exit 1
-   elif [ "$hthreshold" == ""  ]; then
+   fi
+   if [ "$hthreshold" == ""  ]; then
       $AWSCLI_HOME/procs/log "Warning with ELB definition - healthy threshold missing - please capture any output, zip up entire directory and send to professor for review...."
       exit 1
-   elif [ "$stickiness" == ""  ]; then
+   fi
+   if [ "$stickiness" == ""  ]; then
       $AWSCLI_HOME/procs/log "Warning with ELB definition - healthy threshold missing - please capture any output, zip up entire directory and send to professor for review...."
       exit 1
    fi
