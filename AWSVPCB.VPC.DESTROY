@@ -32,6 +32,8 @@ if [ $? -ne 0 ]; then
    exit 1
 fi
 . $AWSCLI_HOME/vpcb-config
+. $AWSCLI_HOME/tempfiles/unset-vars.temp
+echo "#" > $AWSCLI_HOME/tempfiles/unset-vars.temp
 
 $AWSCLI_HOME/procs/awsvpcb.destroy.clientvpnendpoint
 if [ $? -ne 0 ]; then

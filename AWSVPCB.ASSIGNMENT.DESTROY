@@ -24,14 +24,14 @@ fi
 SKIP=
 CREATE=
 if [ "$1" == "SKIP" ]; then
-   SKIP="SKIP"
+   export SKIP="SKIP"
    if [ "$2" == "CREATE" ]; then
-      CREATE="CREATE"
+      export CREATE="CREATE"
    fi
 elif [ "$1" == "CREATE" ]; then
-      CREATE="CREATE"
+      export CREATE="CREATE"
 fi
-$AWSCLI_HOME/AWSVPCB.ASSIGNMENT.STOP $SKIP $CREATE
+$AWSCLI_HOME/AWSVPCB.ASSIGNMENT.STOP 
 if [ $? -ne 0 ]; then
    $AWSCLI_HOME/procs/log "Assignment stop failed - $ERRORMSG"
    exit 1
