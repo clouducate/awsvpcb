@@ -10,3 +10,22 @@ do
    fi
 done
 
+if [ "$AWSVPCB_NAT_ID" != "" ]; then
+   $AWSCLI_HOME/procs/log "NAT instance already registered as $AWSVPCB_NAT_ID - moving on...."
+else
+   $AWSCLI_HOME/procs/awsvpcb.create.natinstance
+   if [ $? -ne 0 ]; then
+      exit 1
+   fi
+   . $AWSCLI_HOME/procs/aws-dynamic-vars
+   $AWSCLI_HOME/procs/log "Creating route to new NAT instance...."
+   $AWSCLI_HOME/procs/clicall "ec2 create-route --route-table-id $AWSVPCB_DEFAULT_RTABLEID --destination-cidr-block 0.0.0.0/0 --instance-id $AWSVPCB_NAT_ID" "$AWSCLI_HOME/tempfiles/assignment.create.instances.1" "$AWSCLI_HOME/tempfiles/assignment.create.instances.1.error"
+   if [ $? -ne 0 ]; then
+      $AWSCLI_HOME/procs/log "Error creating route to NAT instance $AWSVPCB_NAT_ID in route table DEFAULT in AWS -  please capture any output, zip up entire directory and send to professor for review...."
+      exit 1
+   fi
+   $AWSCLI_HOME/procs/log "Created route to NAT instance $AWSVPCB_NAT_ID in DEFAULT in AWS...."
+fi
+
+
+$AWSCLI_HOME/procs/awsvpcb.create.bastioninstance

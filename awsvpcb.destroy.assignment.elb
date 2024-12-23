@@ -29,12 +29,11 @@ do
       $AWSCLI_HOME/procs/log "Deleted and unregistered ELB $cert...."
    fi
 
-   $AWSCLI_HOME/procs/log "Waiting 45 seconds for ELB to release Target Group $tgarn...."
-   sleep 45
-
    if [ "$tgarn" == "" ]; then
       $AWSCLI_HOME/procs/log "TARGET GROUP $cert not registered - moving on (if TARGET GROUP exists, then run AWSVPCB.VPC.REGISTER)...."
    else
+      $AWSCLI_HOME/procs/log "Waiting 45 seconds for ELB to release Target Group $tgarn...."
+      sleep 45
       $AWSCLI_HOME/procs/clicall "elbv2 delete-target-group --target-group-arn $tgarn" "$AWSCLI_HOME/tempfiles/destroy.assignment.elb.2" "$AWSCLI_HOME/tempfiles/destroy.assignment.elb.2.error"
       if [ $? -ne 0 ]; then
          $AWSCLI_HOME/procs/log "Error deleting TARGET GROUP $cert in AWS -  please capture any output, zip up entire directory and send to professor for review...."

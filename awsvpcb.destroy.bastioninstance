@@ -33,4 +33,5 @@ while [ $count -le 120 ]; do
 done
 cat $AWSCLI_HOME/procs/aws-dynamic-vars | grep -v AWSVPCB_BASTION_ID > $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp
 cat $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp > $AWSCLI_HOME/procs/aws-dynamic-vars
+echo "unset AWSVPCB_BASTION_ID" >> $AWSCLI_HOME/tempfiles/unset-vars.temp
 $AWSCLI_HOME/procs/log "BASTION instance $AWSVPCB_BASTION_ID terminated and unregistered...."

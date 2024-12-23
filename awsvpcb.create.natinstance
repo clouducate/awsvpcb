@@ -31,6 +31,7 @@ if [ "$AWSVPCB_NAT_ID" != "" ]; then
    $AWSCLI_HOME/procs/log "Waiting for NAT instance $AWSVPCB_NAT_ID to start - this may take a while...."
    running=0
    count=0
+   sleep 10
    while [ $count -le 180 ]; do
       $AWSCLI_HOME/procs/clicall "ec2 describe-instances --instance-id $AWSVPCB_NAT_ID" "$AWSCLI_HOME/tempfiles/create.natinstance.4" "$AWSCLI_HOME/tempfiles/create.natinstance.4.error"
       if [ $? -ne 0 ]; then

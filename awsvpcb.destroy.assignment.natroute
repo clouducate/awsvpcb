@@ -1,0 +1,6 @@
+# Delete route to NAT instance 
+#
+$AWSCLI_HOME/procs/log "Deleting route to NAT instance...."
+
+$AWSCLI_HOME/procs/clicall "ec2 delete-route --route-table-id $AWSVPCB_DEFAULT_RTABLEID --destination-cidr-block 0.0.0.0/0" "$AWSCLI_HOME/tempfiles/destroy.routingtables.3" "$AWSCLI_HOME/tempfiles/destroy.routingtables.3.error"
+
