@@ -1,0 +1,181 @@
+export logfile=logs/azurevpcb.configure.log
+export userid=$(az account show --query user.name | cut -f2 -d"\"" | cut -f1 -d"@")
+export defaultSubscription="Azure for Students"
+echo $(date) "Running azurevpcb.configure" >> $logfile
+
+vpcbRegion=eastus2
+echo "REGION OPTIONS: 1-eastus2 (default), 2-westus2, 3-centralus, 4-northcentralus"
+read -p 'CHOOSE REGION NUMBER (1-4) [1]: ' answer
+if [ "$answer" != "" ] ; then
+   t=`[ -n "$answer" ] && [ "$answer" -eq "$answer" ] 2>/dev/null`
+   if [ $? -ne 0 ]; then
+      echo "Answer (region number) must be a number - cancelling operations...."
+      exit 1
+   elif [ $answer -lt 1 -o $answer -gt 4 ]; then
+      echo "Answer (region number) must be between 1 and 4 - cancelling operations...."
+      exit 1
+   else
+      if [ $answer -eq 1 ]; then
+         vpcbRegion=eastus2
+      elif [ $answer -eq 2 ]; then
+         vpcbRegion=westus2
+      elif [ $answer -eq 3 ]; then
+         vpcbRegion=centralus
+      elif [ $answer -eq 4 ]; then
+         vpcbRegion=northcentralus
+      fi
+   fi 
+fi
+echo $vpcbRegion > tempfiles/region
+
+echo "Setting permissions..."
+echo $(date) "Setting permissions..." >> $logfile
+chmod 755 procs/*
+dos2unix procs/*
+
+echo "Updating code config..."
+echo "Updating code config..." >> $logfile
+rm -r secfiles/MyFIU-Web/* 2>> $logfile
+unzip -o secfiles/MyFIU-Web.zip -d secfiles/MyFIU-Web >> $logfile 2>> $logfile
+sed -e "s/mssql.azurevpcb.edu/sqlserver-vpcb-$userid-fiuedu.database.windows.net/g" secfiles/MyFIU-Web/Web.config > secfiles/MyFIU-Web/Web.config.new
+rm secfiles/MyFIU-Web/Web.config >> $logfile 2>> $logfile
+mv secfiles/MyFIU-Web/Web.config.new secfiles/MyFIU-Web/Web.config >> $logfile 2>> $logfile
+rm secfiles/MyFIU-Web.zip >> $logfile 2>> $logfile
+cd secfiles/MyFIU-Web
+export logfile=../../logs/azurevpcb.configure.log
+zip -r ../MyFIU-Web.zip * >> $logfile 2>> $logfile
+cd ../..
+export logfile=logs/azurevpcb.configure.log
+
+echo "Adding extensions..."
+echo "Adding extensions..." >> $logfile
+az extension add --name bastion >> $logfile 2>> $logfile
+if [ $? -ne 0 ]; then
+   echo "Error detected! Run ./azurevpcb.diaglog"
+   echo $(date) "Error detected! Run ./azurevpcb.diaglog" >> $logfile
+   exit 1
+fi
+
+az extension add --name account >> $logfile 2>> $logfile
+if [ $? -ne 0 ]; then
+   echo "Error detected! Run ./azurevpcb.diaglog"
+   echo $(date) "Error detected! Run ./azurevpcb.diaglog" >> $logfile
+   exit 1
+fi
+
+az extension add --name application-insights --allow-preview True >> $logfile 2>> $logfile
+if [ $? -ne 0 ]; then
+   echo "Error detected! Run ./azurevpcb.diaglog"
+   echo $(date) "Error detected! Run ./azurevpcb.diaglog" >> $logfile
+   exit 1
+fi
+
+echo "Registering providers..."
+echo "Registering providers..." >> $logfile
+az provider register --subscription "$defaultSubscription" --namespace Microsoft.CloudShell >> $logfile 2>> $logfile
+if [ $? -ne 0 ]; then
+   echo "Error detected! Run ./azurevpcb.diaglog"
+   echo $(date) "Error detected! Run ./azurevpcb.diaglog" >> $logfile
+   exit 1
+fi
+
+az provider register --subscription "$defaultSubscription" --namespace Microsoft.Storage >> $logfile 2>> $logfile
+if [ $? -ne 0 ]; then
+   echo "Error detected! Run ./azurevpcb.diaglog"
+   echo $(date) "Error detected! Run ./azurevpcb.diaglog" >> $logfile
+   exit 1
+fi
+
+az provider register --subscription "$defaultSubscription" --namespace Microsoft.Network >> $logfile 2>> $logfile
+if [ $? -ne 0 ]; then
+   echo "Error detected! Run ./azurevpcb.diaglog"
+   echo $(date) "Error detected! Run ./azurevpcb.diaglog" >> $logfile
+   exit 1
+fi
+
+az provider register --subscription "$defaultSubscription" --namespace Microsoft.Sql >> $logfile 2>> $logfile
+if [ $? -ne 0 ]; then
+   echo "Error detected! Run ./azurevpcb.diaglog"
+   echo $(date) "Error detected! Run ./azurevpcb.diaglog" >> $logfile
+   exit 1
+fi
+
+az provider register --subscription "$defaultSubscription" --namespace Microsoft.Web >> $logfile 2>> $logfile
+if [ $? -ne 0 ]; then
+   echo "Error detected! Run ./azurevpcb.diaglog"
+   echo $(date) "Error detected! Run ./azurevpcb.diaglog" >> $logfile
+   exit 1
+fi
+
+az provider register --subscription "$defaultSubscription" --namespace Microsoft.operationalinsights >> $logfile 2>> $logfile
+if [ $? -ne 0 ]; then
+   echo "Error detected! Run ./azurevpcb.diaglog"
+   echo $(date) "Error detected! Run ./azurevpcb.diaglog" >> $logfile
+   exit 1
+fi
+
+az provider register --subscription "$defaultSubscription" --namespace Microsoft.insights >> $logfile 2>> $logfile
+if [ $? -ne 0 ]; then
+   echo "Error detected! Run ./azurevpcb.diaglog"
+   echo $(date) "Error detected! Run ./azurevpcb.diaglog" >> $logfile
+   exit 1
+fi
+
+az provider register --subscription "$defaultSubscription" --namespace Microsoft.App >> $logfile 2>> $logfile
+if [ $? -ne 0 ]; then
+   echo "Error detected! Run ./azurevpcb.diaglog"
+   echo $(date) "Error detected! Run ./azurevpcb.diaglog" >> $logfile
+   exit 1
+fi
+
+az provider register --subscription "$defaultSubscription" --namespace Microsoft.Compute >> $logfile 2>> $logfile
+if [ $? -ne 0 ]; then
+   echo "Error detected! Run ./azurevpcb.diaglog"
+   echo $(date) "Error detected! Run ./azurevpcb.diaglog" >> $logfile
+   exit 1
+fi
+
+az provider register --subscription "$defaultSubscription" --namespace Microsoft.Advisor >> $logfile 2>> $logfile
+if [ $? -ne 0 ]; then
+   echo "Error detected! Run ./azurevpcb.diaglog"
+   echo $(date) "Error detected! Run ./azurevpcb.diaglog" >> $logfile
+   exit 1
+fi
+
+az provider register --subscription "$defaultSubscription" --namespace Microsoft.AlertsManagement >> $logfile 2>> $logfile
+if [ $? -ne 0 ]; then
+   echo "Error detected! Run ./azurevpcb.diaglog"
+   echo $(date) "Error detected! Run ./azurevpcb.diaglog" >> $logfile
+   exit 1
+fi
+
+az provider register --subscription "$defaultSubscription" --namespace Microsoft.CloudHealth >> $logfile 2>> $logfile
+if [ $? -ne 0 ]; then
+   echo "Error detected! Run ./azurevpcb.diaglog"
+   echo $(date) "Error detected! Run ./azurevpcb.diaglog" >> $logfile
+   exit 1
+fi
+
+az provider register --subscription "$defaultSubscription" --namespace Microsoft.Security >> $logfile 2>> $logfile
+if [ $? -ne 0 ]; then
+   echo "Error detected! Run ./azurevpcb.diaglog"
+   echo $(date) "Error detected! Run ./azurevpcb.diaglog" >> $logfile
+   exit 1
+fi
+
+az provider register --subscription "$defaultSubscription" --namespace Microsoft.ResourceHealth >> $logfile 2>> $logfile
+if [ $? -ne 0 ]; then
+   echo "Error detected! Run ./azurevpcb.diaglog"
+   echo $(date) "Error detected! Run ./azurevpcb.diaglog" >> $logfile
+   exit 1
+fi
+
+az provider register --subscription "$defaultSubscription" --namespace Microsoft.PolicyInsights >> $logfile 2>> $logfile
+if [ $? -ne 0 ]; then
+   echo "Error detected! Run ./azurevpcb.diaglog"
+   echo $(date) "Error detected! Run ./azurevpcb.diaglog" >> $logfile
+   exit 1
+fi
+
+echo "azurevpcb.configure Successfully Completed..."
+echo $(date) "azurevpcb.configure Successfully Completed..." >> $logfile
