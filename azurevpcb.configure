@@ -4,15 +4,15 @@ export defaultSubscription="Azure for Students"
 echo $(date) "Running azurevpcb.configure" >> $logfile
 
 vpcbRegion=eastus2
-echo "REGION OPTIONS: 1-eastus2 (default), 2-westus2, 3-centralus, 4-northcentralus"
-read -p 'CHOOSE REGION NUMBER (1-4) [1]: ' answer
+echo "REGION OPTIONS: 1-eastus2 (default), 2-westus2, 3-centralus, 4-northcentralus, 5-westus, 6-westus3, 7-eastus, 8-eastus3, 9-westcentralus, 10-southcentralus"
+read -p 'CHOOSE REGION NUMBER (1-10) [1]: ' answer
 if [ "$answer" != "" ] ; then
    t=`[ -n "$answer" ] && [ "$answer" -eq "$answer" ] 2>/dev/null`
    if [ $? -ne 0 ]; then
       echo "Answer (region number) must be a number - cancelling operations...."
       exit 1
-   elif [ $answer -lt 1 -o $answer -gt 4 ]; then
-      echo "Answer (region number) must be between 1 and 4 - cancelling operations...."
+   elif [ $answer -lt 1 -o $answer -gt 10 ]; then
+      echo "Answer (region number) must be between 1 and 10 - cancelling operations...."
       exit 1
    else
       if [ $answer -eq 1 ]; then
@@ -23,6 +23,18 @@ if [ "$answer" != "" ] ; then
          vpcbRegion=centralus
       elif [ $answer -eq 4 ]; then
          vpcbRegion=northcentralus
+      elif [ $answer -eq 5 ]; then
+         vpcbRegion=westus
+      elif [ $answer -eq 6 ]; then
+         vpcbRegion=westus3
+      elif [ $answer -eq 7 ]; then
+         vpcbRegion=eastus
+      elif [ $answer -eq 8 ]; then
+         vpcbRegion=eastus3
+      elif [ $answer -eq 9 ]; then
+         vpcbRegion=westcentralus
+      elif [ $answer -eq 10 ]; then
+         vpcbRegion=southcentralus
       fi
    fi 
 fi
