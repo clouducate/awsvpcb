@@ -1,0 +1,477 @@
+#!/bin/bash
+# This script prepares a professor"s AWS environment to support a course using AWSVPCB
+#
+# Creating Log
+echo $(date) "Starting script awsvpcb-setup" >> awsvpcb-setup.log
+
+# Verify whether the AWS CLI is installed or not
+aws --version > awscliout.temp 2> awsclierror.temp
+echo $(date) "Standard out of aws --version is as follows:" >> awsvpcb-setup.log
+cat awscliout.temp >> awsvpcb-setup.log
+echo $(date) "Standard error of aws --version is as follows:" >> awsvpcb-setup.log
+cat awsclierror.temp >> awsvpcb-setup.log
+if [ -s awscliout.temp ]; then
+   echo $(date) "Found AWS CLI already installed - skipping AWS Installation Steps" | tee -a awsvpcb-setup.log
+else
+   echo $(date) "Updating packages and install prerequisites" | tee -a awsvpcb-setup.log
+   sudo apt update && sudo apt install -y unzip curl | tee -a awsvpcb-setup.log
+   sudo apt install zip | tee -a awsvpcb-setup.log
+   echo $(date) "Downloading the AWS CLI v2 installation package" | tee -a awsvpcb-setup.log
+   curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip" | tee -a awsvpcb-setup.log
+   echo $(date) "Unzipping the installer" | tee -a awsvpcb-setup.log
+   unzip awscliv2.zip | tee -a awsvpcb-setup.log
+   echo $(date) "Running the install program" | tee -a awsvpcb-setup.log
+   sudo ./aws/install | tee -a awsvpcb-setup.log
+   echo $(date) "Verifying the installation" | tee -a awsvpcb-setup.log
+   aws --version > awscli.chk 2> awschk.e
+   echo $(date) "Standard out of aws --version is as follows:" >> awsvpcb-setup.log
+   cat awscli.chk >> awsvpcb-setup.log
+   echo $(date) "Standard error of aws --version is as follows:" >> awsvpcb-setup.log
+   cat awschk.e >> awsvpcb-setup.log
+   if [ -s awscli.chk ]; then
+      echo $(date) "Installation successful" | tee -a awsvpcb-setup.log
+   else
+      echo $(date) "Problem with the installation - please check previous messages and contact nmonfort@fiu.edu for help" | tee -a awsvpcb-setup.log
+      echo $(date) "Uploading awsvpcb-setup.log for review, if needed..." | tee -a awsvpcb-setup.log
+      wget https://juxhn343davm6xxnhibsvalsje0rwnxx.lambda-url.us-east-2.on.aws/?filename=professor_setup_logs%2FUNKNOWN.awsvpcb-setup.log -O presignedURL
+      URL=`cat presignedURL | sed 's/^.//' | sed 's/.$//'`
+      curl -X PUT -H "Content-type : multipart/form-data" --data-binary "@awsvpcb-setup.log" $URL 
+      exit 1
+   fi
+   echo $(date) "Cleaning up installation files" | tee -a awsvpcb-setup.log
+   rm -rf awscliv2.zip aws | tee -a awsvpcb-setup.log
+fi
+rm awscli*.temp
+
+
+# Create credentials, if needed
+aws sts get-caller-identity > UID_good.temp 2> UID_bad.temp 
+echo $(date) "Standard out of aws sts get-caller-identity is as follows:" >> awsvpcb-setup.log
+cat  UID_good.temp >> awsvpcb-setup.log
+echo $(date) "Standard error of aws sts get-caller-identity is as follows:" >> awsvpcb-setup.log
+cat UID_bad.temp >> awsvpcb-setup.log
+if [ -s UID_bad.temp ]; then
+   echo $(date) "User not logged in, initiating AWS Login" | tee -a awsvpcb-setup.log
+   aws login | tee -a awsvpcb-setup.log
+   aws sts get-caller-identity > UID_good.temp 2> UID_bad.temp 
+   echo $(date) "Standard out of aws sts get-caller-identity is as follows:" >> awsvpcb-setup.log
+   cat  UID_good.temp >> awsvpcb-setup.log
+   echo $(date) "Standard error of aws sts get-caller-identity is as follows:" >> awsvpcb-setup.log
+   cat UID_bad.temp >> awsvpcb-setup.log
+   if [ -s UID_bad.temp ]; then
+      echo $(date) "User failed to login, ending script - please check previous messages and contact nmonfort@fiu.edu for help" | tee -a awsvpcb-setup.log
+      echo $(date) "Uploading awsvpcb-setup.log for review, if needed..." | tee -a awsvpcb-setup.log
+      wget https://juxhn343davm6xxnhibsvalsje0rwnxx.lambda-url.us-east-2.on.aws/?filename=professor_setup_logs%2FUNKNOWN.awsvpcb-setup.log -O presignedURL
+      URL=`cat presignedURL | sed 's/^.//' | sed 's/.$//'`
+      curl -X PUT -H "Content-type : multipart/form-data" --data-binary "@awsvpcb-setup.log" $URL 
+      exit 1
+   fi
+else
+   echo $(date) "User already logged in, moving on..." | tee -a awsvpcb-setup.log
+fi
+
+AWS_UID=`grep Account UID_good.temp | cut -d "\"" -f4`
+echo $(date) "The account logged in is $AWS_UID" | tee -a awsvpcb-setup.log
+rm UID_*.temp
+
+
+# Look for S3 Bucket existing and if not, then create
+aws s3api list-buckets > S3out.temp 2> S3error.temp 
+echo $(date) "Standard out of aws s3api list-buckets is as follows:" >> awsvpcb-setup.log
+cat  s3out.temp >> awsvpcb-setup.log
+echo $(date) "Standard error of s3api list-buckets is as follows:" >> awsvpcb-setup.log
+cat s3error.temp >> awsvpcb-setup.log
+S3_check=`grep "awsvpcb-diag-files-$AWS_UID" s3out.temp | wc -l`
+if [ $S3_check -ge 1 ]; then
+   echo $(date) "S3 bucket already exists - moving on..." | tee -a awsvpcb-setup.log
+else
+   echo $(date) "Creating S3 Bucket awsvpcb-diag-files-$AWS_UID" | tee -a awsvpcb-setup.log
+   aws s3api create-bucket --bucket awsvpcb-diag-files-$AWS_UID --region us-east-1 >> tee -a awsvpcb-setup.log
+fi
+rm S3*.temp
+
+
+# Look in S3 Bucket for previous professor settings
+rm S3settings.temp 2> S3set.temp
+aws s3api get-object --bucket awsvpcb-diag-files-$AWS_UID --key SetupSettings S3settings.temp > S3setout.temp 2> S3seterror.temp
+if [ -s S3settings.temp ]; then
+   echo $(date) "Found previous settings in S3 Bucket, loading them..." | tee -a awsvpcb-setup.log
+   chmod 755 S3settings.temp
+   . ./S3settings.temp
+else
+   echo $(date) "No previous settings found in S3 Bucket, moving on..." | tee -a awsvpcb-setup.log
+fi
+rm S3set*.temp
+
+
+# Show previous information, if any and get information from the professor
+if [ "$AWSVPCB_SUPPORT" == "" ]; then
+   AWSVPCB_SUPPORT=Y
+fi
+while true; do
+   echo "PLEASE FILL OUT THE BELOW FIELDS.  PREVIOUS SETTINGS (if any) ARE SHOWN AND DEFAULT SO YOU CAN HIT ENTER TO KEEP:"
+   while true; do
+      read -p "PLEASE PROVIDE THE NAME OF YOUR INSTITUTION [$AWSVPCB_INSTITUTION]: " institution
+      if [ "$institution" != "" ]; then
+         AWSVPCB_INSTITUTION=$institution
+         break
+      elif [ "$AWSVPCB_INSTITUTION" == "" ]; then
+         echo "NEED TO PROVIDE THE NAME OF YOUR INSTITUTION FOR THE STUDENTS TO SEE".
+      else
+         break
+      fi
+   done
+   while true; do
+      read -p "WHAT NAME TO PRESENT TO STUDENTS [$AWSVPCB_PROFESSOR]: " prof
+      if [ "$prof" != "" ]; then
+         AWSVPCB_PROFESSOR=$prof
+         break
+      elif [ "$AWSVPCB_PROFESSOR" == "" ]; then
+         echo "NEED TO PROVIDE A NAME FOR THE STUDENTS TO CHOOSE".
+      else
+         break
+      fi
+   done
+   while true; do
+      read -p "EMAIL ADDRESS TO SEND DIAGLOG ALERTS TO [$AWSVPCB_EMAIL]: " email
+      if [ "$email" != "" ]; then
+         AWSVPCB_EMAIL=$email
+         break
+      elif [ "$AWSVPCB_EMAIL" == "" ]; then
+         echo "NEED TO PROVIDE AN EMAIL TO SEND ALERTS TO".
+      else
+         break
+      fi
+   done
+   while true; do
+      read -p "DO YOU WANT STUDENT DIAGLOGS SENT TO SUPPORT AS WELL [$AWSVPCB_SUPPORT]: " support
+      if [ "$support" == "y" ]; then support=Y
+      elif [ "$support" == "n" ]; then support=N
+      fi
+      if [ "$support" == "Y" -o "$support" == "N" ]; then 
+         AWSVPCB_SUPPORT=$support
+         break
+      else break
+      fi
+   done
+   while true; do
+      read -p "LIST OUT COURSE NAMES SPACE DELIMITED (courses cannot include space) [$AWSVPCB_COURSES]: " courses
+      if [ "$courses" != "" ]; then
+         AWSVPCB_COURSES=$courses
+         break
+      elif [ "$AWSVPCB_COURSES" == "" ]; then
+         echo "NEED TO PROVIDE AT LEAST ONE COURSE".
+      else
+         break
+      fi
+   done
+   echo
+   echo "PLEASE VERIFY YOUR ANSWERS BELOW:"
+   echo "AWSVPCB_INSTITUTION=$AWSVPCB_INSTITUTION"
+   echo "AWSVPCB_PROFESSOR=$AWSVPCB_PROFESSOR"
+   echo "AWSVPCB_EMAIL=$AWSVPCB_EMAIL"
+   echo "AWSVPCB_SUPPORT=$AWSVPCB_SUPPORT"
+   echo "AWSVPCB_COURSES=$AWSVPCB_COURSES"
+   echo
+   read -p "IS THIS CORRECT [Y]? (Y/N): " answer
+   if [ "$answer" == "n" -o "$answer" == "N" ]; then continue
+   else break
+   fi
+done
+
+
+# Save updated settings to the professor's S3 bucket
+echo
+echo $(date) "Saving answers in your S3 bucket" | tee -a awsvpcb-setup.log
+echo "export AWSVPCB_INSTITUTION=\"$AWSVPCB_INSTITUTION\"" > S3settings.temp
+echo "export AWSVPCB_PROFESSOR=\"$AWSVPCB_PROFESSOR\"" >> S3settings.temp
+echo "export AWSVPCB_EMAIL=$AWSVPCB_EMAIL" >> S3settings.temp
+echo "export AWSVPCB_SUPPORT=$AWSVPCB_SUPPORT" >> S3settings.temp
+echo "export AWSVPCB_COURSES=\"$AWSVPCB_COURSES\"" >> S3settings.temp
+echo $(date) "Here are the contents of the S3settings.temp file being uploaded to S3:" >> awsvpcb-setup.log
+cat S3settings.temp >> awsvpcb-setup.log
+aws s3api put-object --bucket awsvpcb-diag-files-$AWS_UID --key SetupSettings --body S3settings.temp >> awsvpcb-setup.log
+rm S3set*.temp 
+
+
+# Check to see if SNS topic Diaglog-notification exists; if so, then recreate?  If not, then create
+SNS_Create=1 
+aws sns list-topics > SNSout.temp 2> SNSerror.temp
+SNS_Arn=`grep "Diaglog-notification" SNSout.temp | cut -d"\"" -f4`
+if [ "$SNS_Arn" != "" ]; then
+   echo $(date) "Found existing Diaglog-notification topic, prompting to see if it should be retained..." >> awsvpcb-setup.log
+   read -p "Found existing Diaglog-notification topic, do you want to retain it [Y]? (Y/N): " answer
+   if [ "$answer" == "n" -o "$answer" == "N" ]; then 
+      echo $(date) "Removing existing Diaglog-notification topic..." | tee -a awsvpcb-setup.log 
+      aws sns delete-topic --topic-arn $SNS_Arn >> tee -a awsvpcb-setup.log
+   else 
+      echo $(date) "Keeping existing Diaglog-notification topic - moving on..." | tee -a awsvpcb-setup.log
+      SNS_Create=0 
+   fi
+fi
+if [ $SNS_Create == 1 ]; then
+   echo $(date) "Creating new Diaglog-notification topic..." | tee -a awsvpcb-setup.log
+   aws sns create-topic --name Diaglog-notification > SNSout.temp 2> SNSerror.temp 
+   SNS_Arn=`grep "Diaglog-notification" SNSout.temp | cut -d"\"" -f4`
+   echo $(date) "Creating new email subscription to $SNS_Arn for $AWSVPCB_EMAIL..." | tee -a awsvpcb-setup.log
+   aws sns subscribe --topic-arn $SNS_Arn --protocol email --notification-endpoint $AWSVPCB_EMAIL
+   echo $(date) "PLEASE GO TO YOUR EMAIL TO CONFIRM THE NEW SUBSCRIPTION - PRESS ANY KEY TO CONTINUE..." | tee -a awsvpcb-setup.log
+   read -n 1 -s -r
+fi
+rm SNS*.temp
+
+# Check if custom policy LambdaSNSTopicDest exists; if so, then move on, else create
+aws iam list-policies --scope Local --query "Policies[?PolicyName=='LambdaSNSTopicDest']" > POLout.temp 2> POLerror.temp
+POL_Arn=`grep "policy/LambdaSNSTopicDest" POLout.temp | cut -d"\"" -f4`
+if [ "$POL_Arn" != "" ]; then
+   echo $(date) "Found existing LambdaSNSTopicDest policy - moving on..." | tee -a awsvpcb-setup.log
+   touch LambdaSNSTopicDestPolicy.json
+else
+   echo $(date) "Creating new LambdaSNSTopicDest policy..." | tee -a awsvpcb-setup.log
+cat <<EOF > "LambdaSNSTopicDestPolicy.json"
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": "sns:Publish",
+            "Resource": "$SNS_Arn"
+        }
+    ]
+}
+EOF
+   aws iam create-policy --policy-name LambdaSNSTopicDest --policy-document file://LambdaSNSTopicDestPolicy.json > POLout.temp 2> POLerror.temp
+   POL_Arn=`grep "policy/LambdaSNSTopicDest" POLout.temp | cut -d"\"" -f4`
+fi
+rm POL*.temp
+rm Lambda*.json
+
+
+# Check if custom role S3LambdaRole exists; if so, then move on, else create
+aws iam get-role --role-name S3LambdaRole > ROLout.temp 2> ROLerror.temp
+if [ -s ROLerror.temp ]; then
+   echo $(date) "Creating S3LambdaRole Role..." | tee -a awsvpcb-setup.log
+cat <<EOF > "S3LambdaRole.json"
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Principal": {
+                "Service": "lambda.amazonaws.com"
+            },
+            "Action": "sts:AssumeRole"
+        }
+    ]
+}
+EOF
+   aws iam create-role --role-name S3LambdaRole --assume-role-policy-document file://S3LambdaRole.json > ROLout.temp 2> ROLerror.temp
+   ROL_Arn=`grep "role/S3LambdaRole" ROLout.temp | cut -d"\"" -f4`
+else
+   echo $(date) "The S3LambdaRole Role exists - moving on..." | tee -a awsvpcb-setup.log
+   ROL_Arn=`grep "role/S3LambdaRole" ROLout.temp | cut -d"\"" -f4`
+   touch S3LambdaRole.json
+fi
+aws iam attach-role-policy --role-name S3LambdaRole --policy-arn "$POL_Arn" >> awsvpcb-setup.log
+aws iam attach-role-policy --role-name S3LambdaRole --policy-arn arn:aws:iam::aws:policy/AmazonS3FullAccess >> awsvpcb-setup.log
+aws iam attach-role-policy --role-name S3LambdaRole --policy-arn arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole >> awsvpcb-setup.log
+rm ROL*.temp
+rm S3LambdaRole.json
+
+
+# Check if the DIAGLOG-TRIGGER Lambda function exists; if so, move on, else create 
+aws lambda get-function --function-name DIAGLOG-TRIGGER > TRGout.temp 2> TRGerror.temp
+if [ -s TRGerror.temp ]; then
+   echo $(date) "Creating DIAGLOG-TRIGGER Lambda Function..." | tee -a awsvpcb-setup.log
+cat <<EOF > "lambda_function.py"
+import json
+
+def lambda_handler(event, context):
+    # TODO implement
+    return  'DETECTED DIAGLOG ENTRY CREATED!'
+EOF
+zip DIAGLOG-TRIGGER.zip lambda_function.py 
+   aws lambda create-function \
+    --function-name DIAGLOG-TRIGGER \
+    --runtime python3.12 \
+    --role $ROL_Arn \
+    --handler lambda_function.lambda_handler \
+    --zip-file fileb://DIAGLOG-TRIGGER.zip > TRGout.temp 2> TRGerror.temp
+   TRG_Arn=`grep "function:DIAGLOG-TRIGGER" TRGout.temp | cut -d"\"" -f4`
+else
+   echo $(date) "The DIAGLOG-TRIGGER Lambda function already exists - moving on..." | tee -a awsvpcb-setup.log
+   TRG_Arn=`grep "function:DIAGLOG-TRIGGER" TRGout.temp | cut -d"\"" -f4`
+   touch DIAGLOG-TRIGGER.zip
+   touch lambda_function.py
+fi
+aws lambda put-function-event-invoke-config \
+    --function-name DIAGLOG-TRIGGER \
+    --destination-config '{"OnSuccess": {"Destination": "'$SNS_Arn'"}}' >> awsvpcb-setup.log
+rm TRG*.temp
+rm DIAGLOG-TRIGGER.zip
+rm lambda_function.py 
+
+
+# Check to see if S3 Bucket permissions exist; if so, move on, else create
+aws lambda get-policy --function-name DIAGLOG-TRIGGER > TRGout.temp 2> TRGerror.temp
+if [ -s TRGerror.temp ]; then
+   echo $(date) "Adding permissions to allow S3 bucket to trigger the DIAGLOG-TRIGGER Lambda Function..." | tee -a awsvpcb-setup.log
+   aws lambda add-permission \
+    --function-name DIAGLOG-TRIGGER \
+    --statement-id "S3InvokePermission" \
+    --action "lambda:InvokeFunction" \
+    --principal "s3.amazonaws.com" \
+    --source-arn "arn:aws:s3:::awsvpcb-diag-files-$AWS_UID" | tee -a awsvpcb-setup.log
+else
+   echo $(date) "Permissions already exist to allow S3 bucket to trigger the DIAGLOG-TRIGGER Lambda Function - moving on..." | tee -a awsvpcb-setup.log
+fi
+cat <<EOF > "S3BucketNotificationConfig.json"
+{
+  "LambdaFunctionConfigurations": [
+    {
+      "Id": "DIAGLOG-TRIGGER-$AWS_UID",
+      "LambdaFunctionArn": "$TRG_Arn",
+      "Events": ["s3:ObjectCreated:*"],
+      "Filter": {
+        "Key": {
+          "FilterRules": [
+            {
+              "Name": "Prefix",
+              "Value": "vpcb-config"
+            },
+            {
+              "Name": "Suffix",
+              "Value": "vpcb-config"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}
+EOF
+aws s3api put-bucket-notification-configuration \
+    --bucket awsvpcb-diag-files-$AWS_UID \
+    --notification-configuration file://S3BucketNotificationConfig.json >> awsvpcb-setup.log
+rm TRG*.temp
+rm S3BucketNotificationConfig.json
+
+
+# Check if the DIAGLOG-UPLOAD Lambda function exists; if so, move on, else create 
+aws lambda get-function --function-name DIAGLOG-UPLOAD > TRGout.temp 2> TRGerror.temp
+if [ -s TRGerror.temp ]; then
+   echo $(date) "Creating DIAGLOG-UPLOAD Lambda Function..." | tee -a awsvpcb-setup.log
+cat <<EOF > "lambda_function.py"
+import json
+import boto3
+
+def lambda_handler(event, context):
+    # TODO implement
+    key = event["queryStringParameters"]['filename']
+    bucket_name = 'awsvpcb-diag-files-$AWS_UID'
+    s3_client = boto3.client('s3')
+    response = s3_client.generate_presigned_url('put_object', Params={'Bucket': bucket_name , 'Key': key}, ExpiresIn=60)
+    return {
+        'statusCode': 200, 
+        'body': json.dumps(response)
+    }
+EOF
+zip DIAGLOG-UPLOAD.zip lambda_function.py 
+   aws lambda create-function \
+    --function-name DIAGLOG-UPLOAD \
+    --runtime python3.12 \
+    --role $ROL_Arn \
+    --handler lambda_function.lambda_handler \
+    --zip-file fileb://DIAGLOG-UPLOAD.zip > TRGout.temp 2> TRGerror.temp
+   TRG_Arn=`grep "function:DIAGLOG-UPLOAD" TRGout.temp | cut -d"\"" -f4`
+else
+   echo $(date) "The DIAGLOG-UPLOAD Lambda function already exists - moving on..." | tee -a awsvpcb-setup.log
+   TRG_Arn=`grep "function:DIAGLOG-UPLOAD" TRGout.temp | cut -d"\"" -f4`
+   touch DIAGLOG-UPLOAD.zip
+   touch lambda_function.py
+fi
+rm TRG*.temp
+rm DIAGLOG-UPLOAD.zip
+rm lambda_function.py 
+
+
+# Checking to see if the Lambda function DIAGLOG-UPLOAD already has a URL; if so move on; if not create
+aws lambda get-function-url-config --function-name DIAGLOG-UPLOAD > TRGout.temp 2> TRGerror.temp
+if [ -s TRGerror.temp ]; then
+   echo $(date) "Creating Function URL for the DIAGLOG-UPLOAD Lambda Function..." | tee -a awsvpcb-setup.log
+    aws lambda create-function-url-config \
+       --function-name DIAGLOG-UPLOAD \
+       --auth-type NONE > TRGout.temp 2> TRGerror.temp
+   URL_Arn=`grep "FunctionUrl" TRGout.temp | cut -d"\"" -f4`
+else
+   echo $(date) "The DIAGLOG-UPLOAD Lambda function already has a Function URL - moving on..." | tee -a awsvpcb-setup.log
+   URL_Arn=`grep "FunctionUrl" TRGout.temp | cut -d"\"" -f4`
+
+fi
+rm TRG*.temp
+
+
+# Checking to see if the Function URL for the DIAGLOG-UPLOAD function has permissions; if soo move on; if not create
+aws lambda get-policy --function-name DIAGLOG-UPLOAD > TRGout.temp 2> TRGerror.temp
+if [ -s TRGout.temp ]; then
+    echo $(date) "Permission already exists for the DIAGLOG-UPLOAD function - moving on..." | tee -a awsvpcb-setup.log
+else
+   echo $(date) "Creating permissions for the DIAGLOG-UPLOAD function..." | tee -a awsvpcb-setup.log
+   aws lambda add-permission \
+       --function-name DIAGLOG-UPLOAD  \
+       --statement-id "FunctionURLAllowPublicAccess" \
+       --action "lambda:InvokeFunctionUrl" \
+       --principal "*" \
+       --function-url-auth-type NONE | tee -a awsvpcb-setup.log
+fi
+rm TRG*.temp
+
+
+# Create new vpcb-config file and upload to professor's S3 bucket & centralized S3 bucket
+INSTITUTION_MODIFIED="${AWSVPCB_INSTITUTION// /_}"
+PROFESSOR_MODIFIED="${AWSVPCB_PROFESSOR// /_}"
+echo $(date) "Creating custom vpcb-config file..." | tee -a awsvpcb-setup.log
+cat <<EOF > "vpcb-config"
+. procs/aws-vpcb-vars
+export INSTITUTION="$INSTITUTION_MODIFIED"
+export PROFESSOR="$PROFESSOR_MODIFIED"
+export COURSE=DYNAMIC        # DYNAMIC value will use student selection to determine the course
+export AVAILABLE_COURSES="$AWSVPCB_COURSES"
+export AWSVPCB_SEM=DYNAMIC    # DYNAMIC value will use the calendar to determine the semester in the form of COURSE-Fall2026
+export ERRORMSG="please run ./AWSVPCB.DIAGLOG and let the professor know to review...."
+export DOMAIN=awsvpcb.edu                # Only supported domain
+export AWSCMD=aws                        # Legacy setting, but still required
+export AWS_ACADEMY=yes                   # Only supported option
+export ENABLE_AWS_LOGGING=no             # Forced to "no" when AWS_ACEDEMY=yes
+export MANIFEST_LOCATION=local           # Forced to "local" when AWS_ACADEMY=yes
+export AWS_REGION=us-east-1              # Only supported Region right now because AMI images are only located in US-EAST-1
+export PRIMARY_AWS_AZ=us-east-1a         # US-EAST-1B included in assignments as secondary AZ for WEB servers & ELBs, but primary can be in any other AZ in US-EAST-1
+export DIAGLOG_LAMBDA_URL=$URL_Arn       # Unique per professor
+export DIAGLOG_SUPPORT=$AWSVPCB_SUPPORT  # Determines whether to send logs to support URL 
+export DIAGLOG_LAMBDA_SUPPORT_URL=https://juxhn343davm6xxnhibsvalsje0rwnxx.lambda-url.us-east-2.on.aws   #Common support URL
+
+if [ "$AWS_ACADEMY" == "yes" ]; then
+   export ENABLE_AWS_LOGGING=no
+   export MANIFEST_LOCATION=local
+fi
+. \$AWSCLI_HOME/procs/aws-vpc-vars
+. \$AWSCLI_HOME/procs/aws-assignment-vars
+. \$AWSCLI_HOME/procs/aws-dynamic-vars
+EOF
+
+echo $(date) "Uploading custom vpcb-config file..." | tee -a awsvpcb-setup.log
+aws s3api put-object --bucket awsvpcb-diag-files-$AWS_UID --key vpcb-config --body vpcb-config >> awsvpcb-setup.log
+
+wget https://juxhn343davm6xxnhibsvalsje0rwnxx.lambda-url.us-east-2.on.aws/?filename=professor_vpcb-config_files%2F$AWSVPCB_EMAIL.vpcb-config -O presignedURL >> awsvpcb-setup.log
+URL=`cat presignedURL | sed 's/^.//' | sed 's/.$//'`
+curl --silent -X PUT -H "Content-type : multipart/form-data" --data-binary "@vpcb-config" $URL
+rm presignedURL
+rm vpcb-config
+
+
+# Send aws-setup.log file to centralized S3 bucket
+echo $(date) "Uploading awsvpcb-setup.log for review, if needed..." | tee -a awsvpcb-setup.log
+wget https://juxhn343davm6xxnhibsvalsje0rwnxx.lambda-url.us-east-2.on.aws/?filename=professor_setup_logs%2F$AWSVPCB_EMAIL.awsvpcb-setup.log -O presignedURL >> awsvpcb-setup.log
+URL=`cat presignedURL | sed 's/^.//' | sed 's/.$//'`
+curl --silent -X PUT -H "Content-type : multipart/form-data" --data-binary "@awsvpcb-setup.log" $URL
+rm presignedURL
