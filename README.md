@@ -1,6 +1,6 @@
 INTRODUCTION
 #
-AWSVPCB (AWS Virtual Private Cloud Builder) is a set of BASH Shell scripts designed to create a small enterprise IT-like environment in AWS to provide college-level students with hands-on experience individually working on IT problems. These scripts work in conjunction with the Havoc Circus utility which provides AWS images (AMIs) with pre-loaded applications and a method for automatically changing the environment for assignment purposes. These scripts were originally developed by Norbert Monfort and Robert Fortunato for the CTS-4743 Enterprise IT Troubleshooting course taught at FIU (Florida International University) in Miami, Florida.  However, these scripts and the associated Havoc Circus C#.Net packages are open source and free to be used for any purpose. These two components make up what is called the "Clouducate Suite", which we would like to see expand to include additional tools in the future. Included in this repository is a presentation (Clouducate.pdf) which explains and provides an introduction to AWSVPCB and Havoc Circus.  The rest of this document will focus on AWSVPCB.
+AWSVPCB (AWS Virtual Private Cloud Builder) is a set of BASH Shell scripts designed to create a small enterprise IT-like environment in AWS to provide college-level students with hands-on experience individually working on IT problems. These scripts have evolved over time and all of the recent updates have focused on their use within the AWS Academy Learner Lab.  The scripts still support running outside of the AWS Academy Learner, but the default configurations would be need to be adjusted.  These scripts work in conjunction with the Havoc Circus utility which provides AWS images (AMIs) with pre-loaded applications and a method for automatically changing the environment for assignment purposes. These scripts were originally developed by Norbert Monfort and Robert Fortunato for the CTS-4743 Enterprise IT Troubleshooting course taught at FIU (Florida International University) in Miami, Florida in 2019.  However, these scripts are open source and free to be used for any purpose. These scripts, the associated AMIs and applications they house make up what is called the "Clouducate Suite", which we continue to work on. Included in this repository is a presentation (Clouducate.pdf) which explains and provides an introduction to AWSVPCB and Havoc Circus and the awsvpcb-setup script with instructions (awsvpcb-setup & awsvpcb-setup instructions.docx) which allows for professors to use the scripts "as is" while still getting support from a central administrator.  The rest of this document will focus on AWSVPCB.
 #
 #
 #
@@ -19,6 +19,7 @@ The AWSVPCB scripts require a specific directory structure. You can simply downl
   - The dynamically generated OVPN file for the students to import into their PC for VPN connectivity
   - The dynamic json files and templates used to create and save DNS entries
   - The downloaded VPC and Assignment-level json files used to build the VPC(s) and assignments (these are in sub-directories)
+  - The vpcb-config files for each professor that used the aws-setup script to be able to use the scripts "as is"
  4) The "tempfiles" directory includes temporary dynamically generated files
  5) The "logs" directory includes all of the output for all the scripts run 
 #
@@ -26,20 +27,26 @@ The AWSVPCB scripts require a specific directory structure. You can simply downl
 #
 CONFIG FILE (vpcb-config) SETTINGS
 #
-There aren't many settings to worry about in the vpcb-config file and most are self-explantory, but here's the list:
-  - COURSE & SEMESTER - These two parameters go hand in hand to determine the name of the log group to be created in Cloudwatch.  If you happen to have multiple sections for a particular course within a semester, then it's recommended that you add the section number to the COURSE parameter.  
-  - DOMAIN - This is used to append to all of your server and ELB names.  Consider this your fake companies domain name.  The default is "awsvpcb.edu" and certificates for the VPN, and a couple of ELB (load balancer) names are provided for this domain as well as the CA cert (ca.crt) which is all used to build the VPC and ELBs. However, if you wish to create new ELB names or use a different domain, then you would need to create your own CA and replace all the relevant files in the "secfiles" directory. 
+If you are used the awsvpcb-setup script (look at awsvpcb-setup instructions.docx for more information), then you can ignore this section as that utility builds this file for you.  Otherwise, you can hardcode values, if desired. The default UNDEFINED values let the CONFIGURE script know to prompt the student to select their professor and associated vpcb-config file.  Unless you plan to use some legacy functionality or use this outside of the centralized admin, you can ignore this section.
+Avialable parameters:
+  - INSTITUTION, PROFESSOR, COURSE, SEMESTER, & AVAILABLE_COURSES - By default, these are set to "UNDEFINED" to force prompting the student for professor selection.  However, you can hardcode values for these, if desired, except for AVAILABLE_COURSES as this is only relevant for student selection.
+  - AWSVPCB_SEM - Set to DYNAMIC to allow for the dynamic determination of the semester based on the month of the year (e.g., 1-3=SPRING, 4-7=SUMMER, >7=FALL).  Any other value simply avoids this automation and your hardcoded value for SEMESTER will remain as is.
+  - ERRORMSG - This is the message provided to students when an error occurs.  The defaul value probably doesn't need to change from "please run ./AWSVPCB.DIAGLOG and let the professor know to review...."
+  - DOMAIN - This is used to append to all of your server and ELB names.  Consider this your fake companies domain name.  The default is "awsvpcb.edu" and certificates for the VPN, and a couple of ELB (load balancer) names are provided for this domain as well as the CA cert (ca.crt) which is all used to build the VPC and ELBs. However, if you wish to create new ELB names or use a different domain, then you would need to create your own CA and replace all the relevant files in the "secfiles" directory.
+  - AWS_REGION - The AWS region where you want all of this built, however, only the default us-east-1 is supported "as is" because that's where the AMIs reside.
+  - PRIMARY_AWS_AZ - The AWS availability zone where you want as primary when not running in multiple AZs. However, it's important to note that US-EAST-1B is included in assignments as secondary AZ for WEB servers & ELBs, but primary can be in any other AZ in US-EAST-1
   - AWSCMD - This parameter should not be changed for now.  It was setup to provide for the ability to change the aws command in the future.
-  - ENABLE_AWS_LOGGING - This parameter can be set to  "yes" or "no".  If set to "yes", then an AWS access key and secret key with access to your Cloudwatch logs must be provided.
-  - MANIFEST_LOCATION - This parameter can be set to "aws" or "local".  If set to "aws", then an AWS access key and secret key with access to your S3 bucket where the VPC and Assignment json files are located.
-  - AWS_REGION - The AWS region where you want all of this built
-  - AWS_AZ - The AWS availability zone where you want all of this built
-  - LOGGING_ACCESS_KEY - The AWS access key to be used for logging to AWS
-  - LOGGING_SECRET_KEY - The AWS secret key to be used for logging to AWS
-  - MANIFEST_ACCESS_KEY - The AWS access key to be used to download VPC and assignment manifest json files from AWS
-  - MANIFEST_SECRET_KEY - The AWS secret key to be used to download VPC and assignment manifest json files from AWS
-  - MANIFEST_S3BUCKET - The AWS S3Bucket where the VPC and assignment manifest json files are located in AWS
-  - DIAGLOG_S3BUCKET - The AWS S3Bucket where diagnostic information will be placed; the LOGGING_ACCESS_KEY must have access to write to this S3Bucket
+  - DIAGLOG_LAMBDA_URL - URL used when the student runs the DIAGLOG script after an error. (professor specific and generated by the aws-setup script)
+  - DIAGLOG_SUPPORT - This parameter can be set to "Y" or "N".  This indicates whether student error logs should also be sent to central admin support.
+  - DIAGLOG_LAMBDA_SUPPORT_URL - Central admin support URL used if DAIGLOG_SUPPORT is set to "Y".
+  - ENABLE_AWS_LOGGING - This parameter can be set to  "yes" or "no".  If set to "yes", then an AWS access key and secret key with access to your Cloudwatch logs must be provided. Only "no" is supported with AWS Academy.
+  - MANIFEST_LOCATION - This parameter can be set to "aws" or "local".  If set to "aws", then an AWS access key and secret key with access to your S3 bucket where the VPC and Assignment json files are located.  Only "local" is supported with AWS Academy.
+  - LOGGING_ACCESS_KEY - The AWS access key to be used for logging to AWS (not supported in AWS Academy)
+  - LOGGING_SECRET_KEY - The AWS secret key to be used for logging to AWS (not supported in AWS Academy)
+  - MANIFEST_ACCESS_KEY - The AWS access key to be used to download VPC and assignment manifest json files from AWS (not supported in AWS Academy)
+  - MANIFEST_SECRET_KEY - The AWS secret key to be used to download VPC and assignment manifest json files from AWS (not supported in AWS Academy)
+  - MANIFEST_S3BUCKET - The AWS S3Bucket where the VPC and assignment manifest json files are located in AWS (not supported in AWS Academy)
+  - DIAGLOG_S3BUCKET - The AWS S3Bucket where diagnostic information will be placed; the LOGGING_ACCESS_KEY must have access to write to this S3Bucket (not supported in AWS Academy)
 # 
 #
 #
