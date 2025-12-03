@@ -364,15 +364,15 @@ if [ -s TRGerror.temp ]; then
 cat <<EOF > "lambda_function.py"
 import json
 import boto3
+from botocore.config import Config
 
 def lambda_handler(event, context):
-    # TODO implement
     key = event["queryStringParameters"]['filename']
-    bucket_name = 'awsvpcb-diag-files-$AWS_UID'
-    s3_client = boto3.client('s3')
-    response = s3_client.generate_presigned_url('put_object', Params={'Bucket': bucket_name , 'Key': key}, ExpiresIn=60)
+    bucket_name = 'awsvpcb-diag-files-217222958909'
+    s3_client = boto3.client('s3', config=Config(signature_version='s3v4'))
+    response = s3_client.generate_presigned_url('put_object', Params={'Bucket': bucket_name, 'Key': key}, ExpiresIn=60)
     return {
-        'statusCode': 200, 
+        'statusCode': 200,
         'body': json.dumps(response)
     }
 EOF
