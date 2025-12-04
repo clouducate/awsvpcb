@@ -238,7 +238,7 @@ GETTING STARTED - POC TEST
   - TYPE: ./AWSVPCB.VPC.CREATE                             # Up to this point there are no cost implications to what's been done
   - TYPE: ./AWSVPCB.ASSIGNMENT.CREATE 2                    # Answer “y” at the prompt - NOTE: costs start here, but it's negligible for a few hours.
 
-AT THIS POINT YOU HAVE CREATED A FULL AWS ENVIRONMENT WITH EC2 INSTANCES, SUBNETS, ROUTE TABLES, LOAD BALANCERS, A DATABASE, ETC.  FEEL FREE TO PERUSE IT FROM THE AWS CONSOLE.  IF YOU WISH TO LOG INTO YOUR VPC AND TEST AN APPLICATION, YOU CAN DO THE BELOW.  IF NOT SKIP TO STEP 14.
+AT THIS POINT YOU HAVE CREATED A FULL AWS ENVIRONMENT WITH EC2 INSTANCES, SUBNETS, ROUTE TABLES, LOAD BALANCERS, A DATABASE, ETC.  FEEL FREE TO PERUSE IT FROM THE AWS CONSOLE.  IF YOU WISH TO LOG INTO YOUR VPC AND TEST AN APPLICATION, YOU CAN DO THE BELOW.  IF NOT SKIP TO STEP 15.
   - 
 4) Log into the AWS console.  Place your cursor on the “Search” box and type: ec2
 5) Click on the “EC2” selection in the drop down.  Scroll down on the left-side pane until you see “Security Groups” and click on it.
