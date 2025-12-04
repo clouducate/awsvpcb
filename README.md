@@ -1,6 +1,6 @@
 INTRODUCTION
 #
-AWSVPCB (AWS Virtual Private Cloud Builder) is a set of BASH Shell scripts designed to create a small enterprise IT-like environment in AWS to provide college-level students with hands-on experience individually working on IT problems. These scripts have evolved over time and all of the recent updates have focused on their use within the AWS Academy Learner Lab.  The scripts still support running outside of the AWS Academy Learner, but the default configurations would be need to be adjusted.  These scripts work in conjunction with the Havoc Circus utility which provides AWS images (AMIs) with pre-loaded applications and a method for automatically changing the environment for assignment purposes. These scripts were originally developed by Norbert Monfort and Robert Fortunato for the CTS-4743 Enterprise IT Troubleshooting course taught at FIU (Florida International University) in Miami, Florida in 2019.  However, these scripts are open source and free to be used for any purpose. These scripts, the associated AMIs and applications they house make up what is called the "Clouducate Suite", which we continue to work on. Included in this repository is a presentation (Clouducate.pdf found at https://github.com/clouducate/awsvpcb/blob/main/Clouducate.pdf) which explains and provides an introduction to AWSVPCB and Havoc Circus and the awsvpcb-setup script with instructions (awsvpcb-setup found at https://github.com/clouducate/awsvpcb/raw/refs/heads/main/awsvpcb-setup) which allows for professors to use the scripts "as is" while still getting support from a central administrator.  The rest of this document will focus on AWSVPCB.
+AWSVPCB (AWS Virtual Private Cloud Builder) is a set of BASH Shell scripts designed to create a small enterprise IT-like environment in AWS to provide college-level students with hands-on experience individually working on IT problems. These scripts have evolved over time and all of the recent updates have focused on their use within the AWS Academy Learner Lab.  The scripts still support running outside of the AWS Academy Learner, but the default configurations would be need to be adjusted.  These scripts work in conjunction with the Havoc Circus utility which provides AWS images (AMIs) with pre-loaded applications and a method for automatically changing the environment for assignment purposes. These scripts were originally developed by Norbert Monfort and Robert Fortunato for the CTS-4743 Enterprise IT Troubleshooting course taught at FIU (Florida International University) in Miami, Florida in 2019.  However, these scripts are open source and free to be used for any purpose. These scripts, the associated AMIs and applications they house make up what is called the "Clouducate Suite", which we continue to work on. Included in this repository is a presentation (Clouducate.pdf found at https://github.com/clouducate/awsvpcb/blob/main/Clouducate.pdf) which explains and provides an introduction to AWSVPCB and Havoc Circus and the awsvpcb-setup script with instructions (awsvpcb-setup found at https://github.com/clouducate/awsvpcb/raw/refs/heads/main/awsvpcb-setup%20instructions.docx) which allows for professors to use the scripts "as is" while still getting support from a central administrator.  The rest of this document will focus on AWSVPCB.
 #
 #
 #
@@ -222,16 +222,10 @@ The awsvpcb-scripts.zip file includes sample assignment DNS json configuration f
 #
 #
 #
-WHAT THE POC TEST BELOW DOES
-#
-The below "GETTING STARTED - POC TEST" section will use the default awsvpcb-scripts provided to build a VPC with VPN connectivity that includes publicly available Havic Circus AMIs with one or two applications loaded.  This will use static json files pre-loaded in the awsvpcb "secfiles" directory for the VPC and Assignments (1-3 are included) to provide you with examples of what can be configured with AWSVPCB.  This will also use static assignment json files loaded on the Havic Circus AMIs that provide examples of what you can do with Havoc Circus (more info on that within the Havoc Circus Readme). 
-#
-#
-#
 GETTING STARTED - POC TEST
-1) CREATE TEST STUDENT AWS ACCOUNT - This will be where the VPC is created 
-  - NOTE: At this time, this cannot be an AWS Educate Starter account as such accounts do not support VPN connectivity
-  - NOTE: Credit card must be provided.  AWS credits should be obtained and added to this account to avoid unnecessary charges.  However, the charges for going through this POC are minimal (under $10) as long as everything is destroyed in the end and it is not kept up and running for hours.
+1) USE awsvpcb-setup (instructions here - https://github.com/clouducate/awsvpcb/raw/refs/heads/main/awsvpcb-setup%20instructions.docx)
+  - NOTE: This requires you to create an AWS account with a credit card provided for AWS, however, expenses are minimal (less than $1 per month)
+  - NOTE: By default the awsvpcb-setup script will send logs and resulting vpcb-config file generated to centralized admin S3 bucket, but you can override this with a parameter as indicated in the instructions.
 2) DECIDE which PC you are planning to use to access your VPC (Linux, MAC or Windows)
 3) INSTALL OPENVPN - This will be used later when the OVPN file is created
   - ON MAC: OpenVPN Connect version 3.1 or higher from the MAC App Store 
