@@ -56,7 +56,9 @@ AWSVPCB.CONFIGURE - Reads vpcb-config and configures the base settings within th
 
 AWSVPCB.TEST – Simply tests basic connectivity to AWS.
 
-AWSVPCB.VPC.CREATE – This script optionally accepts a numeric parameter (the VPC number; 0 is the default if no number is provided). The script expects a vpc# directory (where # is the VPC number) to exist in the "secfiles" directory or AWS manifest S3bucket where the vpc.json file can be found and loaded. Using this vpc.json file, this script creates a VPC with associate Internet Gateway, NAT instance, route tables, subnets, security groups, S3Bucket for ELB logs, Client VPN endpoint, OVPN file for the OpenVPN client and registers all AWS unique IDs. This script will fail if a “AWS-VPCB” tagged VPC already exists in the target AWS account. In order to rerun this script, the AWSVPCB.VPC.DESTROY must be run first.
+AWSVPCB.VPC.CREATE – This script optionally accepts a numeric parameter (the VPC number; 0 is the default if no number is provided). The script expects a vpc# directory (where # is the VPC number) to exist in the "secfiles" directory or AWS manifest S3bucket where the vpc.json file can be found and loaded. Using this vpc.json file, this script creates a VPC with associate Internet Gateway, NAT instance, route tables, subnets, security groups, S3Bucket for ELB logs, Client VPN endpoint, Bastion instance (Windows Server - default) OR OVPN file for the OpenVPN client and registers all AWS unique IDs. NOTES:
+  - The OVPN configuration still works, but not supported within AWS Academy
+  - This script will automatically run the AWSVPCB.VPC.REGISTER script an “AWS-VPCB” tagged VPC already exists in the target AWS account. If this doesn't recover your state, then the AWSVPCB.VPC.DESTROY must be run.
 
 AWSVPCB.VPC.DESTROY – This script will destroy the registered VPC and everything in it.
 
@@ -64,21 +66,21 @@ AWSVPCB.VPC.REGISTER – This script compares the AWS object IDs registered with
 
 AWSVPCB.ASSIGNMENT.CREATE # – This script accepts a mandatory assignment number (no default). The script then stops and destroys existing assignment instances, DNS entries and ELB targets if any exist. The script then expects an assignment# directory (where # is the assignment number)to exist in the "secfiles" directory or AWS manifest S3bucket where the awsvpcb.assignment#.json can be found and loaded. The script then creates assignment instances and firewall rules.
 
-AWSVPCB.ASSIGNMENT.START – Starts instances, Creates ELB (if applicable and just during the first start), Associates Client VPN endpoint to subnet, Creates Route 53 DNS zone and entries, Creates Route 53 Inbound endpoints. This scripts can run multiple times without destroying any work.
+AWSVPCB.ASSIGNMENT.START – Starts instances, Creates ELB (if applicable and just during the first start), Associates Client VPN endpoint to subnet (if VPN is used instead of Bastion server), and Creates Route 53 DNS zones. This scripts can run multiple times without destroying any work.
 
-AWSVPCB.ASSIGNMENT.STOP – Stops instances, Saves Route 53 DNS entries, Destroys Route 53 DNS zone, Disassociate Client VPN endpoint from subnet, Deletes Route 53 Inbound Endpoints. This script can run multiple times without destroying work.
+AWSVPCB.ASSIGNMENT.STOP – Stops instances, Saves Route 53 DNS entries, Destroys Route 53 DNS zone, and Disassociates Client VPN endpoint from subnet (if applicable). This script can run multiple times without destroying work.
 
 AWSVPCB.ASSIGNMENT.DESTROY – Destroys existing assignment ELB and instances. This script is called by AWSVPCB.ASSIGNMENT.CREATE and destroys all the work done on assignment.
 
-AWSVPCB.DIAGLOG - This script gathers all the relevant information from the students AWSVPCB directories and AWS VPC and sends it to an S3 bucket for review. All the files are placed in the S3Bucket defined in the vpcb-config file.
+AWSVPCB.DIAGLOG - This script gathers all the relevant information from the students AWSVPCB directories and AWS VPC and sends it to an S3 bucket for review. All the files are placed in the S3Bucket as defined in the vpcb-config file.
 
-AWSVPCB.MANIFEST.DISPLAY - This script pormpts the user for which manifest to display (VPC or Assignment and the relevant #). The script then reads the designated manifest and displays what was extracted and would be loaded into the registry of the awsvpcb-scripts.  This is a good way to test whether your json is properly formatted and accepted. Note that this does not validate the json, just displays what loading it would do.
+AWSVPCB.MANIFEST.DISPLAY - This script prompts the user for which manifest to display (VPC or Assignment and the relevant #). The script then reads the designated manifest and displays what was extracted and would be loaded into the registry of the awsvpcb-scripts.  This is a good way to test whether your json is properly formatted and accepted. Note that this does not validate the json, just displays what loading it would do.
 #
 #
 #
 VPC JSON FILES
 #
-The awsvpcb-scripts.zip file includes a sample json configuration file in the "secfiles/vpc0" directory. AWSVPCB allows for the definition of multiple VPCs (default is vpc0), however, there could only be one defined in AWS for a given AWS account at one time. In addition due to the fact the each time you create a VPC a new OVPN file is generated, it's recommended that you limit the number of VPCs used in one course.  For CTS-4743, for exampe, we only use one VPC for the entire semester and use the assignment json files to adjust the environment. VPCs can be created, registered and destroyed. Registering a VPC entails comparing the dynamic files within the "procs" directory with what is actually in AWS. All VPC json parameters are required, albeit the number of subnets, possibleInstanceNames and PossibleELBs is variable. The sample VPC json file includes all the parameters currently available. The below is a summary of these parameters:
+The awsvpcb-scripts.zip file includes two json configuration file in the "secfiles/vpc0" and "secfiles/vpc1" directories. AWSVPCB allows for the definition of multiple VPCs (default is vpc0), however, there could only be one defined in AWS for a given AWS account at one time. We typically only have students create one VPC for the entire semester and use the assignment json files to adjust the environment. However, VPCs can be created, registered and destroyed as needed. Registering a VPC entails comparing the dynamic files within the "procs" directory with what is actually in AWS. Most VPC json parameters are required, albeit the number of subnets, possibleInstanceNames and PossibleELBs is variable. The sample VPC json file includes all the parameters currently available. The below is a summary of these parameters:
 
 VPC-VPCCIDR(required): The range of IPs available for the VPC in CIDR notation
 
@@ -94,11 +96,15 @@ Subnets-SecurityGroup(required): "yes" or "no" as to whether this subnet have an
 
 Subnets-RoutingTable(required): "DEFAULT" or "PUBLIC" - all subnets other than the PUBLIC, should use the DEFAULT routing table
 
+Parameters (optional): This option can be used for any type of variable you'd want to setup in one location and save in AWS as a Parameter.  It was added to simplify the update of AMIs by defining them in one place (this vpc.json config) as opposed to the many assignment json configs since these are updated every semester for several reasons (e.g., patching, code updates and even OS upgrades over the years)
+
+Parameter-Name (optional): Name of the Parameter
+
+Parameter-Value (optional): Value of the Parameter
+
 PossibleInstanceNames(required): The number of PossibleInstanceNames is variable, but at least one must exist. This is necessary to allow the AWSVPCB.VPC.REGISTER script to re-calibrate the scripts registry with what exists in AWS. Simply list the possible instance names that may exist in any assignment to be used with this VPC.
 
 PossibleELBs(required): The number of PossibleELBs is variable, but at least one must exist. This is necessary to allow the AWSVPCB.VPC.REGISTER script to re-calibrate the scripts registry with what exists in AWS. Simply list the possible ELB names that may exist in any assignment to be used with this VPC.
-
-DNSIPAddresses(required): This is a list of the IP addresses that will be defined in the AWS Route 53 resolver (DNS server). All AMIs should have these IPs in their config in order to appropriately resolve your private domain's DNS names to IPs.
 
 NATDefinition(required): This is unlikely to need to be changed as this is simply defined to allow Internet access from within the VPC.
 
@@ -106,7 +112,27 @@ NATDefinition-IPAddress(required): IP address for the NAT instance.
 
 NATDefinition-Subnet(required): Subnet for the NAT instance.
 
-NATDefinition-AMI: AMI (AWS Machine Image) for the NAT instance.
+NATDefinition-AMI (required): AMI (AWS Machine Image) for the NAT instance.
+
+BASTIONDefinition (required for "bastion" option): This is unlikely to need to be changed as this is simply defined to allow external access into the VPC.
+
+BASTIONDefinition-IPAddress (required for "bastion" option): IP address for the BASTION instance.
+
+BASTIONDefinition-Subnet (required for "bastion" option): Subnet for the BASTION instance.
+
+BASTIONDefinition-AMI (required for "bastion" option): AMI (AWS Machine Image) for the BASTION instance.
+
+RemoteConnFlag (required): The parameter can be "bastion" or "vpn" to determine how remote access into the VPC will be configured.  Only the "bastion" option is supported within AWS Academy.
+
+VPNDefinition (required for "vpn" option): This option is not supported in AWS Academy.
+
+VPNDefinition-CACert (required for "vpn" option): Defines the CA certificate (included in the secfiles directory) to use for the VPN setup.
+
+VPNDefinition-ConfigFile (required for "vpn" option): Defines the configuration file (included in the secfiles directory) to use for the VPN setup.
+
+VPNDefinition-ClientCIDR (required for "vpn" option): Defines the range of IPs to use for the VPN setup.
+
+ServerPrivateKey (required if Linux EC2 instances are used in assignments): Defines the private key file (included in the secfiles directory) to use for the Linux servers.
 #
 #
 #
