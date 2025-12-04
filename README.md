@@ -27,7 +27,7 @@ The AWSVPCB scripts require a specific directory structure. You can simply downl
 #
 CONFIG FILE (vpcb-config) SETTINGS
 #
-If you are used the awsvpcb-setup script (look at awsvpcb-setup instructions.docx for more information), then you can ignore this section as that utility builds this file for you.  Otherwise, you can hardcode values, if desired. The default UNDEFINED values let the CONFIGURE script know to prompt the student to select their professor and associated vpcb-config file.  Unless you plan to use some legacy functionality or use this outside of the centralized admin, you can ignore this section.
+If you have used the awsvpcb-setup script (look at awsvpcb-setup instructions.docx for more information), then you can ignore this section as that utility builds this file for you.  Otherwise, you can hardcode values, if desired. The default UNDEFINED values let the CONFIGURE script know to prompt the student to select their professor and associated vpcb-config file.  Unless you plan to use some legacy functionality or use this outside of the centralized admin, you can ignore this section.
 Avialable parameters:
   - INSTITUTION, PROFESSOR, COURSE, SEMESTER, & AVAILABLE_COURSES - By default, these are set to "UNDEFINED" to force prompting the student for professor selection.  However, you can hardcode values for these, if desired, except for AVAILABLE_COURSES as this is only relevant for student selection.
   - AWSVPCB_SEM - Set to DYNAMIC to allow for the dynamic determination of the semester based on the month of the year (e.g., 1-3=SPRING, 4-7=SUMMER, >7=FALL).  Any other value simply avoids this automation and your hardcoded value for SEMESTER will remain as is.
