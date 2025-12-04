@@ -138,7 +138,7 @@ ServerPrivateKey (required if Linux EC2 instances are used in assignments): Defi
 #
 ASSIGNMENT MANIFEST JSON FILES
 #
-The awsvpcb-scripts.zip file includes sample assignment json configuration files in the "secfiles/assignment#" directories (#=1-3). AWSVPCB allows for the definition of multiple assignments (there is no default). Assignments can be created, started, stopped and destoyed. Starting and stopping an assignment preserves all changes made. The option to start and stop an assignment is necessary to allow a student to step away and not unnecessarily use up their allotted AWS credits. The 3 sample assignment json files include all the parameters currently available. Some of these parameters are optional.  The below is a summary of these parameters:
+The awsvpcb-scripts.zip file includes 17 assignment json configuration files in the "secfiles/assignment#" directories (#=1-17). AWSVPCB allows for the definition of multiple assignments (there is no limit). Assignments can be created, started, stopped and destoyed. Starting and stopping an assignment preserves all changes made. The option to start and stop an assignment is necessary to allow a student to step away and not unnecessarily use up their allotted AWS credits. Assignment json files 1-3 include all the parameters currently available. Some of these parameters are optional.  The below is a summary of these parameters:
 
 Instances(required): The number of instances is variable, but at least one must exist
 
@@ -148,15 +148,17 @@ Instances-InstanceIP(required): The IP address for this instance.  Must be withi
 
 Instances-InstanceSubnet(required): The subnet for the instance. Must be a subnet defined in the VPC.json file
 
-Instances-InstanceAMI(required): The AMI (AWS Machine Image) for this instance. If the AMI is private, then it must be shared with the student's AWS account
+Instances-InstanceAMI(required): The AMI (AWS Machine Image) for this instance OR the Parameter that refers to the AMI. If the AMI is private, then it must be shared with the student's AWS account
 
 Instances-InstanceSecGroup(required): The security group assigned to the instance. Must be a security group defined in the VPC.json file
 
 Instances-InstanceType(required): The type/size of the instance. While anything can be chosen here, please be aware that only type t2.micro is currently covered by the AWS "free tier", which allows for many more hours of usage without chewing up a lot of AWS credits.
 
-Instances-StartPreference(optional): Although this can be used for any purpose, it is only necessary for the server that executes the Havoc Circus service and should be set to "first" ("last" is also an available option, but will cause problems if used for the instance running the Havoc Circus service)
+Instances-InstanceUserDataFile(optional): If you wish to execute code after startup to manipulate the environment to create a scenario, then this parameter can point to the script to run after the server starts
 
-Instances-StopPreference(optional): Although this can be used for any purpose, it is only necessary for the server that executes the Havoc Circus service and should be set to "last" ("first" is also an available option, but will cause problems if used for the instance running the Havoc Circus service)
+Instances-StartPreference(optional): Valid values are "first" and "last".  Although this can be used for any purpose, it is only necessary if using the Havoc Circus Service, in which case the server that executes this service should be set to "first" 
+
+Instances-StopPreference(optional): Valid values are "first" and "last".  Although this can be used for any purpose, it is only necessary if using the Havoc Circus Service, in which case the server that executes this service should be set to "last"
 
 FirewallRules(optional): Syntactically, Firewall Rules do not need to be provided and there is no limit as to how many are provided. However, if rules are not provided, then no access will be allowed into a security group, so generally at least one inbound and one outbound rule per security group is needed to make things functional.
 
@@ -169,6 +171,8 @@ FirewallRules-Protocol(required): Can be "all", "udp", "tcp" or "icmp"
 FirewallRules-Port(required): Can be "all" or specific port number or port range with hyphen in between (e.g. "137-139")
 
 FirewallRules-SourceGroup(required): The source (for "inbound" rules) or destination (for "outbound" rules) for this firewall rule in CIDR notation 
+
+HavocCircusUsed(required): This must be "true" or "false" to indicate whether the Havoc Circus service should be started.  Use of this service is not included in any samples as it's considered a legacy feature.
 
 DNSEntriesFile(required): This is the location of the json file that includes the DNS entries to apply to Route 53 when the assignment is created.  The path is relative to the "secfiles" directory and/or the AWS S3 bucket where the manifest exists
 
@@ -202,6 +206,10 @@ ELBs-HealthCheckHealthyThreshold(optinal): The default is 2. This indicates how 
 
 ELBs-EnableSessionStickiness(optinal): The default is N for "no". This indicates whether the load balancer should enable cookie-based session stickiness such that sessions remain on the same backend server. N for "no" or Y for "yes" are accepted.
 
+ELBs-ELBSubnets(required): The number of subnets is variable, but at least one is required.
+
+ELBs-ELBSubnets-SubnetName(required): The name of a subnet where to place an instance for the ELB.  Must be a subnet defined in the vpc.
+
 ELBs-ELBInstances(required): The number of instances is variable, but at least one instance is required.
 
 ELBs-ELBInstances-InstanceName(required): The name of a target instance for the ELB.  Must be an instance defined in the assignment.
@@ -210,7 +218,7 @@ ELBs-ELBInstances-InstanceName(required): The name of a target instance for the 
 #
 ASSIGNMENT DNS JSON FILES
 #
-The awsvpcb-scripts.zip file includes sample assignment DNS json configuration files in the "secfiles/assignment#" directories (#=1-3). AWSVPCB allows for each assignment to include it's own set of DNS entries for the servers and or other components. The DNS json file must be configured within the assignment json file.  Thus, there could be one centralized DNS json config file used for multiple assignments, if desired. The format of the DNS json configuration file is dictated by AWS as it is loaded directyly without modification. Any parameters accepted by AWS would be accepted in this file.  Please refer to https://docs.aws.amazon.com/cli/latest/reference/route53/change-resource-record-sets.html for available json elements.
+The awsvpcb-scripts.zip file includes sample assignment DNS json configuration files in the "secfiles/assignment#" directories (#=1-17). AWSVPCB allows for each assignment to include it's own set of DNS entries for the servers and or other components. The DNS json file must be configured within the assignment json file.  Thus, there could be one centralized DNS json config file used for multiple assignments, if desired. The format of the DNS json configuration file is dictated by AWS as it is loaded directyly without modification. Any parameters accepted by AWS would be accepted in this file.  Please refer to https://docs.aws.amazon.com/cli/latest/reference/route53/change-resource-record-sets.html for available json elements.
 #
 #
 #
