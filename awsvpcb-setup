@@ -108,6 +108,10 @@ rm S3set*.temp
 if [ "$AWSVPCB_SUPPORT" == "" ]; then
    AWSVPCB_SUPPORT=Y
 fi
+if [ "$AWSVPCB_REGISTRY_ADD" == "" ]; then
+   AWSVPCB_REGISTRY_ADD=Y
+fi
+echo
 while true; do
    echo "PLEASE FILL OUT THE BELOW FIELDS.  PREVIOUS SETTINGS (if any) ARE SHOWN AND DEFAULT SO YOU CAN HIT ENTER TO KEEP:"
    while true; do
@@ -144,17 +148,6 @@ while true; do
       fi
    done
    while true; do
-      read -p "DO YOU WANT STUDENT DIAGLOGS SENT TO SUPPORT AS WELL [$AWSVPCB_SUPPORT]: " support
-      if [ "$support" == "y" ]; then support=Y
-      elif [ "$support" == "n" ]; then support=N
-      fi
-      if [ "$support" == "Y" -o "$support" == "N" ]; then 
-         AWSVPCB_SUPPORT=$support
-         break
-      else break
-      fi
-   done
-   while true; do
       read -p "LIST OUT COURSE NAMES SPACE DELIMITED (courses cannot include space) [$AWSVPCB_COURSES]: " courses
       if [ "$courses" != "" ]; then
          AWSVPCB_COURSES=$courses
@@ -165,13 +158,36 @@ while true; do
          break
       fi
    done
+   while true; do
+      read -p "DO YOU WANT STUDENT DIAGLOGS SENT TO SUPPORT AS WELL [$AWSVPCB_SUPPORT]: " support
+      if [ "$support" == "y" ]; then support=Y
+      elif [ "$support" == "n" ]; then support=N
+      fi
+      if [ "$support" == "Y" -o "$support" == "N" ]; then 
+         AWSVPCB_STUDENT_SUPPORT=$support
+         break
+      else break
+      fi
+   done
+   while true; do
+      read -p "DO YOU WANT YOUR vpcb-config FILE ADDED TO REGISTRY FOR STUDENT SELECTION [$AWSVPCB_REGISTRY_ADD]: " registry
+      if [ "$registry" == "y" ]; then registry=Y
+      elif [ "$registry" == "n" ]; then registry=N
+      fi
+      if [ "$registry" == "Y" -o "$registry" == "N" ]; then 
+         AWSVPCB_REGISTRY_ADD=$registry
+         break
+      else break
+      fi
+   done
    echo
    echo "PLEASE VERIFY YOUR ANSWERS BELOW:"
    echo "AWSVPCB_INSTITUTION=$AWSVPCB_INSTITUTION"
    echo "AWSVPCB_PROFESSOR=$AWSVPCB_PROFESSOR"
    echo "AWSVPCB_EMAIL=$AWSVPCB_EMAIL"
-   echo "AWSVPCB_SUPPORT=$AWSVPCB_SUPPORT"
    echo "AWSVPCB_COURSES=$AWSVPCB_COURSES"
+   echo "AWSVPCB_STUDENT_SUPPORT=$AWSVPCB_SUPPORT"
+   echo "AWSVPCB_REGISTRY_ADD=$AWSVPCB_REGISTRY_ADD"
    echo
    read -p "IS THIS CORRECT [Y]? (Y/N): " answer
    if [ "$answer" == "n" -o "$answer" == "N" ]; then continue
@@ -188,6 +204,7 @@ echo "export AWSVPCB_PROFESSOR=\"$AWSVPCB_PROFESSOR\"" >> S3settings.temp
 echo "export AWSVPCB_EMAIL=$AWSVPCB_EMAIL" >> S3settings.temp
 echo "export AWSVPCB_SUPPORT=$AWSVPCB_SUPPORT" >> S3settings.temp
 echo "export AWSVPCB_COURSES=\"$AWSVPCB_COURSES\"" >> S3settings.temp
+echo "export AWSVPCB_REGISTRY_ADD=$AWSVPCB_REGISTRY_ADD" >> S3settings.temp
 echo $(date) "Here are the contents of the S3settings.temp file being uploaded to S3:" >> awsvpcb-setup.log
 cat S3settings.temp >> awsvpcb-setup.log
 aws s3api put-object --bucket awsvpcb-diag-files-$AWS_UID --key SetupSettings --body S3settings.temp >> awsvpcb-setup.log
@@ -462,16 +479,20 @@ EOF
 echo $(date) "Uploading custom vpcb-config file..." | tee -a awsvpcb-setup.log
 aws s3api put-object --bucket awsvpcb-diag-files-$AWS_UID --key vpcb-config --body vpcb-config >> awsvpcb-setup.log
 
-wget https://juxhn343davm6xxnhibsvalsje0rwnxx.lambda-url.us-east-2.on.aws/?filename=professor_vpcb-config_files%2F$AWSVPCB_EMAIL.vpcb-config -O presignedURL >> awsvpcb-setup.log
-URL=`cat presignedURL | sed 's/^.//' | sed 's/.$//'`
-curl --silent -X PUT -H "Content-type : multipart/form-data" --data-binary "@vpcb-config" $URL
-rm presignedURL
-rm vpcb-config
+if [ "$AWSVPCB_REGISTRY_ADD" == "Y" ]; then
+   wget https://juxhn343davm6xxnhibsvalsje0rwnxx.lambda-url.us-east-2.on.aws/?filename=professor_vpcb-config_files%2F$AWSVPCB_EMAIL.vpcb-config -O presignedURL >> awsvpcb-setup.log
+   URL=`cat presignedURL | sed 's/^.//' | sed 's/.$//'`
+   curl --silent -X PUT -H "Content-type : multipart/form-data" --data-binary "@vpcb-config" $URL
+   rm presignedURL
+   rm vpcb-config
+fi
 
 
 # Send aws-setup.log file to centralized S3 bucket
-echo $(date) "Uploading awsvpcb-setup.log for review, if needed..." | tee -a awsvpcb-setup.log
-wget https://juxhn343davm6xxnhibsvalsje0rwnxx.lambda-url.us-east-2.on.aws/?filename=professor_setup_logs%2F$AWSVPCB_EMAIL.awsvpcb-setup.log -O presignedURL >> awsvpcb-setup.log
-URL=`cat presignedURL | sed 's/^.//' | sed 's/.$//'`
-curl --silent -X PUT -H "Content-type : multipart/form-data" --data-binary "@awsvpcb-setup.log" $URL
-rm presignedURL
+if [ "$AWSVPCB_REGISTRY_ADD" == "Y" ]; then
+   echo $(date) "Uploading awsvpcb-setup.log for review, if needed..." | tee -a awsvpcb-setup.log
+   wget https://juxhn343davm6xxnhibsvalsje0rwnxx.lambda-url.us-east-2.on.aws/?filename=professor_setup_logs%2F$AWSVPCB_EMAIL.awsvpcb-setup.log -O presignedURL >> awsvpcb-setup.log
+   URL=`cat presignedURL | sed 's/^.//' | sed 's/.$//'`
+   curl --silent -X PUT -H "Content-type : multipart/form-data" --data-binary "@awsvpcb-setup.log" $URL
+   rm presignedURL
+fi
