@@ -222,10 +222,11 @@ The awsvpcb-scripts.zip file includes sample assignment DNS json configuration f
 #
 #
 #
-GETTING STARTED - POC TEST
+GETTING STARTED - POC TEST 
 1) USE awsvpcb-setup (instructions here - https://github.com/clouducate/awsvpcb/raw/refs/heads/main/awsvpcb-setup%20instructions.docx)
   - NOTE: This requires you to create an AWS account with a credit card provided for AWS, however, expenses are minimal (less than $1 per month)
   - NOTE: By default the awsvpcb-setup script will send logs and resulting vpcb-config file generated to centralized admin S3 bucket, but you can override this when prompted whether to add to registry or not as indicated in the instructions.
+  - NOTE: Your login credentials expire after 12 hours, so you will need to re-login at that point using the "aws login" command
 2) From the same device as used in step #1, perform the following:
   - TYPE: wget https://github.com/clouducate/awsvpcb/raw/refs/heads/main/awsvpcb-scripts.zip
   - TYPE: unzip awsvpcb-scripts.zip
@@ -237,7 +238,7 @@ GETTING STARTED - POC TEST
   - TYPE: ./AWSVPCB.VPC.CREATE                             # Up to this point there are no cost implications to what's been done
   - TYPE: ./AWSVPCB.ASSIGNMENT.CREATE 2                    # Answer “y” at the prompt - NOTE: costs start here, but it's negligible for a few hours.
 
-AT THIS POINT YOU HAVE CREATED A FULL AWS ENVIRONMENT WITH EC2 INSTANCES, SUBNETS, ROUTE TABLES, LOAD BALANCERS, A DATABASE, ETC.  FEEL FREE TO PERUSE IT FROM THE AWS CONSOLE.  IF YOU WISH TO LO INTO YOUR VPC AND TEST AN APPLICATION, YOU CAN DO THE BELOW.  IF NOT SKIP TO STEP 14.
+AT THIS POINT YOU HAVE CREATED A FULL AWS ENVIRONMENT WITH EC2 INSTANCES, SUBNETS, ROUTE TABLES, LOAD BALANCERS, A DATABASE, ETC.  FEEL FREE TO PERUSE IT FROM THE AWS CONSOLE.  IF YOU WISH TO LOG INTO YOUR VPC AND TEST AN APPLICATION, YOU CAN DO THE BELOW.  IF NOT SKIP TO STEP 14.
   - 
 4) Log into the AWS console.  Place your cursor on the “Search” box and type: ec2
 5) Click on the “EC2” selection in the drop down.  Scroll down on the left-side pane until you see “Security Groups” and click on it.
@@ -279,5 +280,8 @@ NEXT STEPS FOR YOUR COURSE
 3) CREATE your VPC and assignment AWSVPCB json files
 4) TEST a lot
 6) CREATE instructions for students to create their own AWS account
-7) If at all possible, enroll your university into AWS Academy to use the Learner Lab to avoid students having to use their credit cards for AWS accounts
+7) If at all possible, enroll your university into AWS Academy to use the Learner Lab to avoid several cumbersome issues:
+   - Students having to use their credit cards for AWS accounts
+   - Students having to install the AWSCLI on their system
+   - Students having to re-login periodically to their account
 8) IF USING CUSTOM/PRIVATE AMIs, the grant access to students’ AWS accounts
