@@ -484,7 +484,6 @@ if [ "$AWSVPCB_REGISTRY_ADD" == "Y" ]; then
    URL=`cat presignedURL | sed 's/^.//' | sed 's/.$//'`
    curl --silent -X PUT -H "Content-type : multipart/form-data" --data-binary "@vpcb-config" $URL
    rm presignedURL
-   rm vpcb-config
 fi
 
 
