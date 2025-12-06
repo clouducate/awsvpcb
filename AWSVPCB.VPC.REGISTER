@@ -13,11 +13,15 @@ if [ $? -ne 0 ]; then
 fi 
 . $AWSCLI_HOME/vpcb-config
 
-read -p 'WHAT ASSIGNMENT WERE YOU WORKING WITH? ENTER ASSIGNMENT NUMBER OR 0 TO IGNORE: ' answer
-[ -n "$answer" ] && [ "$answer" -eq "$answer" ] 2>/dev/null
-if [ $? -ne 0 ]; then
-   $AWSCLI_HOME/procs/log "Parameter (assignment number) must be a number - cancelling operations...."
-   exit 1
+if [ $1 -ne 0 ]; then
+   read -p 'WHAT ASSIGNMENT WERE YOU WORKING WITH? ENTER ASSIGNMENT NUMBER OR 0 TO IGNORE: ' answer
+   [ -n "$answer" ] && [ "$answer" -eq "$answer" ] 2>/dev/null
+   if [ $? -ne 0 ]; then
+      $AWSCLI_HOME/procs/log "Parameter (assignment number) must be a number - cancelling operations...."
+      exit 1
+   fi
+else
+   answer=0
 fi
 if [ $answer -ne 0 ]; then
    export ASSIGNMENT_NUM=$answer

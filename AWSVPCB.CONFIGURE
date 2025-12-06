@@ -26,7 +26,104 @@ cat $AWSCLI_HOME/procs/aws-vpcb-vars.temp > $AWSCLI_HOME/procs/aws-vpcb-vars
 rm $AWSCLI_HOME/procs/aws-vpcb-vars.temp
 . ./vpcb-config
 
-$AWSCLI_HOME/procs/log "Welcome to $COURSE!  We will be configuring the root directory for the scripts that will communicate with AWS and your current userid."
+FILE="$AWSCLI_HOME/secfiles/vpcb-configs/vpcb-config.manifest"
+if [[ ! -s "$FILE" ]]; then
+    $AWSCLI_HOME/procs/log "vpcb-config.manifest is missing or empty - using default vpcb-config..."
+else
+   keep=0
+   if [ "$PROFESSOR" != "PROFESSOR-UNDEFINED" ]; then
+      RESULT1="${SEMESTER##*-}"; COURSE="${SEMESTER%%-$RESULT1*}"
+      echo "Current selections are as follows:"
+      echo "----------------------------------"
+      echo "Institution=$INSTITUTION"
+      echo "Professor=$PROFESSOR"
+      echo "Course=$COURSE"
+      echo
+      read -p "Do you want to keep these selections [y} (y/n)?" answer
+      if [ "$answer" != "n" -a "$answer" != "N" ]; then
+         $AWSCLI_HOME/procs/log "Keeping current selections" 
+         keep=1
+         echo  
+      fi
+   fi
+   if [ $keep -eq 0 ]; then
+      while true; do
+         echo "Below is the list of professors to choose from:" 
+         echo "Selection   Institution    Professor"
+         echo "--------------------------------------------------------"
+         while IFS=',' read -r col1 col2 col3 col4; do
+            echo "$col1           $col2             $col3"
+            last_select=$col1
+         done < "$FILE"
+         echo
+         read -p "Please select the professor (1 - $last_select):" answer
+         if [[ "$answer" =~ ^[1-$last_select]$ ]]; then
+             break
+         else
+             echo "'$answer' is NOT valid (must be 1-$last_select)."
+         fi
+      done
+   fi
+fi
+if [ $keep -eq 0 ]; then
+   while IFS=',' read -r col1 col2 col3 col4; do
+      if [ $answer -eq $col1 ]; then
+         cp $AWSCLI_HOME/secfiles/vpcb-configs/$col4 $AWSCLI_HOME/vpcb-config 
+      fi
+   done < "$FILE"
+   echo 
+   . ./vpcb-config
+fi
+
+if [ "$COURSE" == "DYNAMIC" ]; then
+   count=`echo "$AVAILABLE_COURSES" | wc -w`
+   if [ $count -gt 1 ]; then
+      while true; do
+         counter=0
+         echo "Which course are you taking?"
+         echo "Selection   Course"
+         echo "------------------------------"
+         for course in $AVAILABLE_COURSES; do
+            (( counter++ ))
+            echo "$counter     $course"
+         done
+         read -p "Please select the course (1 - $counter):" answer
+         if [[ "$answer" =~ ^[1-$counter]$ ]]; then
+            break
+         else
+            echo "'$answer' is NOT valid (must be 1-$counter)."
+         fi
+      done
+      counter=0
+      for course in $AVAILABLE_COURSES; do
+         (( counter++ ))
+         if [ $counter -eq $answer ]; then
+            COURSE=$course
+         fi
+      done
+   else
+      COURSE=$AVAILABLE_COURSES
+   fi
+fi
+echo
+
+if [ "$AWSVPCB_SEM" == "DYNAMIC" ]; then
+   TODAYMONTH=`date +%m`
+   TODAYYEAR=`date +%Y`
+   if [ $TODAYMONTH -le 4 ]; then
+      SEM=SPRING
+   elif [ $TODAYMONTH -le 7 ]; then
+      SEM=SUMMER
+   else
+      SEM=FALL
+   fi
+   export SEMESTER=$COURSE-$SEM$TODAYYEAR
+   cat $AWSCLI_HOME/vpcb-config | grep -v SEMESTER > $AWSCLI_HOME/tempfiles/vpcb-config.temp
+   cat $AWSCLI_HOME/tempfiles/vpcb-config.temp > $AWSCLI_HOME/vpcb-config
+   echo "export SEMESTER=$SEMESTER" >> $AWSCLI_HOME/vpcb-config
+fi 
+
+$AWSCLI_HOME/procs/log "Welcome to $COURSE at $INSTITUTION taught by $PROFESSOR!  We will be configuring the root directory for the scripts that will communicate with AWS and your current userid."
 $AWSCLI_HOME/procs/log "Logging service disabled during AWSVPCB.CONFIGURE startup."
 $AWSCLI_HOME/procs/log "AWS CLI Scripts directory configured as $AWSCLI_HOME."
 $AWSCLI_HOME/procs/log "Local UserID configured as $USER_ID."
@@ -81,4 +178,4 @@ else
    $AWSCLI_HOME/procs/log "Logging service remains disabled per configuration."
 fi
 
-$AWSCLI_HOME/procs/log "AWSVPCB Configuration complete. Please test using AWSVPCB.TEST."
+$AWSCLI_HOME/procs/log "AWSVPCB Configuration complete. You can test using AWSVPCB.TEST."

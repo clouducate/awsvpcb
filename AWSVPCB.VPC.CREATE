@@ -55,8 +55,11 @@ fi
 
 . $AWSCLI_HOME/vpcb-config
 $AWSCLI_HOME/procs/awsvpcb.create.vpc
-if [ $? -ne 0 ]; then
+if [ $? -eq 1 ]; then
    $AWSCLI_HOME/procs/log "VPC creation failed - $ERRORMSG"
+   exit 1
+elif [ $? -eq 2 ]; then
+   $AWSCLI_HOME/procs/log "VPC creation bypassed for registration - please retry AWSVPCB.ASSIGNMENT.CREATE"
    exit 1
 fi
 . $AWSCLI_HOME/vpcb-config
