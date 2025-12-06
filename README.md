@@ -259,7 +259,7 @@ AT THIS POINT YOU HAVE CREATED A FULL AWS ENVIRONMENT WITH EC2 INSTANCES, SUBNET
 AT THIS POINT YOU ARE IN YOUR VPC AND LOOGED INTO A WINDOWS SERVER WITH MANY TOOLS PRE-INSTALLED.  FEEL FREE TO LOOK AROUND.  
   - 
 15) Once you are done testing, you should destroy the assignment to avoid AWS costs.  To do so, simply go back to the awsvpcb-scripts directory and run ./AWSVPCB.ASSIGNMNET.DESTROY.
-16) You can experiment with other assignments and/or detroy it all whenever you wish.
+16) You can experiment with other assignments and/or destroy it all whenever you wish.
     - NOTE: Assignment numbers beyond 3 have purposefully created errors and the applications (HTTP://myfiu.awsvpcb.edu and HTTP://rainforest.awsvpcb.edu) will not work as expected. 
 #
 #
