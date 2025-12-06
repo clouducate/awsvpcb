@@ -1,0 +1,79 @@
+#!/bin/bash
+# This script prepares a student's AWS environment to support a course using AWSVPCB
+#
+# Creating Log
+echo $(date) "Starting script awsvpcb-setup" >> awsvpcb-setup.log
+
+# Verify whether the AWS CLI is installed or not
+aws --version > awscliout.temp 2> awsclierror.temp
+echo $(date) "Standard out of aws --version is as follows:" >> awsvpcb-setup.log
+cat awscliout.temp >> awsvpcb-setup.log
+echo $(date) "Standard error of aws --version is as follows:" >> awsvpcb-setup.log
+cat awsclierror.temp >> awsvpcb-setup.log
+if [ -s awscliout.temp ]; then
+   echo $(date) "Found AWS CLI already installed - skipping AWS Installation Steps" | tee -a awsvpcb-setup.log
+else
+   echo $(date) "Updating packages and install prerequisites" | tee -a awsvpcb-setup.log
+   sudo apt update && sudo apt install -y unzip curl | tee -a awsvpcb-setup.log
+   sudo apt install zip | tee -a awsvpcb-setup.log
+   echo $(date) "Downloading the AWS CLI v2 installation package" | tee -a awsvpcb-setup.log
+   curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip" | tee -a awsvpcb-setup.log
+   echo $(date) "Unzipping the installer" | tee -a awsvpcb-setup.log
+   unzip awscliv2.zip | tee -a awsvpcb-setup.log
+   echo $(date) "Running the install program" | tee -a awsvpcb-setup.log
+   sudo ./aws/install | tee -a awsvpcb-setup.log
+   echo $(date) "Verifying the installation" | tee -a awsvpcb-setup.log
+   aws --version > awscli.chk 2> awschk.e
+   echo $(date) "Standard out of aws --version is as follows:" >> awsvpcb-setup.log
+   cat awscli.chk >> awsvpcb-setup.log
+   echo $(date) "Standard error of aws --version is as follows:" >> awsvpcb-setup.log
+   cat awschk.e >> awsvpcb-setup.log
+   if [ -s awscli.chk ]; then
+      echo $(date) "Installation successful" | tee -a awsvpcb-setup.log
+   else
+      echo $(date) "Problem with the installation - please check previous messages and contact nmonfort@fiu.edu for help" | tee -a awsvpcb-setup.log
+      echo $(date) "Uploading awsvpcb-setup.log for review, if needed..." | tee -a awsvpcb-setup.log
+      wget https://juxhn343davm6xxnhibsvalsje0rwnxx.lambda-url.us-east-2.on.aws/?filename=professor_setup_logs%2FUNKNOWN.awsvpcb-setup.log -O presignedURL
+      URL=`cat presignedURL | sed 's/^.//' | sed 's/.$//'`
+      curl -X PUT -H "Content-type : multipart/form-data" --data-binary "@awsvpcb-setup.log" $URL 
+      exit 1
+   fi
+   echo $(date) "Cleaning up installation files" | tee -a awsvpcb-setup.log
+   rm -rf awscliv2.zip aws | tee -a awsvpcb-setup.log
+fi
+rm awscli*.temp
+
+
+# Create credentials, if needed
+aws sts get-caller-identity > UID_good.temp 2> UID_bad.temp 
+echo $(date) "Standard out of aws sts get-caller-identity is as follows:" >> awsvpcb-setup.log
+cat  UID_good.temp >> awsvpcb-setup.log
+echo $(date) "Standard error of aws sts get-caller-identity is as follows:" >> awsvpcb-setup.log
+cat UID_bad.temp >> awsvpcb-setup.log
+if [ -s UID_bad.temp ]; then
+   echo $(date) "User not logged in, initiating AWS Login" | tee -a awsvpcb-setup.log
+   aws login | tee -a awsvpcb-setup.log
+   aws sts get-caller-identity > UID_good.temp 2> UID_bad.temp 
+   echo $(date) "Standard out of aws sts get-caller-identity is as follows:" >> awsvpcb-setup.log
+   cat  UID_good.temp >> awsvpcb-setup.log
+   echo $(date) "Standard error of aws sts get-caller-identity is as follows:" >> awsvpcb-setup.log
+   cat UID_bad.temp >> awsvpcb-setup.log
+   if [ -s UID_bad.temp ]; then
+      echo $(date) "User failed to login, ending script - please check previous messages and contact nmonfort@fiu.edu for help" | tee -a awsvpcb-setup.log
+      echo $(date) "Uploading awsvpcb-setup.log for review, if needed..." | tee -a awsvpcb-setup.log
+      wget https://juxhn343davm6xxnhibsvalsje0rwnxx.lambda-url.us-east-2.on.aws/?filename=professor_setup_logs%2FUNKNOWN.awsvpcb-setup.log -O presignedURL
+      URL=`cat presignedURL | sed 's/^.//' | sed 's/.$//'`
+      curl -X PUT -H "Content-type : multipart/form-data" --data-binary "@awsvpcb-setup.log" $URL 
+      exit 1
+   fi
+else
+   echo $(date) "User already logged in, moving on..." | tee -a awsvpcb-setup.log
+fi
+
+AWS_UID=`grep Account UID_good.temp | cut -d "\"" -f4`
+echo $(date) "The account logged in is $AWS_UID" | tee -a awsvpcb-setup.log
+rm UID_*.temp
+
+
+echo $(date) "Uploading awsvpcb-student-setup completed." | tee -a awsvpcb-setup.log
+echo $(date) "You should be able to download and use the AWSVPCB scripts on this machine." | tee -a awsvpcb-setup.log
