@@ -5,3 +5,4 @@ cat $AWSCLI_HOME/procs/aws-dynamic-vars | grep -v ASSIGNMENT_HASH > $AWSCLI_HOME
 cat $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp > $AWSCLI_HOME/procs/aws-dynamic-vars
 
 rm $AWSCLI_HOME/tempfiles/assignment.* 2>/dev/null
+echo "#" > $AWSCLI_HOME/procs/aws-assignment-vars

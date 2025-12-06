@@ -35,8 +35,11 @@ if [ "$AWSVPCB_VPCID" == "" ]; then
    export json=`cat $AWSCLI_HOME/tempfiles/create.vpc.2`
    test=`$AWSCLI_HOME/procs/json-read "AWS-VPCB-VPC" 2`
    if [ "$test" != "" ]; then
-      $AWSCLI_HOME/procs/log "Found at least one non-registered AWS-VPCB VPC in AWS - cancelling operation; need to destroy first...."
-      exit 1
+      $AWSCLI_HOME/procs/log "Found at least one non-registered AWS-VPCB VPC in AWS - running AWSVPCB.CONFIGURE and AWSVPCB.VPC.REGISTER to recover registry...."
+      $AWSCLI_HOME/AWSVPCB.CONFIGURE 
+      $AWSCLI_HOME/AWSVPCB.VPC.REGISTER 0
+      $AWSCLI_HOME/procs/log "VPC Register completed - Please retry AWSVPCB.ASSIGNMENT.CREATE...."
+      exit 2
    fi
    $AWSCLI_HOME/procs/log "No AWS-VPCB VPCs found in AWS - creating new VPC...."
 

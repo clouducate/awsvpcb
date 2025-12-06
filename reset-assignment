@@ -3,3 +3,4 @@ cat $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp > $AWSCLI_HOME/procs/aws-dynami
 echo "export ASSIGNMENT_NUM=$ASSIGNMENT_NUM" >> $AWSCLI_HOME/procs/aws-dynamic-vars
 
 rm $AWSCLI_HOME/tempfiles/assignment.* 2>/dev/null
+echo "#" > $AWSCLI_HOME/procs/aws-assignment-vars

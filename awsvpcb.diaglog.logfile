@@ -5,9 +5,15 @@ $AWSCLI_HOME/procs/log "File $input being uploaded to the S3 Bucket..."
 filename=`echo $(basename $input)`
 
 if [ "$AWS_ACADEMY" == "yes" ]; then
-   wget https://juxhn343davm6xxnhibsvalsje0rwnxx.lambda-url.us-east-2.on.aws/?filename=$SEMESTER%2F$LOGSTREAM%2F$diag_timestamp%2F$filename -O $AWSCLI_HOME/tempfiles/diaglog.logfile.presignedURL > $AWSCLI_HOME/tempfiles/dialog.logfile.1 2>&1
+   student=`echo "$AWSVPCB_AWSID" | awk -F"%3D" '{print $2}'`
+   wget $DIAGLOG_LAMBDA_URL/?filename=$SEMESTER%2F$student%2F$diag_timestamp%2F$filename -O $AWSCLI_HOME/tempfiles/diaglog.logfile.presignedURL > $AWSCLI_HOME/tempfiles/dialog.logfile.1 2>&1
    URL=`cat $AWSCLI_HOME/tempfiles/diaglog.logfile.presignedURL | sed 's/^.//' | sed 's/.$//'`
    curl -X PUT -H "Content-type : multipart/form-data" --data-binary "@$input" $URL > $AWSCLI_HOME/tempfiles/dialog.logfile.2 2>&1
+   if [ "$DIAGLOG_SUPPORT" == "Y" ]; then
+      wget $DIAGLOG_LAMBDA_SUPPORT_URL/?filename=$INSTITUTION%2F$PROFESSOR%2F$SEMESTER%2F$student%2F$diag_timestamp%2F$filename -O $AWSCLI_HOME/tempfiles/diaglog.logfile.presignedURL2 > $AWSCLI_HOME/tempfiles/dialog.logfile.1 2>&1
+      URL=`cat $AWSCLI_HOME/tempfiles/diaglog.logfile.presignedURL2 | sed 's/^.//' | sed 's/.$//'`
+      curl -X PUT -H "Content-type : multipart/form-data" --data-binary "@$input" $URL > $AWSCLI_HOME/tempfiles/dialog.logfile.2 2>&1
+   fi
 else
    $AWSCLI_HOME/procs/clicall "s3api put-object --bucket $DIAGLOG_S3BUCKET --key $SEMESTER/$LOGSTREAM/$diag_timestamp/$filename --body $input --profile logging" "$AWSCLI_HOME/tempfiles/dialog.logfile.1" "$AWSCLI_HOME/tempfiles/diaglog.logfile.1.error"
    if [ $? -ne 0 ]; then

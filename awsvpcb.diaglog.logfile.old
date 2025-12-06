@@ -1,0 +1,24 @@
+# Print the contents of a file to the log
+#
+input="$1"
+$AWSCLI_HOME/procs/log "THE FOLLOWING ARE THE CONTENTS OF THE FILE: $input"
+while IFS= read -r line
+do
+   flag=0
+   newline="..."
+   for i in $(seq 1 ${#line})
+   do
+      if [ "${line:0:1}" != " " ]; then
+         flag=1
+      fi
+      if [ "${line:$i-1:1}" == " " -a $flag -eq 0 ]; then
+         newline=`echo "$newline""."`
+      else
+         flag=1
+         newline=`echo "$newline""${line:$i-1:1}"`
+      fi
+   done
+   $AWSCLI_HOME/procs/log "$newline"
+   #$AWSCLI_HOME/procs/log "   $line"
+done < "$input"
+

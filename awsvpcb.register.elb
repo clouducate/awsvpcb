@@ -35,7 +35,7 @@ do
          fi
       fi
    else
-      $AWSCLI_HOME/procs/clicall "elbv2 describe-load-balancers --names $cert" "$AWSCLI_HOME/tempfiles/register.elb.2" "$AWSCLI_HOME/tempfiles/register.elb.2.error"
+      $AWSCLI_HOME/procs/clicall "elbv2 describe-load-balancers --names $cert" "$AWSCLI_HOME/tempfiles/register.elb.2" "$AWSCLI_HOME/tempfiles/register.elb.2.error" NOLOG
       if [ $? -ne 0 ]; then
          $AWSCLI_HOME/procs/log "ELB $cert not found in AWS - moving on...."
       else 

@@ -27,7 +27,7 @@ else
       exit 1
    fi
    export json=`cat $AWSCLI_HOME/tempfiles/register.s3bucket.2`
-   export AWSVPCB_S3BUCKET=`$AWSCLI_HOME/procs/json-read "Name:" "ML" | grep "elb-log"`
+   export AWSVPCB_S3BUCKET=`$AWSCLI_HOME/procs/json-read "Name:" "ML" | tr ' ' '\n' | grep "elb-log"`
    if [ "$AWSVPCB_S3BUCKET" != "" ]; then
       echo "export AWSVPCB_S3BUCKET=$AWSVPCB_S3BUCKET" >> $AWSCLI_HOME/procs/aws-dynamic-vars
       $AWSCLI_HOME/procs/log "S3 bucket $AWSVPCB_S3BUCKET found in AWS and registered...."

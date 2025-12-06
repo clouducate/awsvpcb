@@ -6,8 +6,5 @@ $AWSCLI_HOME/procs/clicall "elbv2 describe-load-balancers" "$AWSCLI_HOME/tempfil
 
 $AWSCLI_HOME/procs/clicall "elbv2 describe-target-groups" "$AWSCLI_HOME/tempfiles/diaglog.elb.2" "$AWSCLI_HOME/tempfiles/diaglog.elb.2.error"
 
-$AWSCLI_HOME/procs/clicall "elbv2 describe-listeners" "$AWSCLI_HOME/tempfiles/diaglog.elb.3" "$AWSCLI_HOME/tempfiles/diaglog.elb.3.error"
-
 $AWSCLI_HOME/procs/awsvpcb.diaglog.logfile $AWSCLI_HOME/tempfiles/diaglog.elb.1
 $AWSCLI_HOME/procs/awsvpcb.diaglog.logfile $AWSCLI_HOME/tempfiles/diaglog.elb.2
-$AWSCLI_HOME/procs/awsvpcb.diaglog.logfile $AWSCLI_HOME/tempfiles/diaglog.elb.3
