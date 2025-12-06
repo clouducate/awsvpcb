@@ -160,6 +160,8 @@ Instances-StartPreference(optional): Valid values are "first" and "last".  Altho
 
 Instances-StopPreference(optional): Valid values are "first" and "last".  Although this can be used for any purpose, it is only necessary if using the Havoc Circus Service, in which case the server that executes this service should be set to "last"
 
+Instances-StopInstance (optional): Valid value is "yes"; any other value is ignored.  This will cause the instance to stop after initial creation.
+
 FirewallRules(optional): Syntactically, Firewall Rules do not need to be provided and there is no limit as to how many are provided. However, if rules are not provided, then no access will be allowed into a security group, so generally at least one inbound and one outbound rule per security group is needed to make things functional.
 
 FirewallRules-SecurityGroup(required): The security group to which this particular firewall rule applies
