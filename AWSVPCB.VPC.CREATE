@@ -54,12 +54,15 @@ else
 fi
 
 . $AWSCLI_HOME/vpcb-config
+
+$AWSCLI_HOME/procs/log "Running VPC Register to make sure that AWS is in synch with the AWSVPCB registry..."
+$AWSCLI_HOME/AWSVPCB.VPC.REGISTER 0 $VPC_NUM
 $AWSCLI_HOME/procs/awsvpcb.create.vpc
-if [ $? -eq 1 ]; then
+result=$?
+if [ $result -eq 1 ]; then
    $AWSCLI_HOME/procs/log "VPC creation failed - $ERRORMSG"
    exit 1
-elif [ $? -eq 2 ]; then
-   $AWSCLI_HOME/procs/log "VPC creation bypassed for registration - please retry AWSVPCB.ASSIGNMENT.CREATE"
+elif [ $result -eq 2 ]; then
    exit 1
 fi
 . $AWSCLI_HOME/vpcb-config

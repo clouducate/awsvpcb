@@ -13,7 +13,7 @@ if [ $? -ne 0 ]; then
 fi 
 . $AWSCLI_HOME/vpcb-config
 
-if [ $1 -ne 0 ]; then
+if [ "$1" != "0" ]; then
    read -p 'WHAT ASSIGNMENT WERE YOU WORKING WITH? ENTER ASSIGNMENT NUMBER OR 0 TO IGNORE: ' answer
    [ -n "$answer" ] && [ "$answer" -eq "$answer" ] 2>/dev/null
    if [ $? -ne 0 ]; then
@@ -57,7 +57,7 @@ else
    $AWSCLI_HOME/procs/log "Skipping Assignment Manifest Load...."
 fi
 
-$AWSCLI_HOME/procs/awsvpcb.register.vpc
+$AWSCLI_HOME/procs/awsvpcb.register.vpc $2
 if [ $? -ne 0 ]; then
    $AWSCLI_HOME/procs/log "VPC registration failed - $ERRORMSG"
    exit 1
