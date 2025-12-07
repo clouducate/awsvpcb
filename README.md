@@ -1,6 +1,74 @@
 INTRODUCTION
 #
-AWSVPCB (AWS Virtual Private Cloud Builder) is a set of BASH Shell scripts designed to create a small enterprise IT-like environment in AWS to provide college-level students with hands-on experience individually working on IT problems. These scripts have evolved over time and all of the recent updates have focused on their use within the AWS Academy Learner Lab.  The scripts still support running outside of the AWS Academy Learner, but the default configurations would be need to be adjusted.  These scripts work in conjunction with the Havoc Circus utility which provides AWS images (AMIs) with pre-loaded applications and a method for automatically changing the environment for assignment purposes. These scripts were originally developed by Norbert Monfort and Robert Fortunato for the CTS-4743 Enterprise IT Troubleshooting course taught at FIU (Florida International University) in Miami, Florida in 2019.  However, these scripts are open source and free to be used for any purpose. These scripts, the associated AMIs and applications they house make up what is called the "Clouducate Suite", which we continue to work on. Included in this repository is a presentation (Clouducate.pdf found at https://github.com/clouducate/awsvpcb/blob/main/Clouducate.pdf) which explains and provides an introduction to AWSVPCB and Havoc Circus and the awsvpcb-setup script with instructions (awsvpcb-setup found at https://github.com/clouducate/awsvpcb/raw/refs/heads/main/awsvpcb-setup%20instructions.docx) which allows for professors to use the scripts "as is" while still getting support from a central administrator.  The rest of this document will focus on AWSVPCB.
+AWSVPCB (AWS Virtual Private Cloud Builder) is a set of BASH Shell scripts designed to create a small enterprise IT-like environment in AWS to provide college-level students with hands-on experience individually working on IT problems. These scripts are now focused on the use of the AWS Academy Learner Lab but still support running outside of the AWS Academy Learner, with configuration adjustments. These scripts work in conjunction with AWS images (AMIs) with pre-loaded applications and a method for automatically changing the environment for assignment purposes. These scripts are open source and free to be used for any purpose. These scripts, the associated AMIs and applications they house make up what is called the "Clouducate Suite", which we continue to work on. 
+
+Included in this repository is a presentation (Clouducate.pdf found at https://github.com/clouducate/awsvpcb/blob/main/Clouducate.pdf) which explains and provides an introduction to AWSVPCB and Havoc Circus and the awsvpcb-setup script with instructions (awsvpcb-setup found at https://github.com/clouducate/awsvpcb/raw/refs/heads/main/awsvpcb-setup%20instructions.docx) which allows for professors to use the scripts "as is" while still getting support from a central administrator.  The rest of this document will focus on AWSVPCB.
+#
+#
+#
+GETTING STARTED - POC TEST 
+1) USE awsvpcb-setup (instructions here - https://github.com/clouducate/awsvpcb/raw/refs/heads/main/awsvpcb-setup%20instructions.docx)
+  - NOTE: This requires you to create an AWS account with a credit card provided for AWS, however, expenses are minimal (less than $1 per month)
+  - NOTE: By default the awsvpcb-setup script will send logs and resulting vpcb-config file generated to centralized admin S3 bucket, but you can override this when prompted whether to add to registry or not as indicated in the instructions.
+  - NOTE: Your login credentials expire after 12 hours, so you will need to re-login at that point using the "aws login" command
+2) From the same device as used in step #1, perform the following:
+  - TYPE: wget https://github.com/clouducate/awsvpcb/raw/refs/heads/main/awsvpcb-scripts.zip
+  - TYPE: unzip awsvpcb-scripts.zip
+  - TYPE: cd awsvpcb-scripts
+  - TYPE: chmod 755 *
+  - TYPE: chmod 755 procs/*
+3) COPY the vpcb-config file created in step #1 to this directory then do the following:
+  - TYPE: ./AWSVPCB.CONFIGURE                              # If you have multiple course, then you will be asked to choose one
+  - TYPE: ./AWSVPCB.VPC.CREATE                             # Up to this point there are no cost implications to what's been done
+  - TYPE: ./AWSVPCB.ASSIGNMENT.CREATE 2                    # Answer “y” at the prompt - NOTE: costs start here, but it's negligible for a few hours.
+
+AT THIS POINT YOU HAVE CREATED A FULL AWS ENVIRONMENT WITH EC2 INSTANCES, SUBNETS, ROUTE TABLES, LOAD BALANCERS, A DATABASE, ETC.  FEEL FREE TO PERUSE IT FROM THE AWS CONSOLE.  IF YOU WISH TO LOG INTO YOUR VPC AND TEST AN APPLICATION, YOU CAN DO THE BELOW.  IF NOT SKIP TO STEP 15.
+  - 
+4) Log into the AWS console.  Place your cursor on the “Search” box and type: ec2
+5) Click on the “EC2” selection in the drop down.  Scroll down on the left-side pane until you see “Security Groups” and click on it.
+6) Click on the checkbox next to the “AWS-VPCB-PUBLIC” security group.  When you do, the bottom portion of the screen will populate.  Click on “inbound rules” and then on the “Edit inbound rules” button.
+7)	You should be presented with the below screen.  Click on the “Add rule” button. Then, click on the “Custom TCP” button and type RDP to select it.  Then, click on the “Custom” button and select “My IP” from the drop-down menu.  Finally, click on the “Save rules” button.
+8)	Scroll up on the left-side pane until you see “Instances” and click on it.  Then click on the checkbox next to “AWS-VPCB-BASTION”.  This will populate the bottom part of the page with the details about this server. Click on the boxes under “Public IPv4 DNS” to copy the public name of the server.
+9)	Open a Remote Desktop Tool  
+  a.	ON MAC - Download Microsoft Remote Desktop 10 or higher from the MAC App Store and install. 
+  b.	ON WINDOWS – There are several Remote Desktop options, but “Remote Desktop Connection” comes pre-installed on all Windows machines. You simply need to “rdp” on the Windows search bar. However, you will need to constantly re-enter your credentials each time you connect.
+10)	Now, let’s connect to your Bastion host! Within RDP, click on “Show options” to expand the window. Paste in the DNS name you just copied in the “Computer” field. Type “administrator” in the “User name” field.  Finally, click on the “Connect” button.
+11)	You may be asked “Do you trust this remote connection?”.  Simply click “Connect” again.
+12)	You should then be prompted for the password. Copy and paste the following as the password: P@oDxV)4-nPUfp$Ar?V@N9Lpjbsnp@W!
+13)	You will then be prompted again with something like “The identity of the remote computer cannot be verified. Do you want to connect anyway?”.  Click “yes”.  You are now logged into your Bastion host!
+14)	To test the applications associated to this particular assignment number, simply open a browser on your Bastion server and type HTTP://myfiu.awsvpcb.edu
+
+AT THIS POINT YOU ARE IN YOUR VPC AND LOOGED INTO A WINDOWS SERVER WITH MANY TOOLS PRE-INSTALLED.  FEEL FREE TO LOOK AROUND.  
+  - 
+15) Once you are done testing, you should destroy the assignment to avoid AWS costs.  To do so, simply go back to the awsvpcb-scripts directory and run ./AWSVPCB.ASSIGNMNET.DESTROY.
+16) You can experiment with other assignments and/or destroy it all whenever you wish.
+    - NOTE: Assignment numbers beyond 3 have purposefully created errors and the applications (HTTP://myfiu.awsvpcb.edu and HTTP://rainforest.awsvpcb.edu) will not work as expected. 
+#
+#
+#
+NEXT STEPS FOR YOUR COURSE
+1) MAP OUT TARGET ENVIRONMENT 
+  - What AMIs do you plan to use? Are the default AMIs provided sufficient or do you want to take those and create custom AMIs? 
+  - What applications will the students be testing? Are the default rainforest and myfiu applications sufficient or do I want to build/use others? 
+  - What do you want your VPC to look like (IP range, subnets, possible instances, possible ELBs)?  
+  - What do you want your assignments to look like (instances, firewall rules, DNS entries, ELBs)? 
+  - What do you want your assignments to do (e.g. setup a security vulnerability or break the environment in some way)?
+2) CHOOSE DOMAIN 
+   - Use default awsvpcb.edu domain - This limits you to two ELB names (myfiu and rainforest), but other than that, there are now other limitations
+   OR
+   - Create your own domain and provide the following:
+      - Public CA cert for import into student client machines or use public CA (e.g. Sectigo)
+      - Client & Server VPN certs and private keys
+      - ELB certs and private keys
+      - All of these would need to be placed in the "secfiles" directory with the appropriate name (NOTE: the VPN server and client names are currently hardcoded, so you need to replace the files in the secfiles directory)
+3) CREATE your VPC and assignment AWSVPCB json files
+4) TEST a lot
+6) CREATE instructions for students to create their own AWS account
+7) If at all possible, enroll your university into AWS Academy to use the Learner Lab to avoid several cumbersome issues:
+   - Students having to use their credit cards for AWS accounts
+   - Students having to install the AWSCLI on their system
+   - Students having to re-login periodically to their account
+8) IF USING CUSTOM/PRIVATE AMIs, the grant access to students’ AWS accounts
 #
 #
 #
@@ -221,69 +289,4 @@ ELBs-ELBInstances-InstanceName(required): The name of a target instance for the 
 ASSIGNMENT DNS JSON FILES
 #
 The awsvpcb-scripts.zip file includes sample assignment DNS json configuration files in the "secfiles/assignment#" directories (#=1-17). AWSVPCB allows for each assignment to include it's own set of DNS entries for the servers and or other components. The DNS json file must be configured within the assignment json file.  Thus, there could be one centralized DNS json config file used for multiple assignments, if desired. The format of the DNS json configuration file is dictated by AWS as it is loaded directyly without modification. Any parameters accepted by AWS would be accepted in this file.  Please refer to https://docs.aws.amazon.com/cli/latest/reference/route53/change-resource-record-sets.html for available json elements.
-#
-#
-#
-GETTING STARTED - POC TEST 
-1) USE awsvpcb-setup (instructions here - https://github.com/clouducate/awsvpcb/raw/refs/heads/main/awsvpcb-setup%20instructions.docx)
-  - NOTE: This requires you to create an AWS account with a credit card provided for AWS, however, expenses are minimal (less than $1 per month)
-  - NOTE: By default the awsvpcb-setup script will send logs and resulting vpcb-config file generated to centralized admin S3 bucket, but you can override this when prompted whether to add to registry or not as indicated in the instructions.
-  - NOTE: Your login credentials expire after 12 hours, so you will need to re-login at that point using the "aws login" command
-2) From the same device as used in step #1, perform the following:
-  - TYPE: wget https://github.com/clouducate/awsvpcb/raw/refs/heads/main/awsvpcb-scripts.zip
-  - TYPE: unzip awsvpcb-scripts.zip
-  - TYPE: cd awsvpcb-scripts
-  - TYPE: chmod 755 *
-  - TYPE: chmod 755 procs/*
-3) COPY the vpcb-config file created in step #1 to this directory then do the following:
-  - TYPE: ./AWSVPCB.CONFIGURE                              # If you have multiple course, then you will be asked to choose one
-  - TYPE: ./AWSVPCB.VPC.CREATE                             # Up to this point there are no cost implications to what's been done
-  - TYPE: ./AWSVPCB.ASSIGNMENT.CREATE 2                    # Answer “y” at the prompt - NOTE: costs start here, but it's negligible for a few hours.
 
-AT THIS POINT YOU HAVE CREATED A FULL AWS ENVIRONMENT WITH EC2 INSTANCES, SUBNETS, ROUTE TABLES, LOAD BALANCERS, A DATABASE, ETC.  FEEL FREE TO PERUSE IT FROM THE AWS CONSOLE.  IF YOU WISH TO LOG INTO YOUR VPC AND TEST AN APPLICATION, YOU CAN DO THE BELOW.  IF NOT SKIP TO STEP 15.
-  - 
-4) Log into the AWS console.  Place your cursor on the “Search” box and type: ec2
-5) Click on the “EC2” selection in the drop down.  Scroll down on the left-side pane until you see “Security Groups” and click on it.
-6) Click on the checkbox next to the “AWS-VPCB-PUBLIC” security group.  When you do, the bottom portion of the screen will populate.  Click on “inbound rules” and then on the “Edit inbound rules” button.
-7)	You should be presented with the below screen.  Click on the “Add rule” button. Then, click on the “Custom TCP” button and type RDP to select it.  Then, click on the “Custom” button and select “My IP” from the drop-down menu.  Finally, click on the “Save rules” button.
-8)	Scroll up on the left-side pane until you see “Instances” and click on it.  Then click on the checkbox next to “AWS-VPCB-BASTION”.  This will populate the bottom part of the page with the details about this server. Click on the boxes under “Public IPv4 DNS” to copy the public name of the server.
-9)	Open a Remote Desktop Tool  
-  a.	ON MAC - Download Microsoft Remote Desktop 10 or higher from the MAC App Store and install. 
-  b.	ON WINDOWS – There are several Remote Desktop options, but “Remote Desktop Connection” comes pre-installed on all Windows machines. You simply need to “rdp” on the Windows search bar. However, you will need to constantly re-enter your credentials each time you connect.
-10)	Now, let’s connect to your Bastion host! Within RDP, click on “Show options” to expand the window. Paste in the DNS name you just copied in the “Computer” field. Type “administrator” in the “User name” field.  Finally, click on the “Connect” button.
-11)	You may be asked “Do you trust this remote connection?”.  Simply click “Connect” again.
-12)	You should then be prompted for the password. Copy and paste the following as the password: P@oDxV)4-nPUfp$Ar?V@N9Lpjbsnp@W!
-13)	You will then be prompted again with something like “The identity of the remote computer cannot be verified. Do you want to connect anyway?”.  Click “yes”.  You are now logged into your Bastion host!
-14)	To test the applications associated to this particular assignment number, simply open a browser on your Bastion server and type HTTP://myfiu.awsvpcb.edu
-
-AT THIS POINT YOU ARE IN YOUR VPC AND LOOGED INTO A WINDOWS SERVER WITH MANY TOOLS PRE-INSTALLED.  FEEL FREE TO LOOK AROUND.  
-  - 
-15) Once you are done testing, you should destroy the assignment to avoid AWS costs.  To do so, simply go back to the awsvpcb-scripts directory and run ./AWSVPCB.ASSIGNMNET.DESTROY.
-16) You can experiment with other assignments and/or destroy it all whenever you wish.
-    - NOTE: Assignment numbers beyond 3 have purposefully created errors and the applications (HTTP://myfiu.awsvpcb.edu and HTTP://rainforest.awsvpcb.edu) will not work as expected. 
-#
-#
-#
-NEXT STEPS FOR YOUR COURSE
-1) MAP OUT TARGET ENVIRONMENT 
-  - What AMIs do you plan to use? Are the default AMIs provided sufficient or do you want to take those and create custom AMIs? 
-  - What applications will the students be testing? Are the default rainforest and myfiu applications sufficient or do I want to build/use others? 
-  - What do you want your VPC to look like (IP range, subnets, possible instances, possible ELBs)?  
-  - What do you want your assignments to look like (instances, firewall rules, DNS entries, ELBs)? 
-  - What do you want your assignments to do (e.g. setup a security vulnerability or break the environment in some way)?
-2) CHOOSE DOMAIN 
-   - Use default awsvpcb.edu domain - This limits you to two ELB names (myfiu and rainforest), but other than that, there are now other limitations
-   OR
-   - Create your own domain and provide the following:
-      - Public CA cert for import into student client machines or use public CA (e.g. Sectigo)
-      - Client & Server VPN certs and private keys
-      - ELB certs and private keys
-      - All of these would need to be placed in the "secfiles" directory with the appropriate name (NOTE: the VPN server and client names are currently hardcoded, so you need to replace the files in the secfiles directory)
-3) CREATE your VPC and assignment AWSVPCB json files
-4) TEST a lot
-6) CREATE instructions for students to create their own AWS account
-7) If at all possible, enroll your university into AWS Academy to use the Learner Lab to avoid several cumbersome issues:
-   - Students having to use their credit cards for AWS accounts
-   - Students having to install the AWSCLI on their system
-   - Students having to re-login periodically to their account
-8) IF USING CUSTOM/PRIVATE AMIs, the grant access to students’ AWS accounts
