@@ -26,7 +26,7 @@ if [ "$instance_id" != "" ]; then
    fi
 fi
 
-$AWSCLI_HOME/procs/clicall "ec2 describe-instances --filters Name=tag:Name,Values=$instance_tag" "$AWSCLI_HOME/tempfiles/register.instance.2" "$AWSCLI_HOME/tempfiles/register.instance.2.error"
+$AWSCLI_HOME/procs/clicall "ec2 describe-instances --filters Name=tag:Name,Values=$instance_tag Name=instance-state-code,Values=0,16,32,64,80" "$AWSCLI_HOME/tempfiles/register.instance.2" "$AWSCLI_HOME/tempfiles/register.instance.2.error"
 if [ $? -ne 0 ]; then
    $AWSCLI_HOME/procs/log "Error looking up instance $instance in AWS -  please capture any output, zip up entire directory and send to professor for review...."
    exit 1

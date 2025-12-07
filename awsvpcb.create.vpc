@@ -13,8 +13,8 @@ if [ "$AWSVPCB_VPCID" != "" ]; then
    export json=`cat $AWSCLI_HOME/tempfiles/create.vpc.1`
    test=`$AWSCLI_HOME/procs/json-read "VpcId:" | grep $AWSVPCB_VPCID`
    if [ "$test" != "" ]; then
-      $AWSCLI_HOME/procs/log "Registered VPC $AWSVPCB_VPCID found in AWS - If portions of the VPC are unregistered, then run AWSVPCB.VPC.REGISTER; If the VPC is corrupted, then run AWSVPCB.VPC.DESTROY and then re-run the create...."
-      exit 1
+      $AWSCLI_HOME/procs/log "Registered VPC $AWSVPCB_VPCID found in AWS; If the VPC is corrupted, then run AWSVPCB.VPC.DESTROY and then re-run the create...."
+      exit 2
    else
       $AWSCLI_HOME/procs/log "Registered VPC $AWSVPCB_VPCID not found in AWS - unregistering it...."
       cat $AWSCLI_HOME/procs/aws-dynamic-vars | grep -v AWSVPCB_VPCID > $AWSCLI_HOME/tempfiles/aws-dynamic-vars.temp

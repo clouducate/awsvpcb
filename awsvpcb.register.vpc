@@ -2,16 +2,20 @@
 #
 $AWSCLI_HOME/procs/log "Starting VPC register process...."
 
-manifest_num=0
-echo -n "Which vpc number do you want to register [$manifest_num]: "
-read answer
-if [ "$answer" != "" ]; then
-   [ -n "$answer" ] && [ "$answer" -eq "$answer" ] 2>/dev/null
-   if [ $? -ne 0 ]; then
-      $AWSCLI_HOME/procs/log "Parameter (vpc number) must be a number or nothing (default $manifest_num) - cancelling operations...."
-      exit 1
+if [ "$1" == "" ]; then
+   manifest_num=0
+   echo -n "Which vpc number do you want to register [$manifest_num]: "
+   read answer
+   if [ "$answer" != "" ]; then
+      [ -n "$answer" ] && [ "$answer" -eq "$answer" ] 2>/dev/null
+      if [ $? -ne 0 ]; then
+         $AWSCLI_HOME/procs/log "Parameter (vpc number) must be a number or nothing (default $manifest_num) - cancelling operations...."
+         exit 1
+      else
+         manifest_num=$answer
+      fi
    else
-      manifest_num=$answer
+      manifest_num=$1
    fi
 fi
 
