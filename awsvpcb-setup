@@ -6,16 +6,21 @@ echo $(date) "Starting script awsvpcb-setup" >> awsvpcb-setup.log
 
 # Verify whether the AWS CLI is installed or not
 echo $(date) "Updating packages and install prerequisites" | tee -a awsvpcb-setup.log
-sudo apt update && sudo apt install -y unzip curl | tee -a awsvpcb-setup.log
-sudo apt install -y zip | tee -a awsvpcb-setup.log
+sudo apt update  >> awsvpcb-setup.log 2>&1
+sudo apt install -y unzip curl >> awsvpcb-setup.log 2>&1
+sudo apt install -y zip >> awsvpcb-setup.log 2>&1
 aws --version > awscliout.temp 2> awsclierror.temp
 echo $(date) "Standard out of aws --version is as follows:" >> awsvpcb-setup.log
 cat awscliout.temp >> awsvpcb-setup.log
 echo $(date) "Standard error of aws --version is as follows:" >> awsvpcb-setup.log
 cat awsclierror.temp >> awsvpcb-setup.log
-if [ -s awscliout.temp ]; then
-   echo $(date) "Found AWS CLI already installed - skipping AWS Installation Steps" | tee -a awsvpcb-setup.log
+VERSION1_CHK=`grep "aws-cli/1" awscliout.temp | wc -l`
+if [ -s awscliout.temp -a $VERSION1_CHK -eq 0 ]; then
+   echo $(date) "Found AWS CLI V2 already installed - skipping AWS Installation Steps" | tee -a awsvpcb-setup.log
 else
+   if [ $VERSION1_CHK -eq 1 ]; then
+      echo $(date) "Found AWS CLI V1 installed, but need V2, so installing AWS CLI V2 alongside V1..." | tee -a awsvpcb-setup.log
+   fi
    echo $(date) "Downloading the AWS CLI v2 installation package" | tee -a awsvpcb-setup.log
    curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip" | tee -a awsvpcb-setup.log
    echo $(date) "Unzipping the installer" | tee -a awsvpcb-setup.log
