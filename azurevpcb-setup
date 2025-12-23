@@ -1,0 +1,587 @@
+#!/bin/bash
+# This script prepares a professor"s Azure environment to support a course using AzureVPCB
+#
+# Creating Log
+echo $(date) "Starting script azurevpcb-setup" >> azurevpcb-setup.log
+
+# Defining preferred Azure region list for retries
+Region_List="eastus2 westus2 centralus northcentralus westus westus3 eastus eastus3 westcentralus southcentralus"
+
+# Adding pre-requisites and Azure CLI
+echo $(date) "Updating packages and installing prerequisites..." | tee -a azurevpcb-setup.log
+sudo apt update -y >> azurevpcb-setup.log 2>&1
+sudo apt install -y unzip curl >> azurevpcb-setup.log 2>&1
+sudo apt install -y zip >> azurevpcb-setup.log 2>&1
+sudo sudo apt-get upgrade -y >> azurevpcb-setup.log 2>&1
+sudo apt install -y python3-pip >> azurevpcb-setup.log 2>&1
+sudo apt-get install -y apt-transport-https ca-certificates curl gnupg lsb-release >> azurevpcb-setup.log 2>&1
+sudo mkdir -p /etc/apt/keyrings
+curl -sLS https://packages.microsoft.com/keys/microsoft.asc |
+  gpg --dearmor | sudo tee /etc/apt/keyrings/microsoft.gpg > /dev/null
+sudo chmod go+r /etc/apt/keyrings/microsoft.gpg
+AZ_DIST=$(lsb_release -cs)
+echo "Types: deb
+URIs: https://packages.microsoft.com/repos/azure-cli/
+Suites: ${AZ_DIST}
+Components: main
+Architectures: $(dpkg --print-architecture)
+Signed-by: /etc/apt/keyrings/microsoft.gpg" | sudo tee /etc/apt/sources.list.d/azure-cli.sources >> azurevpcb-setup.log 2>&1
+
+echo $(date) "Installing Latest Azure CLI version..." | tee -a azurevpcb-setup.log
+sudo apt-get install --only-upgrade -y azure-cli >> azurevpcb-setup.log 2>&1
+
+# Verify whether the AWS CLI is installed or not
+az --version > azcliout.temp 2> azclierror.temp
+echo $(date) "Standard out of az --version is as follows:" >> azurevpcb-setup.log
+cat azcliout.temp >> azurevpcb-setup.log
+echo $(date) "Standard error of az --version is as follows:" >> azurevpcb-setup.log
+cat azclierror.temp >> azurevpcb-setup.log
+if [ ! -s azclierror.temp ]; then
+   echo $(date) "AZ CLI in place..." | tee -a azurevpcb-setup.log
+else
+   echo $(date) "The Azure CLI is installation did not work as expected..." | tee -a azurevpcb-setup.log
+   if [ -s azcliout.temp ]; then
+      echo $(date) "You can uninstall and install latest version (recommended) OR stay with existing version" | tee -a azurevpcb-setup.log
+      echo $(date) "If you wish to uninstall, then answer "n" below, uninstall and then rerun this script to get the latest version..." | tee -a azurevpcb-setup.log 
+      read -p "If you would rather stay with existing Azure CLI version, then answer "y" (y/n)? " answer
+      if [ "$answer" == "y" -o "$answer" == "Y" ]; then 
+         echo $(date) "Keeping current version of the Azure CLI..." | tee -a azurevpcb-setup.log
+      else 
+         echo $(date) "Exiting script to allow for uninstall; run "sudo apt-get remove -y azure-cli" and rerun this script..." | tee -a azurevpcb-setup.log
+         exit
+      fi
+   else
+      echo $(date) "Unknown error attempting to test the Azure CLI. Check log..." | tee -a azurevpcb-setup.log
+      echo $(date) "Uploading azurevpcb-setup.log for review, if needed..." | tee -a azurevpcb-setup.log
+      exit 1
+   fi
+fi
+rm azcli*.temp
+
+
+# Create credentials, if needed
+az account show > UID_good.temp 2> UID_bad.temp 
+echo $(date) "Standard out of az account show is as follows:" >> azurevpcb-setup.log
+cat  UID_good.temp >> azurevpcb-setup.log
+echo $(date) "Standard error of az account show is as follows:" >> azurevpcb-setup.log
+cat UID_bad.temp >> azurevpcb-setup.log
+if [ -s UID_bad.temp ]; then
+   echo $(date) "User not logged in, initiating AZ Login" | tee -a azurevpcb-setup.log
+   az login | tee -a azurevpcb-setup.log
+   az account show > UID_good.temp 2> UID_bad.temp 
+   echo $(date) "Standard out of az account show is as follows:" >> azurevpcb-setup.log
+   cat  UID_good.temp >> azurevpcb-setup.log
+   echo $(date) "Standard error of az account show is as follows:" >> azurevpcb-setup.log
+   cat UID_bad.temp >> azurevpcb-setup.log
+   if [ -s UID_bad.temp ]; then
+      echo $(date) "User failed to login, ending script - please check previous messages and contact nmonfort@fiu.edu for help" | tee -a azurevpcb-setup.log
+      echo $(date) "Uploading azurevpcb-setup.log for review, if needed..." | tee -a azurevpcb-setup.log
+      exit 1
+   fi
+else
+   echo $(date) "User already logged in, moving on..." | tee -a azurevpcb-setup.log
+fi
+
+AZ_UID=`grep name UID_good.temp | grep "@" | cut -d "\"" -f4`
+echo $(date) "The account logged in is $AZ_UID" | tee -a azurevpcb-setup.log
+rm UID_*.temp
+
+# Create for VPCBPermanent resource group
+echo $(date) "Creating VPCBPermanent resource group, if it does not exist..." | tee -a azurevpcb-setup.log
+az group create --name VPCBPermanent --location eastus2 --subscription "Azure for Students" >> azurevpcb-setup.log
+
+# Try to create uniquely named Storage Account (vpcbperm + email prefix (first 13 chars) + email domain (first 3 chars)) in whichever region works
+NAME_PART=$(echo "$AZ_UID" | cut -d '@' -f 1)
+DOMAIN_PART=$(echo "$AZ_UID" | cut -d '@' -f 2 | cut -d '.' -f 1)
+TRUNCATED_NAME=${NAME_PART:0:13}
+TRUNCATED_DOMAIN=${DOMAIN_PART:0:3}
+STG_NAME="vpcbperm${TRUNCATED_NAME}${TRUNCATED_DOMAIN}"
+az storage account show --name $STG_NAME --resource-group VPCBPermanent --subscription "Azure for Students" > STG_good.temp 2> STG_bad.temp 
+echo $(date) "Standard out of az storage account show is as follows:" >> azurevpcb-setup.log
+cat  STG_good.temp >> azurevpcb-setup.log
+echo $(date) "Standard error of az storage account show is as follows:" >> azurevpcb-setup.log
+cat STG_bad.temp >> azurevpcb-setup.log
+if [ -s STG_good.temp ]; then
+   echo $(date) "Storage Account $STG_NAME already exists in the proper resource group.  Moving on..." | tee -a azurevpcb-setup.log
+else
+   for region in $Region_List; do
+      echo $(date) "Attempting to create Storage Account $STG_NAME in region $region..." | tee -a azurevpcb-setup.log
+      az storage account create --name $STG_NAME --resource-group VPCBPermanent --location $region --subscription "Azure for Students" > STG_good.temp 2> STG_bad.temp 
+      echo $(date) "Standard out of az storage account create is as follows:" >> azurevpcb-setup.log
+      cat  STG_good.temp >> azurevpcb-setup.log
+      echo $(date) "Standard error of az storage account create is as follows:" >> azurevpcb-setup.log
+      cat STG_bad.temp >> azurevpcb-setup.log
+      if [ -s STG_bad.temp ]; then
+         Name_conflict=`grep StorageAccountAlreadyTaken STG_bad.temp | wc -l`
+         Restricted=`grep "have sufficient access" STG_bad.temp | wc -l`
+         Restricted2=`grep "have authorization" STG_bad.temp | wc -l`
+         Limited=`grep "have resources available" STG_bad.temp | wc -l`
+         if [ $Name_conflict -ge 1 ]; then
+            echo $(date) "The name $STG_NAME already in use!!" | tee -a azurevpcb-setup.log
+            echo $(date) "If you created and deleted it, then wait an hour for it to clear.  If not, then contact nmonfort@fiu.edu for help" | tee -a azurevpcb-setup.log
+            echo $(date) "Exiting script..." | tee -a azurevpcb-setup.log
+            exit 1
+         elif [ $Restricted -ge 1 -o $Limited -ge 1 -o $Restricted2 -ge 1 ]; then
+            echo $(date) "Not allowed to create Storage Account in region $region. Trying the next one..." | tee -a azurevpcb-setup.log
+            continue
+         else
+            echo $(date) "Unknown error trying to create storage account $STG_NAME in region $region." | tee -a azurevpcb-setup.log
+            echo $(date) "Review log and contact nmonfort@fiu.edu for help" | tee -a azurevpcb-setup.log
+            echo $(date) "Exiting script..." | tee -a azurevpcb-setup.log
+            exit 1
+         fi
+      else
+         echo $(date) "Successfully created Storage Account $STG_NAME in region $region..." | tee -a azurevpcb-setup.log
+         break
+      fi
+   done
+fi
+rm STG_*.temp
+
+# Create AzureVPCB Logs Container
+CONTAINER_NAME=azurevpcb-logs-$TRUNCATED_NAME
+az storage container create --name $CONTAINER_NAME --account-name $STG_NAME --auth-mode login > STG_good.temp 2> STG_bad.temp
+echo $(date) "Standard out of az container create is as follows:" >> azurevpcb-setup.log
+cat  STG_good.temp >> azurevpcb-setup.log
+echo $(date) "Standard error of az container create is as follows:" >> azurevpcb-setup.log
+cat STG_bad.temp >> azurevpcb-setup.log
+if [ -s STG_good.temp ]; then
+   echo $(date) "Container $CONTAINER_NAME now exists in Storage Account $STG_NAME..." | tee -a azurevpcb-setup.log
+else
+   echo $(date) "Unknown error trying to create container in storage account $STG_NAME in region $region." | tee -a azurevpcb-setup.log
+   echo $(date) "Review log and contact nmonfort@fiu.edu for help" | tee -a azurevpcb-setup.log
+   echo $(date) "Exiting script..." | tee -a azurevpcb-setup.log
+   exit 1
+fi
+rm STG_*.temp
+
+
+# Look for function app and create it in a Consumption Plan if not found
+REDEPLOY=1
+FUNCTION_NAME=af2-$STG_NAME
+ping -c 2 -w 2 $FUNCTION_NAME.azurewebsites.net > FUN_good.temp 2> FUN_bad.temp 
+echo $(date) "Standard out of ping $FUNCTION_NAME.azurewebsites.net is as follows:" >> azurevpcb-setup.log
+cat FUN_good.temp >> azurevpcb-setup.log
+echo $(date) "Standard error of ping $FUNCTION_NAME.azurewebsites.net is as follows:" >> azurevpcb-setup.log
+cat FUN_bad.temp >> azurevpcb-setup.log
+if [ -s FUN_good.temp ]; then
+   echo $(date) "Function App $FUNCTION_NAME already exists in the proper resource group.  Moving on..." | tee -a azurevpcb-setup.log
+   echo  
+   read -p "REDPLOYMENT TAKES ABOUT 6 MINUTES. DO YOU NEED TO REDEPLOY IT [N]? (Y/N): " answer
+   if [ "$answer" == "y" -o "$answer" == "Y" ]; then 
+      REDPLOY=1
+   else
+      REDPLOY=0
+      echo $(date) "Bypassing re-deployment of Function App $FUNCTION_NAME.  Moving on..." | tee -a azurevpcb-setup.log
+   fi
+else
+   for region in $Region_List; do
+      echo $(date) "Attempting to create Azure Function $FUNCTION_NAME in region $region..." | tee -a azurevpcb-setup.log
+      az functionapp create \
+       --name "$FUNCTION_NAME" \
+       --storage-account "$STG_NAME" \
+       --resource-group VPCBPermanent \
+       --flexconsumption-location "$region" \
+       --os-type Linux \
+       --runtime python \
+       --runtime-version "3.12" \
+       --subscription "Azure for Students" \
+       --functions-version 4  > FUN_good.temp 2> FUN_bad.temp 
+      echo $(date) "Standard out of az functionapp create is as follows:" >> azurevpcb-setup.log
+      cat FUN_good.temp >> azurevpcb-setup.log
+      echo $(date) "Standard error of az functionapp create is as follows:" >> azurevpcb-setup.log
+      cat FUN_bad.temp >> azurevpcb-setup.log
+      Warn_check=`grep " created" FUN_bad.temp | wc -l`
+      if [ -s FUN_bad.temp -a $Warn_check -eq 0 ]; then
+         Name_conflict=`grep "already exists" FUN_bad.temp | wc -l`
+         if [ $Name_conflict -ge 1 ]; then
+            echo $(date) "The name $FUNCTION_NAME already in use!!" | tee -a azurevpcb-setup.log
+            echo $(date) "If you created and deleted it, then wait an hour for it to clear.  If not, then contact nmonfort@fiu.edu for help" | tee -a azurevpcb-setup.log
+            echo $(date) "Exiting script..." | tee -a azurevpcb-setup.log
+            exit 1
+         else
+            echo $(date) "Failed to create function app in region $region. Trying the next one..." | tee -a azurevpcb-setup.log
+            continue
+         fi
+      else
+         echo $(date) "Successfully created Function App $FUNCTION_NAME in region $region..." | tee -a azurevpcb-setup.log
+         break
+      fi
+   done
+fi
+rm FUN_*.temp
+
+# Assign a System-Assigned Managed Identity to the Function App ---
+echo $(date) "Assigning system-assigned managed identity to the function app..." | tee -a azurevpcb-setup.log
+az functionapp identity assign --name "$FUNCTION_NAME" --resource-group VPCBPermanent --subscription "Azure for Students" >> azurevpcb-setup.log
+
+# Retrieve the Function App's principal ID
+PRINCIPAL_ID=$(az functionapp identity show \
+    --name "$FUNCTION_NAME" \
+    --resource-group VPCBPermanent \
+    --subscription "Azure for Students" \
+    --query principalId --output tsv)
+
+# Grant the Managed Identity access to the Storage Container ---
+# Role: "Storage Blob Data Contributor" allows read, write, and delete blob data
+sleep 10  # Make sure there's time for Azure to propagate principal
+echo $(date) "Granting 'Storage Blob Data Contributor' role to the function app's managed identity..." | tee -a azurevpcb-setup.log
+az role assignment create \
+    --assignee "$PRINCIPAL_ID" \
+    --role "Storage Blob Data Contributor" \
+    --scope "/subscriptions/$(az account show --subscription "Azure for Students" --query id -o tsv)/resourceGroups/VPCBPermanent/providers/Microsoft.Storage/storageAccounts/$STG_NAME/blobServices/default/containers/$CONTAINER_NAME" >> azurevpcb-setup.log
+
+az role assignment create \
+    --assignee "$AZ_UID" \
+    --role "Storage Blob Data Contributor" \
+    --scope "/subscriptions/$(az account show --subscription "Azure for Students" --query id -o tsv)/resourceGroups/VPCBPermanent/providers/Microsoft.Storage/storageAccounts/$STG_NAME/blobServices/default/containers/$CONTAINER_NAME" >> azurevpcb-setup.log
+
+echo $(date) "Creating Environment Variables for the Function App..." | tee -a azurevpcb-setup.log
+az functionapp config appsettings set \
+    --name "$FUNCTION_NAME" \
+    --resource-group "VPCBPermanent" \
+    --subscription "Azure for Students" \
+    --settings "STORAGE_ACCOUNT_NAME=$STG_NAME" "CONTAINER_NAME=$CONTAINER_NAME"  >> azurevpcb-setup.log
+
+az functionapp config appsettings delete --resource-group vpcbpermanent --name $FUNCTION_NAME \
+   --subscription "Azure for Students"  --setting-names WEBSITE_RUN_FROM_PACKAGE >> azurevpcb-setup.log
+
+
+# --- Deployment Preparation ---
+if [ $REDPLOY -eq 1 ]; then  
+# -------------------------------- START OF REDEPLOY BYPASS (when REDEPLOY = 0) ------------------------------
+ZIP_FILE=FunctionAppCode.zip
+PROJECT_DIR=FunctionAppCode
+echo $(date) "Preparing function code locally in directory $PROJECT_DIR..." | tee -a azurevpcb-setup.log
+mkdir -p "$PROJECT_DIR/HttpUploadFunction" > /dev/null 2>&1 
+
+# Create requirements.txt
+cat <<EOL > "$PROJECT_DIR/requirements.txt"
+azure-functions
+azure-identity
+azure-storage-blob
+EOL
+
+# Create function.json
+cat <<EOL > "$PROJECT_DIR/HttpUploadFunction/function.json"
+{
+  "scriptFile": "__init__.py",
+  "bindings": [
+    {
+      "authLevel": "anonymous",
+      "type": "httpTrigger",
+      "direction": "in",
+      "name": "req",
+      "methods": [
+        "post"
+      ]
+    },
+    {
+      "type": "http",
+      "direction": "out",
+      "name": "\$return"
+    }
+  ]
+}
+EOL
+
+# Create the host.json file (Required for all Function Apps) ---
+cat <<EOL > "$PROJECT_DIR/host.json"
+{
+  "version": "2.0",
+  "logging": {
+    "applicationInsights": {
+      "samplingSettings": {
+        "isEnabled": true,
+        "excludedTypes": "Request"
+      }
+    }
+  },
+  "extensionBundle": {
+    "id": "Microsoft.Azure.Functions.ExtensionBundle",
+    "version": "[4.*, 5.0.0)"
+  }
+}
+EOL
+
+# Create __init__.py (The Python logic)
+# Note: Variables in Python code pull from the environment variables set earlier.
+cat <<'EOF' > "$PROJECT_DIR/HttpUploadFunction/__init__.py"
+import os
+import sys
+
+# Add the local .python_packages directory to the system path
+# This assumes the structure created in Step 1
+script_dir = os.path.dirname(os.path.abspath(__file__))
+vendor_dir = os.path.join(script_dir, '.python_packages', 'lib', 'python3.12', 'site-packages')
+sys.path.append(vendor_dir)
+
+import logging
+import azure.functions as func
+from azure.identity import DefaultAzureCredential
+from azure.storage.blob import BlobClient
+import os
+
+# Configuration variables are pulled from App Settings in Azure
+STORAGE_ACCOUNT_NAME = os.environ["STORAGE_ACCOUNT_NAME"]
+CONTAINER_NAME = os.environ["CONTAINER_NAME"]
+
+def main(req: func.HttpRequest) -> func.HttpResponse:
+    logging.info('Python HTTP trigger function processed a request.')
+
+    # 1. Extract the filename from the request parameters or body data
+    try:
+        # Check query parameters first
+        filename = req.params.get('filename')
+        if not filename:
+            # Check the request body parameters if not in query params
+            # This works if the request content type is application/x-www-form-urlencoded
+            req_body_form = req.get_json() if req.mimetype == 'application/json' else req.get_body()
+            # In a standard POST request scenario for file upload, the user usually passes the filename
+            # either as a query parameter or within multi-part form data which needs more robust parsing.
+            # For simplicity, we assume a query parameter or plain string filename provided.
+            if isinstance(req_body_form, dict):
+                filename = req_body_form.get('filename')
+
+        if not filename:
+             return func.HttpResponse(
+                "Please pass a 'filename' parameter in the request URL or body.",
+                status_code=400
+            )
+
+    except ValueError:
+        # Catches cases where get_json() fails if the body isn't JSON
+        return func.HttpResponse(
+            "Could not parse request body. Ensure 'filename' parameter is provided.",
+            status_code=400
+        )
+
+    try:
+        # 2. Get the body content (the file data)
+        req_body = req.get_body()
+
+        if not req_body:
+            return func.HttpResponse("Please pass file data in the request body.", status_code=400)
+        
+        blob_url = f"https://{STORAGE_ACCOUNT_NAME}.blob.core.windows.net"
+        credential = DefaultAzureCredential()
+        # Use the provided filename instead of generating a UUID
+        # filename variable is already defined above
+
+        blob_client = BlobClient(account_url=blob_url, 
+                                 container_name=CONTAINER_NAME, 
+                                 blob_name=filename, 
+                                 credential=credential)
+
+        blob_client.upload_blob(req_body, overwrite=True)
+        logging.info(f"Uploaded file '{filename}'")
+
+        return func.HttpResponse(f"File '{filename}' uploaded successfully.", status_code=200)
+    
+    except Exception as e:
+        logging.error(f"An error occurred: {e}")
+        return func.HttpResponse(f"An error occurred during file upload: {str(e)}")
+EOF
+
+
+# Zip the project directory
+echo $(date) "Installing requirements & Zipping project files - this will take a few minutes..." | tee -a azurevpcb-setup.log
+# Create a directory to store the local packages (often named '.python_packages' for consistency)
+mkdir -p "$PROJECT_DIR/.python_packages/lib/python3.12/site-packages"
+# Install packages from requirements.txt into the newly created local directory
+pip install -r "$PROJECT_DIR/requirements.txt" --target="$PROJECT_DIR/.python_packages/lib/python3.12/site-packages" >> azurevpcb-setup.log 2>&1
+cd "$PROJECT_DIR"
+zip -r "../$ZIP_FILE" . > /dev/null
+cd ..
+
+
+# --- Deployment ---
+echo $(date) "Deploying the ZIP package to the function app..." | tee -a azurevpcb-setup.log
+az functionapp deployment source config-zip \
+    --resource-group "VPCBPermanent" \
+    --subscription "Azure for Students" \
+    --name "$FUNCTION_NAME" \
+    --src "$ZIP_FILE"  >> azurevpcb-setup.log 2>&1
+
+echo $(date) "Deployment complete.              " | tee -a azurevpcb-setup.log
+
+# Clean up local files
+echo $(date) "Cleaning up local project files." | tee -a azurevpcb-setup.log
+rm -rf "$PROJECT_DIR" "$ZIP_FILE"
+
+fi 
+# ---------------------------------- END OF REDEPLOY BYPASS (when REDEPLOY = 0) ------------------------------
+
+# Look in S3 Bucket for previous professor settings
+rm settings.temp > /dev/null 2>&1
+az storage blob download --account-name $STG_NAME \
+    --container-name $CONTAINER_NAME \
+    --subscription "Azure for Students" \
+    --name settings.temp \
+    --file ./settings.temp \
+    --auth-mode login > /dev/null 2>&1
+if [ -s settings.temp ]; then
+   echo $(date) "Found previous settings in your container, loading them..." | tee -a azurevpcb-setup.log
+   chmod 755 settings.temp
+   . ./settings.temp
+else
+   echo $(date) "No previous settings found in container, moving on..." | tee -a azurevpcb-setup.log
+fi
+rm set*.temp
+
+
+# Show previous information, if any and get information from the professor
+if [ "$AZUREVPCB_SUPPORT" == "" ]; then
+   AZUREVPCB_SUPPORT=Y
+fi
+if [ "$AZUREVPCB_REGISTRY_ADD" == "" ]; then
+   AZUREVPCB_REGISTRY_ADD=Y
+fi
+echo
+while true; do
+   echo "PLEASE FILL OUT THE BELOW FIELDS.  PREVIOUS SETTINGS (if any) ARE SHOWN AND DEFAULT SO YOU CAN HIT ENTER TO KEEP:"
+   while true; do
+      read -p "PLEASE PROVIDE THE NAME OF YOUR INSTITUTION [$AZUREVPCB_INSTITUTION]: " institution
+      if [ "$institution" != "" ]; then
+         AZUREVPCB_INSTITUTION=$institution
+         break
+      elif [ "$AZUREVPCB_INSTITUTION" == "" ]; then
+         echo "NEED TO PROVIDE THE NAME OF YOUR INSTITUTION FOR THE STUDENTS TO SEE".
+      else
+         break
+      fi
+   done
+   while true; do
+      read -p "WHAT NAME TO PRESENT TO STUDENTS [$AZUREVPCB_PROFESSOR]: " prof
+      if [ "$prof" != "" ]; then
+         AZUREVPCB_PROFESSOR=$prof
+         break
+      elif [ "$AZUREVPCB_PROFESSOR" == "" ]; then
+         echo "NEED TO PROVIDE A NAME FOR THE STUDENTS TO CHOOSE".
+      else
+         break
+      fi
+   done
+   while true; do
+      read -p "EMAIL ADDRESS TO SEND DIAGLOG ALERTS TO [$AZUREVPCB_EMAIL]: " email
+      if [ "$email" != "" ]; then
+         AZUREVPCB_EMAIL=$email
+         break
+      elif [ "$AZUREVPCB_EMAIL" == "" ]; then
+         echo "NEED TO PROVIDE AN EMAIL TO SEND ALERTS TO".
+      else
+         break
+      fi
+   done
+   while true; do
+      read -p "LIST OUT COURSE NAMES SPACE DELIMITED (courses cannot include space) [$AZUREVPCB_COURSES]: " courses
+      if [ "$courses" != "" ]; then
+         AZUREVPCB_COURSES=$courses
+         break
+      elif [ "$AZUREVPCB_COURSES" == "" ]; then
+         echo "NEED TO PROVIDE AT LEAST ONE COURSE".
+      else
+         break
+      fi
+   done
+   while true; do
+      read -p "DO YOU WANT STUDENT DIAGLOGS SENT TO SUPPORT AS WELL [$AZUREVPCB_SUPPORT]: " support
+      if [ "$support" == "y" ]; then support=Y
+      elif [ "$support" == "n" ]; then support=N
+      fi
+      if [ "$support" == "Y" -o "$support" == "N" ]; then 
+         AZUREVPCB_STUDENT_SUPPORT=$support
+         break
+      else break
+      fi
+   done
+   while true; do
+      read -p "DO YOU WANT YOUR vpcb-config FILE ADDED TO REGISTRY FOR STUDENT SELECTION [$AZUREVPCB_REGISTRY_ADD]: " registry
+      if [ "$registry" == "y" ]; then registry=Y
+      elif [ "$registry" == "n" ]; then registry=N
+      fi
+      if [ "$registry" == "Y" -o "$registry" == "N" ]; then 
+         AZUREVPCB_REGISTRY_ADD=$registry
+         break
+      else break
+      fi
+   done
+   echo
+   echo "PLEASE VERIFY YOUR ANSWERS BELOW:"
+   echo "AZUREVPCB_INSTITUTION=$AZUREVPCB_INSTITUTION"
+   echo "AZUREVPCB_PROFESSOR=$AZUREVPCB_PROFESSOR"
+   echo "AZUREVPCB_EMAIL=$AZUREVPCB_EMAIL"
+   echo "AZUREVPCB_COURSES=$AZUREVPCB_COURSES"
+   echo "AZUREVPCB_STUDENT_SUPPORT=$AZUREVPCB_SUPPORT"
+   echo "AZUREVPCB_REGISTRY_ADD=$AZUREVPCB_REGISTRY_ADD"
+   echo
+   read -p "IS THIS CORRECT [Y]? (Y/N): " answer
+   if [ "$answer" == "n" -o "$answer" == "N" ]; then continue
+   else break
+   fi
+done
+
+
+# Save updated settings to the professor's Container
+INSTITUTION_MODIFIED="${AZUREVPCB_INSTITUTION// /_}"
+PROFESSOR_MODIFIED="${AZUREVPCB_PROFESSOR// /_}"
+echo
+echo $(date) "Saving answers in your Storage Account in container $CONTAINER_NAME" | tee -a azurevpcb-setup.log
+echo "export AZUREVPCB_INSTITUTION=\"$INSTITUTION_MODIFIED\"" > settings.temp
+echo "export AZUREVPCB_PROFESSOR=\"$PROFESSOR_MODIFIED\"" >> settings.temp
+echo "export AZUREVPCB_EMAIL=$AZUREVPCB_EMAIL" >> settings.temp
+echo "export AZUREVPCB_SUPPORT=$AZUREVPCB_SUPPORT" >> settings.temp
+echo "export AZUREVPCB_COURSES=\"$AZUREVPCB_COURSES\"" >> settings.temp
+echo "export AZUREVPCB_REGISTRY_ADD=$AZUREVPCB_REGISTRY_ADD" >> settings.temp
+echo "export AZUREVPCB_PROFESSOR_URL=https://${FUNCTION_NAME}.azurewebsites.net/api/HttpUploadFunction" >> settings.temp
+echo "export AZUREVPCB_SEME=DYNAMIC" >> settings.temp
+echo "export AZUREVPCB_SEMESTER=CIS3080-FALL2026" >> settings.temp
+echo "export AZUREVPCB_COURSE=DYNAMIC" >> settings.temp
+echo $(date) "Here are the contents of the settings.temp file being uploaded to the $CONTAINER_NAME container:" >> azurevpcb-setup.log
+cat settings.temp >> azurevpcb-setup.log
+az storage blob upload --account-name $STG_NAME \
+    --container-name $CONTAINER_NAME \
+    --subscription "Azure for Students" \
+    --name settings.temp \
+    --file ./settings.temp \
+    --overwrite \
+    --auth-mode login >> azurevpcb-setup.log 2>&1
+
+
+# Create action group, action and alert for email when a log is uploaded by a student
+echo $(date) "Creating action group and alert so that email is sent whenever a file is added to the container..." | tee -a azurevpcb-setup.log
+az monitor action-group create --action email email0 $AZUREVPCB_EMAIL \
+   --name AzureVPCBEmail \
+   --subscription "Azure for Students" \
+   --resource-group VPCBPermanent >> azurevpcb-setup.log
+
+AG_ID=$(az monitor action-group show -n AzureVPCBEmail -g VPCBPermanent --subscription "Azure for Students"  --query id -o tsv)
+subId=$(az account list --query "[?name=='Azure for Students'].id" --output tsv)
+
+az monitor metrics alert create \
+    --resource-group VPCBPermanent \
+    --name AzureVPCBEmail \
+    --scopes "/subscriptions/$subId/resourceGroups/VPCBPermanent/providers/Microsoft.Storage/storageAccounts/$STG_NAME/blobServices/default" \
+    --condition "total Transactions > 0 where ApiName includes PutBlob" \
+    --subscription "Azure for Students" \
+    --severity 3 \
+    --action "$AG_ID" \
+    --description "Triggers when a PutBlob transaction occurs" \
+    --evaluation-frequency "1m" \
+    --window-size "1m" >> azurevpcb-setup.log
+
+
+if [ "$AZUREVPCB_REGISTRY_ADD" == "Y" ]; then
+   echo $(date) "Sending information to central admin for incorporation into standard registry for students..." | tee -a azurevpcb-setup.log
+   BLOB_FILENAME=$TRUNCATED_NAME.settings.temp
+   curl -v -X POST "https://af2-vpcbpermnmonfortfiu.azurewebsites.net/api/HttpUploadFunction?filename=${BLOB_FILENAME}" \
+       --data-binary "@./settings.temp" >> azurevpcb-setup.log 2>&1
+   BLOB_FILENAME=$TRUNCATED_NAME.azurevpcb-setup.log
+   curl -v -X POST "https://af2-vpcbpermnmonfortfiu.azurewebsites.net/api/HttpUploadFunction?filename=${BLOB_FILENAME}" \
+       --data-binary "@./azurevpcb-setup.log" >> /dev/null 2>&1
+fi
+
+rm set*.temp
+
+echo $(date) "AzureVPCB-setup Completed!   " | tee -a azurevpcb-setup.log
+exit
