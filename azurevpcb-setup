@@ -412,7 +412,7 @@ rm -rf "$PROJECT_DIR" "$ZIP_FILE"
 fi 
 # ---------------------------------- END OF REDEPLOY BYPASS (when REDEPLOY = 0) ------------------------------
 
-# Look in S3 Bucket for previous professor settings
+# Look in Storage Account container for previous professor settings
 rm settings.temp > /dev/null 2>&1
 az storage blob download --account-name $STG_NAME \
     --container-name $CONTAINER_NAME \
