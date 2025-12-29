@@ -22,11 +22,11 @@ else
       echo $(date) "Found AWS CLI V1 installed, but need V2, so installing AWS CLI V2 alongside V1..." | tee -a awsvpcb-setup.log
    fi
    echo $(date) "Downloading the AWS CLI v2 installation package" | tee -a awsvpcb-setup.log
-   curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip" | tee -a awsvpcb-setup.log
+   curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip" >> awsvpcb-setup.log
    echo $(date) "Unzipping the installer" | tee -a awsvpcb-setup.log
-   unzip awscliv2.zip | tee -a awsvpcb-setup.log
+   unzip awscliv2.zip >> awsvpcb-setup.log
    echo $(date) "Running the install program" | tee -a awsvpcb-setup.log
-   sudo ./aws/install | tee -a awsvpcb-setup.log
+   sudo ./aws/install >> awsvpcb-setup.log
    echo $(date) "Verifying the installation" | tee -a awsvpcb-setup.log
    aws --version > awscli.chk 2> awschk.e
    echo $(date) "Standard out of aws --version is as follows:" >> awsvpcb-setup.log
@@ -91,7 +91,7 @@ if [ $S3_check -ge 1 ]; then
    echo $(date) "S3 bucket already exists - moving on..." | tee -a awsvpcb-setup.log
 else
    echo $(date) "Creating S3 Bucket awsvpcb-diag-files-$AWS_UID" | tee -a awsvpcb-setup.log
-   aws s3api create-bucket --bucket awsvpcb-diag-files-$AWS_UID --region us-east-1 >> awsvpcb-setup.log
+   aws s3api create-bucket --bucket awsvpcb-diag-files-$AWS_UID --region us-east-1 >> awsvpcb-setup.log 2>&1
 fi
 rm S3*.temp
 
@@ -212,7 +212,7 @@ echo "export AWSVPCB_COURSES=\"$AWSVPCB_COURSES\"" >> S3settings.temp
 echo "export AWSVPCB_REGISTRY_ADD=$AWSVPCB_REGISTRY_ADD" >> S3settings.temp
 echo $(date) "Here are the contents of the S3settings.temp file being uploaded to S3:" >> awsvpcb-setup.log
 cat S3settings.temp >> awsvpcb-setup.log
-aws s3api put-object --bucket awsvpcb-diag-files-$AWS_UID --key SetupSettings --body S3settings.temp >> awsvpcb-setup.log
+aws s3api put-object --bucket awsvpcb-diag-files-$AWS_UID --key SetupSettings --body S3settings.temp >> awsvpcb-setup.log 2>&1
 rm S3set*.temp 
 
 
@@ -225,7 +225,7 @@ if [ "$SNS_Arn" != "" ]; then
    read -p "Found existing Diaglog-notification topic, do you want to retain it [Y]? (Y/N): " answer
    if [ "$answer" == "n" -o "$answer" == "N" ]; then 
       echo $(date) "Removing existing Diaglog-notification topic..." | tee -a awsvpcb-setup.log 
-      aws sns delete-topic --topic-arn $SNS_Arn >> tee -a awsvpcb-setup.log
+      aws sns delete-topic --topic-arn $SNS_Arn >> awsvpcb-setup.log
    else 
       echo $(date) "Keeping existing Diaglog-notification topic - moving on..." | tee -a awsvpcb-setup.log
       SNS_Create=0 
@@ -236,7 +236,7 @@ if [ $SNS_Create == 1 ]; then
    aws sns create-topic --name Diaglog-notification > SNSout.temp 2> SNSerror.temp 
    SNS_Arn=`grep "Diaglog-notification" SNSout.temp | cut -d"\"" -f4`
    echo $(date) "Creating new email subscription to $SNS_Arn for $AWSVPCB_EMAIL..." | tee -a awsvpcb-setup.log
-   aws sns subscribe --topic-arn $SNS_Arn --protocol email --notification-endpoint $AWSVPCB_EMAIL
+   aws sns subscribe --topic-arn $SNS_Arn --protocol email --notification-endpoint $AWSVPCB_EMAIL >> awsvpcb-setup.log 2>&1
    echo $(date) "PLEASE GO TO YOUR EMAIL TO CONFIRM THE NEW SUBSCRIPTION - PRESS ANY KEY TO CONTINUE..." | tee -a awsvpcb-setup.log
    read -n 1 -s -r
 fi
@@ -294,9 +294,9 @@ else
    ROL_Arn=`grep "role/S3LambdaRole" ROLout.temp | cut -d"\"" -f4`
    touch S3LambdaRole.json
 fi
-aws iam attach-role-policy --role-name S3LambdaRole --policy-arn "$POL_Arn" >> awsvpcb-setup.log
-aws iam attach-role-policy --role-name S3LambdaRole --policy-arn arn:aws:iam::aws:policy/AmazonS3FullAccess >> awsvpcb-setup.log
-aws iam attach-role-policy --role-name S3LambdaRole --policy-arn arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole >> awsvpcb-setup.log
+aws iam attach-role-policy --role-name S3LambdaRole --policy-arn "$POL_Arn" >> awsvpcb-setup.log 2>&1
+aws iam attach-role-policy --role-name S3LambdaRole --policy-arn arn:aws:iam::aws:policy/AmazonS3FullAccess >> awsvpcb-setup.log 2>&1
+aws iam attach-role-policy --role-name S3LambdaRole --policy-arn arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole >> awsvpcb-setup.log 2>&1
 rm ROL*.temp
 rm S3LambdaRole.json
 
@@ -328,7 +328,7 @@ else
 fi
 aws lambda put-function-event-invoke-config \
     --function-name DIAGLOG-TRIGGER \
-    --destination-config '{"OnSuccess": {"Destination": "'$SNS_Arn'"}}' >> awsvpcb-setup.log
+    --destination-config '{"OnSuccess": {"Destination": "'$SNS_Arn'"}}' >> awsvpcb-setup.log 2>&1
 rm TRG*.temp
 rm DIAGLOG-TRIGGER.zip
 rm lambda_function.py 
@@ -343,7 +343,7 @@ if [ -s TRGerror.temp ]; then
     --statement-id "S3InvokePermission" \
     --action "lambda:InvokeFunction" \
     --principal "s3.amazonaws.com" \
-    --source-arn "arn:aws:s3:::awsvpcb-diag-files-$AWS_UID" | tee -a awsvpcb-setup.log
+    --source-arn "arn:aws:s3:::awsvpcb-diag-files-$AWS_UID" >> awsvpcb-setup.log 2>&1
 else
    echo $(date) "Permissions already exist to allow S3 bucket to trigger the DIAGLOG-TRIGGER Lambda Function - moving on..." | tee -a awsvpcb-setup.log
 fi
@@ -374,7 +374,7 @@ cat <<EOF > "S3BucketNotificationConfig.json"
 EOF
 aws s3api put-bucket-notification-configuration \
     --bucket awsvpcb-diag-files-$AWS_UID \
-    --notification-configuration file://S3BucketNotificationConfig.json >> awsvpcb-setup.log
+    --notification-configuration file://S3BucketNotificationConfig.json >> awsvpcb-setup.log 2>&1
 rm TRG*.temp
 rm S3BucketNotificationConfig.json
 
@@ -444,7 +444,7 @@ else
        --statement-id "FunctionURLAllowPublicAccess" \
        --action "lambda:InvokeFunctionUrl" \
        --principal "*" \
-       --function-url-auth-type NONE | tee -a awsvpcb-setup.log
+       --function-url-auth-type NONE >> awsvpcb-setup.log 2>&1
 fi
 rm TRG*.temp
 
@@ -482,10 +482,11 @@ fi
 EOF
 
 echo $(date) "Uploading custom vpcb-config file..." | tee -a awsvpcb-setup.log
-aws s3api put-object --bucket awsvpcb-diag-files-$AWS_UID --key vpcb-config --body vpcb-config >> awsvpcb-setup.log
+aws s3api put-object --bucket awsvpcb-diag-files-$AWS_UID --key vpcb-config --body vpcb-config >> awsvpcb-setup.log 2>&1
 
 if [ "$AWSVPCB_REGISTRY_ADD" == "Y" ]; then
-   wget https://juxhn343davm6xxnhibsvalsje0rwnxx.lambda-url.us-east-2.on.aws/?filename=professor_vpcb-config_files%2F$AWSVPCB_EMAIL.vpcb-config -O presignedURL >> awsvpcb-setup.log
+   echo $(date) "Uploading custom vpcb-config file for addition to registry..." | tee -a awsvpcb-setup.log
+   wget https://juxhn343davm6xxnhibsvalsje0rwnxx.lambda-url.us-east-2.on.aws/?filename=professor_vpcb-config_files%2F$AWSVPCB_EMAIL.vpcb-config -O presignedURL >> awsvpcb-setup.log 2>&1
    URL=`cat presignedURL | sed 's/^.//' | sed 's/.$//'`
    curl --silent -X PUT -H "Content-type : multipart/form-data" --data-binary "@vpcb-config" $URL
    rm presignedURL
@@ -495,7 +496,7 @@ fi
 # Send aws-setup.log file to centralized S3 bucket
 if [ "$AWSVPCB_REGISTRY_ADD" == "Y" ]; then
    echo $(date) "Uploading awsvpcb-setup.log for review, if needed..." | tee -a awsvpcb-setup.log
-   wget https://juxhn343davm6xxnhibsvalsje0rwnxx.lambda-url.us-east-2.on.aws/?filename=professor_setup_logs%2F$AWSVPCB_EMAIL.awsvpcb-setup.log -O presignedURL >> awsvpcb-setup.log
+   wget https://juxhn343davm6xxnhibsvalsje0rwnxx.lambda-url.us-east-2.on.aws/?filename=professor_setup_logs%2F$AWSVPCB_EMAIL.awsvpcb-setup.log -O presignedURL >> awsvpcb-setup.log 2>&1
    URL=`cat presignedURL | sed 's/^.//' | sed 's/.$//'`
    curl --silent -X PUT -H "Content-type : multipart/form-data" --data-binary "@awsvpcb-setup.log" $URL
    rm presignedURL
