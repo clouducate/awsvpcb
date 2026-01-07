@@ -390,7 +390,7 @@ from botocore.config import Config
 
 def lambda_handler(event, context):
     key = event["queryStringParameters"]['filename']
-    bucket_name = 'awsvpcb-diag-files-217222958909'
+    bucket_name = 'awsvpcb-diag-files-$AWS_UID'
     s3_client = boto3.client('s3', config=Config(signature_version='s3v4'))
     response = s3_client.generate_presigned_url('put_object', Params={'Bucket': bucket_name, 'Key': key}, ExpiresIn=60)
     return {
