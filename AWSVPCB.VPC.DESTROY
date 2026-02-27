@@ -11,6 +11,7 @@ $AWSCLI_HOME/procs/aws-check
 if [ $? -ne 0 ]; then
    exit 1
 fi
+echo "#" > $AWSCLI_HOME/tempfiles/unset-vars.temp
 
 $AWSCLI_HOME/AWSVPCB.ASSIGNMENT.DESTROY
 if [ $? -ne 0 ]; then
