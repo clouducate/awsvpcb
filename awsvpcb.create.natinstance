@@ -7,7 +7,7 @@ if [ "$AWSVPCB_NAT_ID" != "" ]; then
    exit
 fi
 
-$AWSCLI_HOME/procs/clicall "ec2 run-instances --image-id $NAT_AMI --instance-type t2.micro --security-group-ids $AWSVPCB_PUBLIC_SECGROUPID --subnet-id $AWSVPCB_PUBLIC_SUBNETID --key-name $AWSVPCB_KEYPAIR --private-ip-address $NAT_IP --associate-public-ip-address" "$AWSCLI_HOME/tempfiles/create.natinstance.1" "$AWSCLI_HOME/tempfiles/create.natinstance.1.error"
+$AWSCLI_HOME/procs/clicall "ec2 run-instances --image-id $NAT_AMI --instance-type $NAT_INSTANCE_TYPE --security-group-ids $AWSVPCB_PUBLIC_SECGROUPID --subnet-id $AWSVPCB_PUBLIC_SUBNETID --key-name $AWSVPCB_KEYPAIR --private-ip-address $NAT_IP --associate-public-ip-address" "$AWSCLI_HOME/tempfiles/create.natinstance.1" "$AWSCLI_HOME/tempfiles/create.natinstance.1.error"
 if [ $? -ne 0 ]; then
    $AWSCLI_HOME/procs/log "Error creating NAT instance in AWS -  please capture any output, zip up entire directory and send to professor for review...."
    exit 1

@@ -65,6 +65,9 @@ do
      elif [[ "$level2" == "BASTIONDefinition" && $line == *"IPAddress"* ]]; then
         BASTION_IP=`echo $line | cut -d"\"" -f4`
         echo "export BASTION_IP=$BASTION_IP" >> $output
+     elif [[ "$level2" == "BASTIONDefinition" && $line == *"InstanceType"* ]]; then
+        BASTION_INSTANCE_TYPE=`echo $line | cut -d"\"" -f4`
+        echo "export BASTION_INSTANCE_TYPE=$BASTION_INSTANCE_TYPE" >> $output
      elif [[ "$level2" == "BASTIONDefinition" && $line == *"Subnet"* ]]; then
         BASTION_SUBNET=`echo $line | cut -d"\"" -f4`
         echo "export BASTION_SUBNET=$BASTION_SUBNET" >> $output
@@ -74,6 +77,9 @@ do
      elif [[ "$level2" == "NATDefinition" && $line == *"IPAddress"* ]]; then
         NAT_IP=`echo $line | cut -d"\"" -f4`
         echo "export NAT_IP=$NAT_IP" >> $output
+     elif [[ "$level2" == "NATDefinition" && $line == *"InstanceType"* ]]; then
+        NAT_INSTANCE_TYPE=`echo $line | cut -d"\"" -f4`
+        echo "export NAT_INSTANCE_TYPE=$NAT_INSTANCE_TYPE" >> $output
      elif [[ "$level2" == "NATDefinition" && $line == *"Subnet"* ]]; then
         NAT_SUBNET=`echo $line | cut -d"\"" -f4`
         echo "export NAT_SUBNET=$NAT_SUBNET" >> $output
@@ -151,6 +157,14 @@ do
 #     echo "LEVEL="$level " " $level2 " " $line
   fi
 done < "$input"
+if [ "$BASTION_INSTANCE_TYPE" == "" ]; then
+   BASTION_INSTANCE_TYPE=t3.small
+   echo "export BASTION_INSTANCE_TYPE=$BASTION_INSTANCE_TYPE" >> $output
+fi
+if [ "$NAT_INSTANCE_TYPE" == "" ]; then
+   NAT_INSTANCE_TYPE=t3.micro
+   echo "export NAT_INSTANCE_TYPE=$NAT_INSTANCE_TYPE" >> $output
+fi
 echo "export VPC_SUBNETS=\"$VPC_SUBNETS\"" >> $output
 echo "export VPC_PARAMETERS=\"$VPC_PARAMETERS\"" >> $output
 echo "export VPC_SECURITYGROUPS=\"$VPC_SECURITYGROUPS\"" >> $output
