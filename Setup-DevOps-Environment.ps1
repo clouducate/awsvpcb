@@ -348,26 +348,26 @@ Write-Host   "╚═════════════════════
 # ── Helper: test TCP port reachability ───────────────────────────────────────
 function Test-Port {
     param(
-        [string]$Host,
+        [string]$RemoteHost,
         [int]$Port,
         [string]$Description,
         [int]$TimeoutMs = 3000
     )
     try {
-        $tcp = New-Object System.Net.Sockets.TcpClient
-        $connect = $tcp.BeginConnect($Host, $Port, $null, $null)
-        $wait = $connect.AsyncWaitHandle.WaitOne($TimeoutMs, $false)
+        $tcp     = New-Object System.Net.Sockets.TcpClient
+        $connect = $tcp.BeginConnect($RemoteHost, $Port, $null, $null)
+        $wait    = $connect.AsyncWaitHandle.WaitOne($TimeoutMs, $false)
         if ($wait -and -not $tcp.Client.Connected) { $wait = $false }
         $tcp.Close()
         if ($wait) {
-            Write-OK "Port $Port ($Description): reachable on $Host"
+            Write-OK "Port $Port ($Description): reachable on $RemoteHost"
             return $true
         } else {
-            Write-Warn "Port $Port ($Description): NOT reachable on $Host (timeout ${TimeoutMs}ms)"
+            Write-Warn "Port $Port ($Description): NOT reachable on $RemoteHost (timeout ${TimeoutMs}ms)"
             return $false
         }
     } catch {
-        Write-Warn "Port $Port ($Description): NOT reachable on ${Host} — $_"
+        Write-Warn "Port $Port ($Description): NOT reachable on $RemoteHost - $($_.Exception.Message)"
         return $false
     }
 }
@@ -375,13 +375,13 @@ function Test-Port {
 Write-Step "Testing Bastion → Control Node connectivity ($ControlNodeIP)"
 
 # Port 22 — SSH (required for all remote install steps)
-$port22 = Test-Port -Host $ControlNodeIP -Port 22 `
-    -Description "SSH — required for remote installs and Ansible"
+$port22 = Test-Port -RemoteHost $ControlNodeIP -Port 22 `
+    -Description "SSH - required for remote installs and Ansible"
 
 # Port 8080 — Jenkins UI (may not be open yet if Jenkins not installed)
 # Tested here so students know the expected state before and after setup
-$port8080 = Test-Port -Host $ControlNodeIP -Port 8080 `
-    -Description "Jenkins UI — expected CLOSED before install, OPEN after"
+$port8080 = Test-Port -RemoteHost $ControlNodeIP -Port 8080 `
+    -Description "Jenkins UI - expected CLOSED before install, OPEN after"
 
 if (-not $port22) {
     Write-Fail ("Cannot reach port 22 on $ControlNodeIP. " +
@@ -541,7 +541,7 @@ fi
 
 # ── Re-check port 8080 now that Jenkins should be running ────────────────────
 Write-Step "Re-checking port 8080 (Jenkins) after install"
-$port8080After = Test-Port -Host $ControlNodeIP -Port 8080 `
+$port8080After = Test-Port -RemoteHost $ControlNodeIP -Port 8080 `
     -Description "Jenkins UI" -TimeoutMs 5000
 if (-not $port8080After) {
     Write-Warn ("Port 8080 still not reachable from Bastion. Check: " +
