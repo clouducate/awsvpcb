@@ -238,6 +238,49 @@ if (Test-Command "choco") {
     Set-ExecutionPolicy Bypass -Scope Process -Force
     [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
     Invoke-Expression ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
+
+    # Reload PATH so choco is visible immediately
+    $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" +
+                [System.Environment]::GetEnvironmentVariable("Path", "User")
+
+    # Check if .NET 4.8 was just installed and needs a reboot before choco works
+    $dotNetPending = $false
+    $rebootPending = Get-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Component Based Servicing" `
+                                      -Name "RebootPending" -ErrorAction SilentlyContinue
+    $dotNetKey     = Get-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full" `
+                                      -Name "Release" -ErrorAction SilentlyContinue
+    if (-not $dotNetKey -or $dotNetKey.Release -lt 528040) {
+        $dotNetPending = $true
+    }
+
+    if ($dotNetPending -or $rebootPending) {
+        Write-Host ""
+        Write-Host "    ============================================================" -ForegroundColor Yellow
+        Write-Host "    REBOOT REQUIRED  -  .NET Framework was just installed"        -ForegroundColor Yellow
+        Write-Host "    ============================================================" -ForegroundColor Yellow
+        Write-Host "    Chocolatey requires .NET 4.8 which was just installed."       -ForegroundColor Yellow
+        Write-Host "    A reboot is needed before the remaining tools can install."   -ForegroundColor Yellow
+        Write-Host "    This script will RESUME AUTOMATICALLY after you log back in." -ForegroundColor Yellow
+        Write-Host "    You do NOT need to run it again manually."                    -ForegroundColor Yellow
+        Write-Host ""
+
+        $scriptPath = $MyInvocation.MyCommand.Path
+        if (-not $scriptPath) {
+            $scriptPath = Join-Path (Get-Location).Path "Setup-DevOps-Environment.ps1"
+        }
+        $scriptPath = (Resolve-Path $scriptPath).Path
+        $regPath    = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run"
+        Set-ItemProperty -Path $regPath -Name "DevOpsSetupResume" `
+                         -Value "powershell.exe -NoExit -WindowStyle Normal -NoProfile -ExecutionPolicy Bypass -File `"$scriptPath`""
+        Write-OK "Script will resume automatically after reboot from: $scriptPath"
+
+        Write-Warn "Rebooting in 15 seconds  -  press Ctrl+C to cancel."
+        Start-Sleep -Seconds 15
+        Stop-Transcript | Out-Null
+        Restart-Computer -Force
+        exit
+    }
+
     Confirm-Install "choco" { choco --version } "Check https://chocolatey.org/install for troubleshooting."
 }
 
