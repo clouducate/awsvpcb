@@ -27,12 +27,15 @@
 
 param(
     # Control Node fixed private IP  -  set by professor setup script at launch
-    [string]$ControlNodeIP = "172.31.132.151",
+    [string]$ControlNodeIP  = "172.31.132.151",
 
     # SSH private key  -  placed on the Bastion by professor setup script
-    [string]$SSHKeyPath    = "C:\Users\Administrator\Desktop\awsvpcb-scripts\secfiles\privkey.ppk",
+    [string]$SSHKeyPath     = "C:\Users\Administrator\Desktop\awsvpcb-scripts\secfiles\privkey.ppk",
 
-    [string]$SSHUser       = "ec2-user"
+    # SSH key passphrase  -  pre-configured for course key; override if needed
+    [string]$KeyPassphrase  = "cts4743",
+
+    [string]$SSHUser        = "ec2-user"
 )
 
 Set-StrictMode -Version Latest
@@ -118,22 +121,54 @@ Write-Step "Fixing SSH key permissions on $SSHKeyPath"
 icacls $SSHKeyPath /inheritance:r /grant:r "${env:USERNAME}:(R)" | Out-Null
 Write-OK "Key permissions set"
 
+# -- Start ssh-agent and load key so passphrase is only entered once -----------
+Write-Step "Starting ssh-agent and loading key"
+# Start the OpenSSH Authentication Agent service if not running
+$agentSvc = Get-Service -Name ssh-agent -ErrorAction SilentlyContinue
+if ($agentSvc -and $agentSvc.Status -ne "Running") {
+    Set-Service -Name ssh-agent -StartupType Automatic
+    Start-Service -Name ssh-agent
+    Write-OK "ssh-agent service started"
+} elseif ($agentSvc) {
+    Write-OK "ssh-agent service already running"
+} else {
+    Write-Warn "ssh-agent service not found  -  will fall back to per-connection passphrase"
+}
+
+# Load the key into the agent using the passphrase non-interactively
+# We use a temporary expect-style approach via cmd /c echo to feed the passphrase
+$env:SSH_ASKPASS_REQUIRE = "never"
+$addResult = (echo $KeyPassphrase | ssh-add $SSHKeyPath 2>&1)
+if ($LASTEXITCODE -eq 0) {
+    Write-OK "SSH key loaded into agent  -  passphrase will not be prompted again"
+} else {
+    # Agent may not be available; warn but don't fail  -  passphrase prompt suppressed
+    # by passing it via SSH_ASKPASS or accept that some steps may need it
+    Write-Warn "Could not load key into agent: $addResult"
+    Write-Warn "SSH steps will continue but may prompt for passphrase"
+}
+
 # -- Helper: run a command block on the Control Node via SSH -------------------
 function Invoke-RemoteScript {
     param(
         [string]$Description,
-        [string]$Script           # bash heredoc-safe single-line or multiline
+        [string]$Script
     )
     Write-Step "[REMOTE] $Description"
+    # Encode script as ASCII bytes to prevent BOM or encoding issues
+    # from corrupting the first command sent to bash
+    $scriptBytes  = [System.Text.Encoding]::ASCII.GetBytes($Script)
+    $scriptStream = [System.IO.MemoryStream]::new($scriptBytes)
     $sshArgs = @(
         "-i", $SSHKeyPath,
         "-o", "StrictHostKeyChecking=no",
         "-o", "ConnectTimeout=15",
         "-o", "LogLevel=ERROR",
+        "-o", "BatchMode=yes",
         "${SSHUser}@${ControlNodeIP}",
         "bash -s"
     )
-    $Script | ssh @sshArgs
+    $scriptStream | ssh @sshArgs
     if ($LASTEXITCODE -ne 0) {
         Write-Fail "Remote step failed: $Description"
     }
@@ -485,13 +520,12 @@ Write-Host   "+==========================================+" -ForegroundColor Mag
 
 # -- Test SSH connectivity first -----------------------------------------------
 Write-Step "Testing SSH connectivity to Control Node ($ControlNodeIP)"
-# Redirect stderr to null to suppress known_hosts and other SSH warnings
-# which PowerShell incorrectly treats as errors. Use exit code for success check.
 $sshOutput = ""
 $sshOutput = (ssh -i $SSHKeyPath `
                -o StrictHostKeyChecking=no `
                -o ConnectTimeout=10 `
                -o LogLevel=ERROR `
+               -o BatchMode=yes `
                "${SSHUser}@${ControlNodeIP}" `
                "echo connected") 2>$null
 if ($LASTEXITCODE -ne 0 -or $sshOutput -notmatch "connected") {
