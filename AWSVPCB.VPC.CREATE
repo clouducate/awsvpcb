@@ -20,8 +20,12 @@ if [ "$1" != "" ]; then
    fi
 fi
 if [ "$1" == "" ]; then
-   VPC_NUM=0
-   $AWSCLI_HOME/procs/log "Using VPC0...."
+   if [ "$DEFAULT_VPC" == "" ]; then
+      VPC_NUM=0
+   else 
+      VPC_NUM=$DEFAULT_VPC
+   fi
+   $AWSCLI_HOME/procs/log "Using VPC$VPC_NUM...."
 else
    VPC_NUM=$1
    $AWSCLI_HOME/procs/log "Using VPC$VPC_NUM...."
