@@ -327,11 +327,11 @@ python -m pip install flask flask-sqlalchemy --quiet
 if ($LASTEXITCODE -ne 0) { Write-Fail "Flask/SQLAlchemy install failed. Check pip and internet connectivity." }
 
 # Verify both packages are actually importable  -  install succeeding is not enough
-$flaskCheck = python -c "import flask; print(flask.__version__)" 2>&1
+$flaskCheck = python -c "import importlib.metadata; print(importlib.metadata.version('flask'))" 2>&1
 if ($LASTEXITCODE -ne 0) { Write-Fail "Flask installed but not importable: $flaskCheck" }
 Write-OK "Flask: $flaskCheck"
 
-$sqlaCheck = python -c "import flask_sqlalchemy; print(flask_sqlalchemy.__version__)" 2>&1
+$sqlaCheck = python -c "import importlib.metadata; print(importlib.metadata.version('flask-sqlalchemy'))" 2>&1
 if ($LASTEXITCODE -ne 0) { Write-Fail "SQLAlchemy installed but not importable: $sqlaCheck" }
 Write-OK "Flask-SQLAlchemy: $sqlaCheck"
 
