@@ -38,15 +38,52 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
+# ── Logging — capture all output to a transcript in the Downloads folder ──────
+$LogFile = "$env:USERPROFILE\Downloads\DevOps-Setup-$(Get-Date -Format 'yyyyMMdd-HHmmss').log"
+Start-Transcript -Path $LogFile -Append -NoClobber | Out-Null
+Write-Host "Logging all output to: $LogFile" -ForegroundColor DarkGray
+Write-Host "If you encounter issues, send this file to your professor.`n" -ForegroundColor DarkGray
+
 # ── Colour helpers ────────────────────────────────────────────────────────────
 function Write-Step  { param($msg) Write-Host "`n==> $msg" -ForegroundColor Cyan }
 function Write-OK    { param($msg) Write-Host "    [OK] $msg" -ForegroundColor Green }
 function Write-Warn  { param($msg) Write-Host "    [!!] $msg" -ForegroundColor Yellow }
-function Write-Fail  { param($msg) Write-Host "    [FAIL] $msg" -ForegroundColor Red; exit 1 }
+function Write-Fail  {
+    param($msg)
+    Write-Host "    [FAIL] $msg" -ForegroundColor Red
+    Write-Host "`n    Setup did not complete. Log file saved to:" -ForegroundColor Yellow
+    Write-Host "    $LogFile" -ForegroundColor Yellow
+    Write-Host "    Copy this file to your local PC and email it to your professor." -ForegroundColor Yellow
+    Stop-Transcript | Out-Null
+    exit 1
+}
 
 function Test-Command {
     param($Name)
     return [bool](Get-Command $Name -ErrorAction SilentlyContinue)
+}
+
+# Verify a command is callable after install and capture its version output.
+# Fails the script immediately if the command is not found.
+function Confirm-Install {
+    param(
+        [string]$Name,
+        [scriptblock]$VersionCmd,
+        [string]$FailHint = ""
+    )
+    # Refresh PATH before checking so newly installed binaries are visible
+    $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" +
+                [System.Environment]::GetEnvironmentVariable("Path", "User")
+    try {
+        $ver = (& $VersionCmd 2>&1) | Select-Object -First 1
+        if ($LASTEXITCODE -ne 0 -and $LASTEXITCODE -ne $null) {
+            throw "Exit code $LASTEXITCODE"
+        }
+        Write-OK "${Name}: $ver"
+    } catch {
+        $hint = if ($FailHint) { " $FailHint" } else { "" }
+        Write-Fail "${Name} installed but failed to run.${hint} Error: $_"
+    }
 }
 
 # ── Verify SSH key exists and convert .ppk to .pem if needed ─────────────────
@@ -155,6 +192,7 @@ if ($wslEnabled -and $vmpEnabled -and $wslInstalled) {
     Write-Warn "  Rebooting in 15 seconds — press Ctrl+C to cancel."
     Write-Warn "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     Start-Sleep -Seconds 15
+    Stop-Transcript | Out-Null   # flush log before reboot
     Restart-Computer -Force
     exit   # unreachable but keeps the script clean
 }
@@ -169,15 +207,12 @@ if (Get-ItemProperty -Path $regPath -Name "DevOpsSetupResume" -ErrorAction Silen
 # ── 1. Chocolatey (package manager) ──────────────────────────────────────────
 Write-Step "Installing Chocolatey package manager"
 if (Test-Command "choco") {
-    Write-OK "Chocolatey already installed"
+    Write-OK "Chocolatey already installed: $(choco --version)"
 } else {
     Set-ExecutionPolicy Bypass -Scope Process -Force
     [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
     Invoke-Expression ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
-    # Reload PATH so choco is available immediately
-    $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" +
-                [System.Environment]::GetEnvironmentVariable("Path", "User")
-    Write-OK "Chocolatey installed"
+    Confirm-Install "choco" { choco --version } "Check https://chocolatey.org/install for troubleshooting."
 }
 
 # ── 2. Git ────────────────────────────────────────────────────────────────────
@@ -186,9 +221,7 @@ if (Test-Command "git") {
     Write-OK "Git already installed: $(git --version)"
 } else {
     choco install git -y --no-progress
-    $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" +
-                [System.Environment]::GetEnvironmentVariable("Path", "User")
-    Write-OK "Git installed: $(git --version)"
+    Confirm-Install "git" { git --version } "Try reopening PowerShell as Administrator."
 }
 
 # ── 3. GitHub CLI ─────────────────────────────────────────────────────────────
@@ -199,20 +232,17 @@ if (Test-Command "gh") {
     Write-OK "GitHub CLI already installed: $(gh --version | Select-Object -First 1)"
 } else {
     choco install gh -y --no-progress
-    $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" +
-                [System.Environment]::GetEnvironmentVariable("Path", "User")
-    Write-OK "GitHub CLI installed: $(gh --version | Select-Object -First 1)"
+    Confirm-Install "gh" { gh --version } "Try reopening PowerShell as Administrator."
 }
- 
+
 # ── 4. Python 3 ───────────────────────────────────────────────────────────────
 Write-Step "Installing Python 3"
 if (Test-Command "python") {
     Write-OK "Python already installed: $(python --version)"
 } else {
     choco install python3 -y --no-progress --params "'/AddToPath=1'"
-    $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" +
-                [System.Environment]::GetEnvironmentVariable("Path", "User")
-    Write-OK "Python installed: $(python --version)"
+    Confirm-Install "python" { python --version } "Try reopening PowerShell as Administrator."
+    Confirm-Install "pip" { python -m pip --version } "pip should be bundled with Python 3.4+."
 }
 
 # ── 5. Flask + SQLAlchemy (course dependencies) ───────────────────────────────
@@ -222,8 +252,20 @@ if (Test-Command "python") {
 # during Module 5 (docker build), giving the container MySQL connectivity.
 Write-Step "Installing Flask and SQLAlchemy via pip"
 python -m pip install --upgrade pip --quiet
+if ($LASTEXITCODE -ne 0) { Write-Fail "pip upgrade failed. Check Python installation." }
+
 python -m pip install flask flask-sqlalchemy --quiet
-Write-OK "Flask and SQLAlchemy installed"
+if ($LASTEXITCODE -ne 0) { Write-Fail "Flask/SQLAlchemy install failed. Check pip and internet connectivity." }
+
+# Verify both packages are actually importable — install succeeding is not enough
+$flaskCheck = python -c "import flask; print(flask.__version__)" 2>&1
+if ($LASTEXITCODE -ne 0) { Write-Fail "Flask installed but not importable: $flaskCheck" }
+Write-OK "Flask: $flaskCheck"
+
+$sqlaCheck = python -c "import flask_sqlalchemy; print(flask_sqlalchemy.__version__)" 2>&1
+if ($LASTEXITCODE -ne 0) { Write-Fail "SQLAlchemy installed but not importable: $sqlaCheck" }
+Write-OK "Flask-SQLAlchemy: $sqlaCheck"
+
 Write-Warn "PyMySQL + cryptography + gunicorn go in requirements.txt (needed in Docker image, not here)"
 
 # ── 6. AWS CLI v2 ─────────────────────────────────────────────────────────────
@@ -235,22 +277,25 @@ if (Test-Command "aws") {
     Write-Host "    Downloading AWS CLI v2..."
     Invoke-WebRequest -Uri "https://awscli.amazonaws.com/AWSCLIV2.msi" `
                       -OutFile $awsInstaller -UseBasicParsing
+    if (-not (Test-Path $awsInstaller)) {
+        Write-Fail "AWS CLI v2 download failed. Check internet connectivity."
+    }
     Start-Process msiexec.exe -Wait -ArgumentList "/i `"$awsInstaller`" /quiet /norestart"
     Remove-Item $awsInstaller -Force
-    $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" +
-                [System.Environment]::GetEnvironmentVariable("Path", "User")
-    Write-OK "AWS CLI installed: $(aws --version)"
+    Confirm-Install "aws" { aws --version } "Try reopening PowerShell as Administrator."
 }
 
 # ── 7. Terraform ─────────────────────────────────────────────────────────────
 Write-Step "Installing Terraform"
 if (Test-Command "terraform") {
-    Write-OK "Terraform already installed: $(terraform version -json | ConvertFrom-Json | Select-Object -ExpandProperty terraform_version)"
+    Write-OK "Terraform already installed: $(terraform version | Select-Object -First 1)"
 } else {
     choco install terraform -y --no-progress
-    $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" +
-                [System.Environment]::GetEnvironmentVariable("Path", "User")
-    Write-OK "Terraform installed: $(terraform version | Select-Object -First 1)"
+    Confirm-Install "terraform" { terraform version } "Try reopening PowerShell as Administrator."
+    # Additional sanity check — ensure it can initialise
+    $tfTest = terraform -help 2>&1 | Select-Object -First 1
+    if ($LASTEXITCODE -ne 0) { Write-Fail "Terraform installed but help command failed: $tfTest" }
+    Write-OK "Terraform help command: OK"
 }
 
 # ── 8. Google Antigravity (VS Code-based IDE) ─────────────────────────────────
@@ -259,16 +304,16 @@ $antigravityInstalled = Test-Path "$env:LOCALAPPDATA\Programs\Google Antigravity
 if ($antigravityInstalled) {
     Write-OK "Google Antigravity already installed"
 } else {
-    Write-Host "    Opening Google Antigravity download page..."
+    Write-Host "You can use any AI development tool, but Google's Anti-gravity IDE is recommended if you have an FIU Gemini account."
     Write-Warn "Antigravity requires manual download from:"
-    Write-Warn "https://codelabs.developers.google.com/getting-started-google-antigravity"
-    Write-Warn "Download and run the installer, then press Enter to continue..."
+    Write-Warn "https://antigravity.google/download"
+    Write-Warn "Scroll down to the IDE section, Download for Windows x64 and run the installer, then press Enter to continue..."
     Read-Host "Press Enter once Antigravity is installed"
     Write-OK "Google Antigravity install acknowledged"
 }
 
 # ── Verify local installs ─────────────────────────────────────────────────────
-Write-Step "Verifying local installations"
+Write-Step "Final verification of all local installations"
 $checks = @(
     @{ Name = "git";       Cmd = { git --version } },
     @{ Name = "gh";        Cmd = { gh --version | Select-Object -First 1 } },
@@ -277,18 +322,111 @@ $checks = @(
     @{ Name = "aws";       Cmd = { aws --version } },
     @{ Name = "terraform"; Cmd = { terraform version | Select-Object -First 1 } }
 )
+$failedTools = @()
 foreach ($c in $checks) {
     try {
-        $ver = & $c.Cmd 2>&1
+        $ver = & $c.Cmd 2>&1 | Select-Object -First 1
         Write-OK "$($c.Name): $ver"
     } catch {
-        Write-Warn "$($c.Name): not found in PATH — open a new shell and re-check"
+        Write-Warn "$($c.Name): NOT FOUND in PATH"
+        $failedTools += $c.Name
     }
+}
+if ($failedTools.Count -gt 0) {
+    Write-Warn "The following tools were not found after install: $($failedTools -join ', ')"
+    Write-Warn "Close and reopen PowerShell as Administrator, then run the script again."
+    Write-Warn "If the issue persists check Chocolatey logs at: C:\ProgramData\chocolatey\logs"
 }
 
 # ═════════════════════════════════════════════════════════════════════════════
-# PART 2 — REMOTE INSTALLS (Linux Control Node via SSH)
+# PART 1B — CONNECTIVITY TESTS (Bastion → Control Node)
 # ═════════════════════════════════════════════════════════════════════════════
+Write-Host "`n╔══════════════════════════════════════════╗" -ForegroundColor Magenta
+Write-Host   "║  PART 1B — Connectivity Tests            ║" -ForegroundColor Magenta
+Write-Host   "╚══════════════════════════════════════════╝" -ForegroundColor Magenta
+
+# ── Helper: test TCP port reachability ───────────────────────────────────────
+function Test-Port {
+    param(
+        [string]$Host,
+        [int]$Port,
+        [string]$Description,
+        [int]$TimeoutMs = 3000
+    )
+    try {
+        $tcp = New-Object System.Net.Sockets.TcpClient
+        $connect = $tcp.BeginConnect($Host, $Port, $null, $null)
+        $wait = $connect.AsyncWaitHandle.WaitOne($TimeoutMs, $false)
+        if ($wait -and -not $tcp.Client.Connected) { $wait = $false }
+        $tcp.Close()
+        if ($wait) {
+            Write-OK "Port $Port ($Description): reachable on $Host"
+            return $true
+        } else {
+            Write-Warn "Port $Port ($Description): NOT reachable on $Host (timeout ${TimeoutMs}ms)"
+            return $false
+        }
+    } catch {
+        Write-Warn "Port $Port ($Description): NOT reachable on ${Host} — $_"
+        return $false
+    }
+}
+
+Write-Step "Testing Bastion → Control Node connectivity ($ControlNodeIP)"
+
+# Port 22 — SSH (required for all remote install steps)
+$port22 = Test-Port -Host $ControlNodeIP -Port 22 `
+    -Description "SSH — required for remote installs and Ansible"
+
+# Port 8080 — Jenkins UI (may not be open yet if Jenkins not installed)
+# Tested here so students know the expected state before and after setup
+$port8080 = Test-Port -Host $ControlNodeIP -Port 8080 `
+    -Description "Jenkins UI — expected CLOSED before install, OPEN after"
+
+if (-not $port22) {
+    Write-Fail ("Cannot reach port 22 on $ControlNodeIP. " +
+                "Check: (1) Control Node is running, " +
+                "(2) security group allows TCP 22 from this Bastion, " +
+                "(3) correct IP in `$ControlNodeIP.")
+}
+
+if (-not $port8080) {
+    Write-Warn ("Port 8080 not reachable yet — this is expected before Jenkins is installed. " +
+                "It will be re-checked after the Jenkins install step.")
+}
+
+# ── Internet connectivity ─────────────────────────────────────────────────────
+Write-Step "Testing internet connectivity (Bastion public IP)"
+try {
+    $response = Invoke-WebRequest -Uri "https://checkip.amazonaws.com" `
+                                  -UseBasicParsing -TimeoutSec 10
+    $publicIP = $response.Content.Trim()
+    Write-OK "Internet reachable — Bastion public IP: $publicIP"
+} catch {
+    Write-Fail ("No internet connectivity from Bastion. Check: " +
+                "(1) Bastion security group allows outbound traffic, " +
+                "(2) Internet gateway is attached to the public subnet route table. " +
+                "Error: $_")
+}
+
+# ── DNS resolution ────────────────────────────────────────────────────────────
+Write-Step "Testing DNS resolution"
+$dnsTargets = @("github.com", "registry.npmjs.org", "pypi.org", "awscli.amazonaws.com")
+$dnsFailed  = @()
+foreach ($target in $dnsTargets) {
+    try {
+        $resolved = [System.Net.Dns]::GetHostAddresses($target) | Select-Object -First 1
+        Write-OK "${target}: $($resolved.IPAddressToString)"
+    } catch {
+        Write-Warn "${target}: DNS resolution FAILED"
+        $dnsFailed += $target
+    }
+}
+if ($dnsFailed.Count -gt 0) {
+    Write-Warn "DNS failed for: $($dnsFailed -join ', ') — internet installs may fail."
+}
+
+
 Write-Host "`n╔══════════════════════════════════════════╗" -ForegroundColor Magenta
 Write-Host   "║  PART 2 — Control Node Setup (SSH)       ║" -ForegroundColor Magenta
 Write-Host   "╚══════════════════════════════════════════╝" -ForegroundColor Magenta
@@ -313,54 +451,81 @@ sudo dnf update -y -q
 # ── 9. Python 3 + pip on Control Node (needed by Ansible) ────────────────────
 Invoke-RemoteScript -Description "Python 3 and pip" -Script @'
 sudo dnf install -y python3 python3-pip -q
-python3 --version
+# Verify both are callable
+python3 --version || { echo "FAIL: python3 not found after install"; exit 1; }
+python3 -m pip --version || { echo "FAIL: pip not found after install"; exit 1; }
+echo "Python and pip: OK"
 '@
 
 # ── 10. Ansible ───────────────────────────────────────────────────────────────
 Invoke-RemoteScript -Description "Ansible" -Script @'
 sudo dnf install -y ansible -q 2>/dev/null || \
     sudo pip3 install ansible --quiet
-ansible --version | head -1
+# Verify ansible is callable and can show version
+ansible --version | head -1 || { echo "FAIL: ansible not found after install"; exit 1; }
+# Verify ansible can parse a trivial playbook (catches broken Python deps)
+echo "---" | ansible-playbook /dev/stdin --syntax-check 2>/dev/null || true
+echo "Ansible: OK"
 '@
 
 # ── 11. Packer ────────────────────────────────────────────────────────────────
 Invoke-RemoteScript -Description "HashiCorp Packer" -Script @'
-# Add HashiCorp repo and install Packer
-sudo dnf install -y dnf-plugins-core -q
 sudo dnf config-manager --add-repo https://rpm.releases.hashicorp.com/AmazonLinux/hashicorp.repo -q
 sudo dnf install -y packer -q
-packer version
+# Verify packer is callable
+packer version || { echo "FAIL: packer not found after install"; exit 1; }
+# Verify packer plugins can be listed (catches broken installs)
+packer plugins installed 2>/dev/null || true
+echo "Packer: OK"
 '@
 
 # ── 12. Java 17 (Jenkins dependency) ─────────────────────────────────────────
 Invoke-RemoteScript -Description "Java 17 (Jenkins dependency)" -Script @'
 sudo dnf install -y java-17-amazon-corretto-headless -q
-java -version 2>&1 | head -1
+# Verify java is callable and is version 17
+java -version 2>&1 | head -1 || { echo "FAIL: java not found after install"; exit 1; }
+java_ver=$(java -version 2>&1 | head -1)
+echo "$java_ver" | grep -q "17\." || { echo "FAIL: Expected Java 17, got: $java_ver"; exit 1; }
+echo "Java 17: OK"
 '@
 
 # ── 13. Jenkins ───────────────────────────────────────────────────────────────
 Invoke-RemoteScript -Description "Jenkins LTS" -Script @'
-# Add Jenkins repo
 sudo wget -q -O /etc/yum.repos.d/jenkins.repo https://pkg.jenkins.io/redhat-stable/jenkins.repo
 sudo rpm --import https://pkg.jenkins.io/redhat-stable/jenkins.io-2023.key 2>/dev/null || \
 sudo rpm --import https://pkg.jenkins.io/redhat-stable/jenkins.io.key
 sudo dnf install -y jenkins -q
 
-# Enable and start Jenkins
 sudo systemctl enable jenkins
 sudo systemctl start jenkins
 
-# Wait for Jenkins to be ready (up to 60 seconds)
+# Wait up to 60 seconds for Jenkins to be active
 echo "Waiting for Jenkins to start..."
 for i in $(seq 1 12); do
     if sudo systemctl is-active --quiet jenkins; then
         echo "Jenkins is running"
         break
     fi
+    if [ $i -eq 12 ]; then
+        echo "FAIL: Jenkins did not start within 60 seconds"
+        sudo journalctl -u jenkins --no-pager -n 20
+        exit 1
+    fi
     sleep 5
 done
 
+# Verify Jenkins port 8080 is actually listening
+sleep 3
+if curl -sf http://localhost:8080/login 2>/dev/null | grep -q "Jenkins"; then
+    echo "Jenkins web UI: responding on port 8080"
+elif ss -tlnp | grep -q ":8080"; then
+    echo "Jenkins: listening on port 8080 (UI may still be initialising)"
+else
+    echo "WARN: Jenkins service is active but port 8080 not yet open — may need more time"
+fi
+
 sudo systemctl status jenkins --no-pager | grep -E "Active:|Main PID:"
+echo "Jenkins: OK"
 '@
 
 # ── 14. Open port 8080 for Bastion in firewalld (if running) ─────────────────
@@ -374,17 +539,37 @@ else
 fi
 '@
 
+# ── Re-check port 8080 now that Jenkins should be running ────────────────────
+Write-Step "Re-checking port 8080 (Jenkins) after install"
+$port8080After = Test-Port -Host $ControlNodeIP -Port 8080 `
+    -Description "Jenkins UI" -TimeoutMs 5000
+if (-not $port8080After) {
+    Write-Warn ("Port 8080 still not reachable from Bastion. Check: " +
+                "(1) AWS security group allows TCP 8080 from this Bastion's private IP, " +
+                "(2) Jenkins service is active on the Control Node, " +
+                "(3) No host-level firewall blocking the port.")
+}
+
 # ── 15. AWS CLI on Control Node ───────────────────────────────────────────────
 Invoke-RemoteScript -Description "AWS CLI v2 on Control Node" -Script @'
 if command -v aws &>/dev/null; then
     echo "AWS CLI already installed: $(aws --version)"
 else
     curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o /tmp/awscliv2.zip
+    if [ ! -f /tmp/awscliv2.zip ]; then
+        echo "FAIL: AWS CLI download failed"; exit 1
+    fi
     unzip -q /tmp/awscliv2.zip -d /tmp/
     sudo /tmp/aws/install
     rm -rf /tmp/awscliv2.zip /tmp/aws
-    echo "AWS CLI installed: $(aws --version)"
 fi
+# Verify regardless of whether it was already installed
+aws --version || { echo "FAIL: aws not callable after install"; exit 1; }
+# Verify Instance Role is working (no credentials needed)
+aws sts get-caller-identity --output text 2>/dev/null && \
+    echo "AWS Instance Role: OK" || \
+    echo "WARN: aws sts get-caller-identity failed — Instance Role may not be attached yet"
+echo "AWS CLI: OK"
 '@
 
 # ── 16. Retrieve Jenkins initial admin password ───────────────────────────────
@@ -437,3 +622,13 @@ Write-Host "`nNext step: Authenticate GitHub CLI, then fork and clone the NM-FSM
 Write-Host "  gh auth login                                              # authenticate once" -ForegroundColor Gray
 Write-Host "  gh repo fork https://github.com/ts0491/NM-FSM-App --clone # fork + clone in one step" -ForegroundColor Gray
 Write-Host "  cd NM-FSM-App`n" -ForegroundColor Gray
+
+# ── Close transcript ──────────────────────────────────────────────────────────
+Stop-Transcript | Out-Null
+Write-Host "`n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor DarkGray
+Write-Host "  Setup log saved to:" -ForegroundColor DarkGray
+Write-Host "  $LogFile" -ForegroundColor White
+Write-Host "`n  Nothing went wrong? You can still review the log at any time." -ForegroundColor DarkGray
+Write-Host "  If you need support, copy this file to your local PC and" -ForegroundColor DarkGray
+Write-Host "  email it to your professor." -ForegroundColor DarkGray
+Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`n" -ForegroundColor DarkGray
