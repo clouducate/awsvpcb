@@ -129,6 +129,7 @@ function Invoke-RemoteScript {
         "-i", $SSHKeyPath,
         "-o", "StrictHostKeyChecking=no",
         "-o", "ConnectTimeout=15",
+        "-o", "LogLevel=ERROR",
         "${SSHUser}@${ControlNodeIP}",
         "bash -s"
     )
@@ -484,12 +485,16 @@ Write-Host   "+==========================================+" -ForegroundColor Mag
 
 # -- Test SSH connectivity first -----------------------------------------------
 Write-Step "Testing SSH connectivity to Control Node ($ControlNodeIP)"
-$sshTest = ssh -i $SSHKeyPath `
+# Redirect stderr to null to suppress known_hosts and other SSH warnings
+# which PowerShell incorrectly treats as errors. Use exit code for success check.
+$sshOutput = ""
+$sshOutput = (ssh -i $SSHKeyPath `
                -o StrictHostKeyChecking=no `
                -o ConnectTimeout=10 `
+               -o LogLevel=ERROR `
                "${SSHUser}@${ControlNodeIP}" `
-               "echo connected" 2>&1
-if ($sshTest -notmatch "connected") {
+               "echo connected") 2>$null
+if ($LASTEXITCODE -ne 0 -or $sshOutput -notmatch "connected") {
     Write-Fail "Cannot SSH to $ControlNodeIP. Check the IP, key, and security group (port 22 from Bastion)."
 }
 Write-OK "SSH connection successful"
