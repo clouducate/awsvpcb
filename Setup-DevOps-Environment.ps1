@@ -159,16 +159,29 @@ $wslInstalled  = Test-Command "wsl"
 if ($wslEnabled -and $vmpEnabled -and $wslInstalled) {
     Write-OK "WSL2 already enabled"
 } else {
-    Write-Host "    Enabling WSL2 (Windows Subsystem for Linux + Virtual Machine Platform)..."
+    Write-Host ""
+    Write-Host "    ============================================================" -ForegroundColor Yellow
+    Write-Host "    INSTALLING WSL2  -  THIS WILL TAKE SEVERAL MINUTES"          -ForegroundColor Yellow
+    Write-Host "    ============================================================" -ForegroundColor Yellow
+    Write-Host "    WSL2 (Windows Subsystem for Linux) is required for Docker."   -ForegroundColor Yellow
+    Write-Host "    Windows needs to enable two system features and then reboot." -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "    Step 1 of 2: Enabling Windows Subsystem for Linux..." -ForegroundColor Cyan
 
     # Enable both required Windows features
     if (-not $wslEnabled) {
         Enable-WindowsOptionalFeature -Online -FeatureName Microsoft-Windows-Subsystem-Linux -NoRestart | Out-Null
         Write-OK "Windows Subsystem for Linux feature enabled"
+    } else {
+        Write-OK "Windows Subsystem for Linux already enabled"
     }
+
+    Write-Host "    Step 2 of 2: Enabling Virtual Machine Platform..." -ForegroundColor Cyan
     if (-not $vmpEnabled) {
         Enable-WindowsOptionalFeature -Online -FeatureName VirtualMachinePlatform -NoRestart | Out-Null
         Write-OK "Virtual Machine Platform feature enabled"
+    } else {
+        Write-OK "Virtual Machine Platform already enabled"
     }
 
     # Set WSL default version to 2
@@ -179,18 +192,31 @@ if ($wslEnabled -and $vmpEnabled -and $wslInstalled) {
     }
 
     # Schedule the script to re-run automatically after reboot via a Run key
-    $scriptPath   = $MyInvocation.MyCommand.Path
-    $psArgs       = "-NoProfile -ExecutionPolicy Bypass -File `"$scriptPath`""
-    $regPath      = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run"
+    # Resolve the full absolute path so the registry entry works regardless of
+    # how the student invoked the script (relative path, .\, etc.)
+    $scriptPath = $MyInvocation.MyCommand.Path
+    if (-not $scriptPath) {
+        $scriptPath = Join-Path (Get-Location).Path "Setup-DevOps-Environment.ps1"
+    }
+    $scriptPath = (Resolve-Path $scriptPath).Path
+    $psArgs     = "-NoProfile -ExecutionPolicy Bypass -File `"$scriptPath`""
+    $regValue   = "powershell.exe -NoExit -WindowStyle Normal $psArgs"
+    $regPath    = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run"
     Set-ItemProperty -Path $regPath -Name "DevOpsSetupResume" `
-                     -Value "powershell.exe $psArgs"
-    Write-OK "Script registered to resume automatically after reboot"
+                     -Value $regValue
+    Write-OK "Script will resume automatically after reboot from: $scriptPath"
 
-    Write-Warn "------------------------------------------------------------"
-    Write-Warn "  A REBOOT IS REQUIRED to complete WSL2 installation."
-    Write-Warn "  The script will resume automatically after login."
-    Write-Warn "  Rebooting in 15 seconds  -  press Ctrl+C to cancel."
-    Write-Warn "------------------------------------------------------------"
+    Write-Host ""
+    Write-Host "    ============================================================" -ForegroundColor Yellow
+    Write-Host "    REBOOT REQUIRED"                                               -ForegroundColor Yellow
+    Write-Host "    ============================================================" -ForegroundColor Yellow
+    Write-Host "    Both WSL2 features are now enabled."                           -ForegroundColor Yellow
+    Write-Host "    The server must reboot to complete the installation."          -ForegroundColor Yellow
+    Write-Host "    This script will RESUME AUTOMATICALLY after you log back in." -ForegroundColor Yellow
+    Write-Host "    You do NOT need to run it again manually."                     -ForegroundColor Yellow
+    Write-Host ""
+    Write-Warn "    Rebooting in 15 seconds  -  press Ctrl+C to cancel."
+    Write-Host "    ============================================================" -ForegroundColor Yellow
     Start-Sleep -Seconds 15
     Stop-Transcript | Out-Null   # flush log before reboot
     Restart-Computer -Force
