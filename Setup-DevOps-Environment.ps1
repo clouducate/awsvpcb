@@ -361,10 +361,6 @@ if (Test-Command "terraform") {
 } else {
     choco install terraform -y --no-progress
     Confirm-Install "terraform" { terraform version } "Try reopening PowerShell as Administrator."
-    # Additional sanity check  -  ensure it can initialise
-    $tfTest = terraform -help 2>&1 | Select-Object -First 1
-    if ($LASTEXITCODE -ne 0) { Write-Fail "Terraform installed but help command failed: $tfTest" }
-    Write-OK "Terraform help command: OK"
 }
 
 # -- 8. Google Antigravity (VS Code-based IDE) ---------------------------------
