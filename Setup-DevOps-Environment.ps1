@@ -1,7 +1,7 @@
 #Requires -RunAsAdministrator
 <#
 .SYNOPSIS
-    CIS-4641 Cloud DevOps — Environment Setup Script
+    CIS-4641 Cloud DevOps  -  Environment Setup Script
     Run once on the Windows Bastion (t3.large) after first RDP login.
 
 .DESCRIPTION
@@ -12,13 +12,13 @@
     Prerequisites:
       - Run as Administrator in PowerShell
       - Bastion has internet access via the Control Node NAT
-      - Windows Server 2019 — WSL2 installation will trigger ONE automatic reboot
+      - Windows Server 2019  -  WSL2 installation will trigger ONE automatic reboot
         and the script will resume automatically after login
 
     The Control Node IP and SSH key path are pre-configured below.
     No parameters are required for a standard course environment.
 
-    Usage (standard — no parameters needed):
+    Usage (standard  -  no parameters needed):
       .\Setup-DevOps-Environment.ps1
 
     Usage (override defaults if needed):
@@ -143,7 +143,7 @@ function Invoke-RemoteScript {
 # PART 1 — LOCAL INSTALLS (Windows Bastion)
 # ═════════════════════════════════════════════════════════════════════════════
 Write-Host "`n╔══════════════════════════════════════════╗" -ForegroundColor Magenta
-Write-Host   "║  PART 1 — Local Bastion Setup            ║" -ForegroundColor Magenta
+Write-Host   "║  PART 1  -  Local Bastion Setup            ║" -ForegroundColor Magenta
 Write-Host   "╚══════════════════════════════════════════╝" -ForegroundColor Magenta
 
 # ── 0. WSL2 — must run before all other installs; requires a reboot ───────────
@@ -189,7 +189,7 @@ if ($wslEnabled -and $vmpEnabled -and $wslInstalled) {
     Write-Warn "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     Write-Warn "  A REBOOT IS REQUIRED to complete WSL2 installation."
     Write-Warn "  The script will resume automatically after login."
-    Write-Warn "  Rebooting in 15 seconds — press Ctrl+C to cancel."
+    Write-Warn "  Rebooting in 15 seconds  -  press Ctrl+C to cancel."
     Write-Warn "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     Start-Sleep -Seconds 15
     Stop-Transcript | Out-Null   # flush log before reboot
@@ -342,7 +342,7 @@ if ($failedTools.Count -gt 0) {
 # PART 1B — CONNECTIVITY TESTS (Bastion → Control Node)
 # ═════════════════════════════════════════════════════════════════════════════
 Write-Host "`n╔══════════════════════════════════════════╗" -ForegroundColor Magenta
-Write-Host   "║  PART 1B — Connectivity Tests            ║" -ForegroundColor Magenta
+Write-Host   "║  PART 1B  -  Connectivity Tests            ║" -ForegroundColor Magenta
 Write-Host   "╚══════════════════════════════════════════╝" -ForegroundColor Magenta
 
 # ── Helper: test TCP port reachability ───────────────────────────────────────
@@ -372,7 +372,7 @@ function Test-Port {
     }
 }
 
-Write-Step "Testing Bastion → Control Node connectivity ($ControlNodeIP)"
+Write-Step "Testing Bastion -> Control Node connectivity ($ControlNodeIP)"
 
 # Port 22 — SSH (required for all remote install steps)
 $port22 = Test-Port -RemoteHost $ControlNodeIP -Port 22 `
@@ -391,7 +391,7 @@ if (-not $port22) {
 }
 
 if (-not $port8080) {
-    Write-Warn ("Port 8080 not reachable yet — this is expected before Jenkins is installed. " +
+    Write-Warn ("Port 8080 not reachable yet  -  this is expected before Jenkins is installed. " +
                 "It will be re-checked after the Jenkins install step.")
 }
 
@@ -401,7 +401,7 @@ try {
     $response = Invoke-WebRequest -Uri "https://checkip.amazonaws.com" `
                                   -UseBasicParsing -TimeoutSec 10
     $publicIP = $response.Content.Trim()
-    Write-OK "Internet reachable — Bastion public IP: $publicIP"
+    Write-OK "Internet reachable  -  Bastion public IP: $publicIP"
 } catch {
     Write-Fail ("No internet connectivity from Bastion. Check: " +
                 "(1) Bastion security group allows outbound traffic, " +
@@ -423,12 +423,12 @@ foreach ($target in $dnsTargets) {
     }
 }
 if ($dnsFailed.Count -gt 0) {
-    Write-Warn "DNS failed for: $($dnsFailed -join ', ') — internet installs may fail."
+    Write-Warn "DNS failed for: $($dnsFailed -join ', ')  -  internet installs may fail."
 }
 
 
 Write-Host "`n╔══════════════════════════════════════════╗" -ForegroundColor Magenta
-Write-Host   "║  PART 2 — Control Node Setup (SSH)       ║" -ForegroundColor Magenta
+Write-Host   "║  PART 2  -  Control Node Setup (SSH)       ║" -ForegroundColor Magenta
 Write-Host   "╚══════════════════════════════════════════╝" -ForegroundColor Magenta
 
 # ── Test SSH connectivity first ───────────────────────────────────────────────
@@ -521,7 +521,7 @@ if curl -sf http://localhost:8080/login 2>/dev/null | grep -q "Jenkins"; then
 elif ss -tlnp | grep -q ":8080"; then
     echo "Jenkins: listening on port 8080 (UI may still be initialising)"
 else
-    echo "WARN: Jenkins service is active but port 8080 not yet open — may need more time"
+    echo "WARN: Jenkins service is active but port 8080 not yet open  -  may need more time"
 fi
 
 sudo systemctl status jenkins --no-pager | grep -E "Active:|Main PID:"
@@ -535,7 +535,7 @@ if sudo systemctl is-active --quiet firewalld; then
     sudo firewall-cmd --reload
     echo "firewalld: port 8080 opened"
 else
-    echo "firewalld not active — security group controls access"
+    echo "firewalld not active  -  security group controls access"
 fi
 '@
 
@@ -568,7 +568,7 @@ aws --version || { echo "FAIL: aws not callable after install"; exit 1; }
 # Verify Instance Role is working (no credentials needed)
 aws sts get-caller-identity --output text 2>/dev/null && \
     echo "AWS Instance Role: OK" || \
-    echo "WARN: aws sts get-caller-identity failed — Instance Role may not be attached yet"
+    echo "WARN: aws sts get-caller-identity failed  -  Instance Role may not be attached yet"
 echo "AWS CLI: OK"
 '@
 
