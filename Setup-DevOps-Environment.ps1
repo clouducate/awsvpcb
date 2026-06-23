@@ -5,7 +5,7 @@
     Run once on the Windows Bastion (t3.large) after first RDP login.
 
 .DESCRIPTION
-    LOCAL  (this Bastion):  WSL2, Google Antigravity, Python 3, Flask, Git, GitHub CLI, AWS CLI v2, Terraform
+    LOCAL  (this Bastion):  WSL2, Python 3, Flask, Git, GitHub CLI, AWS CLI v2, Terraform
     REMOTE (Control Node):  Jenkins, Ansible, Packer
 
 .NOTES
@@ -295,7 +295,7 @@ if (Test-Command "git") {
 
 # -- 3. GitHub CLI -------------------------------------------------------------
 # Used from Module 1 onward for forking repos, creating PRs, and interacting
-# with GitHub from the terminal and Antigravity without needing a browser.
+# with GitHub from the terminal and LLM without needing a browser.
 Write-Step "Installing GitHub CLI (gh)"
 if (Test-Command "gh") {
     Write-OK "GitHub CLI already installed: $(gh --version | Select-Object -First 1)"
@@ -361,20 +361,6 @@ if (Test-Command "terraform") {
 } else {
     choco install terraform -y --no-progress
     Confirm-Install "terraform" { terraform version } "Try reopening PowerShell as Administrator."
-}
-
-# -- 8. Google Antigravity (VS Code-based IDE) ---------------------------------
-Write-Step "Installing Google Antigravity IDE"
-$antigravityInstalled = Test-Path "$env:LOCALAPPDATA\Programs\Google Antigravity\Antigravity.exe"
-if ($antigravityInstalled) {
-    Write-OK "Google Antigravity already installed"
-} else {
-    Write-Host "You can use any AI development tool, but Google's Anti-gravity IDE is recommended if you have an FIU Gemini account."
-    Write-Warn "Antigravity requires manual download from:"
-    Write-Warn "https://antigravity.google/download"
-    Write-Warn "Scroll down to the IDE section, Download for Windows x64 and run the installer, then press Enter to continue..."
-    Read-Host "Press Enter once Antigravity is installed"
-    Write-OK "Google Antigravity install acknowledged"
 }
 
 # -- Verify local installs -----------------------------------------------------
@@ -665,7 +651,6 @@ Write-Host   "+==============================================================+" 
 
 Write-Host "`nBastion (local):" -ForegroundColor White
 Write-Host "  WSL2, Git, GitHub CLI, Python 3, Flask, SQLAlchemy, AWS CLI v2, Terraform" -ForegroundColor Gray
-Write-Host "  Google Antigravity IDE" -ForegroundColor Gray
 
 Write-Host "`nControl Node ($ControlNodeIP):" -ForegroundColor White
 Write-Host "  Ansible, Packer, Jenkins (port 8080), AWS CLI v2" -ForegroundColor Gray
