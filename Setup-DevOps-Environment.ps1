@@ -141,7 +141,7 @@ function Invoke-RemoteScript {
         [System.IO.File]::WriteAllText($tempScript, $unixScript,
             [System.Text.Encoding]::ASCII)
         plink -i $PPKKeyPath -l $SSHUser -pw $KeyPassphrase `
-              -P 22 -auto-store-sshkey $ControlNodeIP -m $tempScript 2>$null
+              -P 22 $ControlNodeIP -m $tempScript 2>$null
         Remove-Item $tempScript -Force -ErrorAction SilentlyContinue
     } else {
         # OpenSSH accepts piped stdin cleanly
@@ -527,10 +527,35 @@ if ($agentSvc -and $agentSvc.Status -ne "Running") {
 Write-Step "Configuring SSH client (plink)"
 if (Test-Command "plink") {
     Write-OK "plink available  -  will use for all remote connections"
-    # -auto-store-sshkey accepts and stores the host key non-interactively
-    # 2>$null suppresses plink's security warnings which PowerShell treats as errors
+
+    # Accept the host key by pre-populating the PuTTY registry entry.
+    # This avoids the interactive prompt and the -auto-store-sshkey flag
+    # which is not available on all plink versions.
+    # Retrieve the host key fingerprint first using ssh-keyscan (part of OpenSSH)
+    $hostKeyLine = (ssh-keyscan -t ecdsa $ControlNodeIP 2>$null)
+    if ($hostKeyLine) {
+        # Parse out just the key portion (third field)
+        $keyParts = ($hostKeyLine -split " ")
+        if ($keyParts.Count -ge 3) {
+            $keyType  = $keyParts[1]   # e.g. ecdsa-sha2-nistp256
+            $keyValue = $keyParts[2]   # base64 key
+            # PuTTY stores host keys under SshHostKeys in the registry
+            $regKey = "HKCU:\Software\SimonTatham\PuTTY\SshHostKeys"
+            if (-not (Test-Path $regKey)) {
+                New-Item -Path $regKey -Force | Out-Null
+            }
+            $regName = "${keyType}@22:${ControlNodeIP}"
+            # PuTTY stores keys in a slightly different format  -  store raw value
+            Set-ItemProperty -Path $regKey -Name $regName -Value $keyValue -ErrorAction SilentlyContinue
+            Write-OK "Host key pre-accepted in PuTTY registry"
+        }
+    } else {
+        Write-Warn "Could not retrieve host key via ssh-keyscan  -  plink may prompt on first connect"
+    }
+
+    # Test connection with stderr suppressed
     $plinkTest = (plink -i $PPKKeyPath -l $SSHUser -pw $KeyPassphrase `
-                  -P 22 -auto-store-sshkey $ControlNodeIP "echo connected") 2>$null
+                  -P 22 $ControlNodeIP "echo connected") 2>$null
     if ($plinkTest -match "connected") {
         Write-OK "plink connection test successful"
     } else {
@@ -550,7 +575,7 @@ Write-Host   "+==========================================+" -ForegroundColor Mag
 Write-Step "Testing SSH connectivity to Control Node ($ControlNodeIP)"
 if ($UsePlink) {
     $sshOutput = (plink -i $PPKKeyPath -l $SSHUser -pw $KeyPassphrase `
-                  -P 22 -auto-store-sshkey $ControlNodeIP "echo connected") 2>$null
+                  -P 22 $ControlNodeIP "echo connected") 2>$null
 } else {
     $sshOutput = (ssh -i $SSHKeyPath `
                    -o StrictHostKeyChecking=no `
