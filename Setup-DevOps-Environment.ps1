@@ -132,36 +132,56 @@ function Invoke-RemoteScript {
     )
     Write-Step "[REMOTE] $Description"
 
+    # Write script to temp file with Unix line endings
+    $tempScript = "$env:TEMP\devops_remote_script.sh"
+    $unixScript = $Script -replace "`r`n", "`n" -replace "`r", "`n"
+    [System.IO.File]::WriteAllText($tempScript, $unixScript,
+        [System.Text.Encoding]::ASCII)
+
+    # Run the remote command as a background job so we can show elapsed time
+    $startTime = Get-Date
     if ($UsePlink) {
-        # plink does not accept piped stdin reliably on Windows.
-        # Write script to a temp file (Unix line endings) and pass via -m flag.
-        $tempScript = "$env:TEMP\devops_remote_script.sh"
-        # Normalize to Unix line endings and write as ASCII
-        $unixScript = $Script -replace "`r`n", "`n" -replace "`r", "`n"
-        [System.IO.File]::WriteAllText($tempScript, $unixScript,
-            [System.Text.Encoding]::ASCII)
-        plink -i $PPKKeyPath -l $SSHUser -pw $KeyPassphrase `
-              -P 22 $ControlNodeIP -m $tempScript 2>$null
-        Remove-Item $tempScript -Force -ErrorAction SilentlyContinue
+        $job = Start-Job -ScriptBlock {
+            param($ppk, $user, $pass, $ip, $script)
+            plink -i $ppk -l $user -pw $pass -P 22 $ip -m $script 2>$null
+            return $LASTEXITCODE
+        } -ArgumentList $PPKKeyPath, $SSHUser, $KeyPassphrase, $ControlNodeIP, $tempScript
     } else {
-        # OpenSSH accepts piped stdin cleanly
-        $scriptBytes  = [System.Text.Encoding]::ASCII.GetBytes(
-                            $Script -replace "`r`n", "`n" -replace "`r", "`n")
-        $scriptStream = [System.IO.MemoryStream]::new($scriptBytes)
-        $sshArgs = @(
-            "-i", $SSHKeyPath,
-            "-o", "StrictHostKeyChecking=no",
-            "-o", "ConnectTimeout=15",
-            "-o", "LogLevel=ERROR",
-            "${SSHUser}@${ControlNodeIP}",
-            "bash -s"
-        )
-        $scriptStream | ssh @sshArgs
+        $job = Start-Job -ScriptBlock {
+            param($key, $user, $ip, $script)
+            & ssh -i $key -o StrictHostKeyChecking=no -o ConnectTimeout=15 `
+                  -o LogLevel=ERROR "${user}@${ip}" "bash -s" < $script
+            return $LASTEXITCODE
+        } -ArgumentList $SSHKeyPath, $SSHUser, $ControlNodeIP, $tempScript
     }
-    if ($LASTEXITCODE -ne 0) {
-        Write-Fail "Remote step failed: $Description"
+
+    # Show elapsed time every 10 seconds while job runs
+    $dots = 0
+    while ($job.State -eq "Running") {
+        Start-Sleep -Seconds 10
+        $elapsed = [int](New-TimeSpan -Start $startTime -End (Get-Date)).TotalSeconds
+        $mins    = [int]($elapsed / 60)
+        $secs    = $elapsed % 60
+        Write-Host "    ... still running  ($mins min $secs sec elapsed)" -ForegroundColor DarkGray
     }
-    Write-OK "Done: $Description"
+
+    # Collect output and print it
+    $output = Receive-Job -Job $job
+    Remove-Job  -Job $job -Force
+    if ($output) { $output | ForEach-Object { Write-Host "    $_" } }
+
+    $elapsed = [int](New-TimeSpan -Start $startTime -End (Get-Date)).TotalSeconds
+    $mins    = [int]($elapsed / 60)
+    $secs    = $elapsed % 60
+
+    # Check exit code from the job output (last line if integer) or job state
+    $exitCode = if ($job.State -eq "Failed") { 1 } else { 0 }
+    if ($exitCode -ne 0) {
+        Write-Fail "Remote step failed: $Description (after ${mins}m ${secs}s)"
+    }
+    Write-OK "Done: $Description (${mins}m ${secs}s)"
+
+    Remove-Item $tempScript -Force -ErrorAction SilentlyContinue
 }
 
 # =============================================================================
