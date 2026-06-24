@@ -131,6 +131,7 @@ function Invoke-RemoteScript {
         [string]$Script
     )
     Write-Step "[REMOTE] $Description"
+    $startTime = Get-Date
 
     # Write script to temp file with Unix line endings
     $tempScript = "$env:TEMP\devops_remote_script.sh"
@@ -138,50 +139,32 @@ function Invoke-RemoteScript {
     [System.IO.File]::WriteAllText($tempScript, $unixScript,
         [System.Text.Encoding]::ASCII)
 
-    # Run the remote command as a background job so we can show elapsed time
-    $startTime = Get-Date
     if ($UsePlink) {
-        $job = Start-Job -ScriptBlock {
-            param($ppk, $user, $pass, $ip, $script)
-            plink -i $ppk -l $user -pw $pass -P 22 $ip -m $script 2>$null
-            return $LASTEXITCODE
-        } -ArgumentList $PPKKeyPath, $SSHUser, $KeyPassphrase, $ControlNodeIP, $tempScript
+        plink -i $PPKKeyPath -l $SSHUser -pw $KeyPassphrase `
+              -P 22 $ControlNodeIP -m $tempScript 2>$null
     } else {
-        $job = Start-Job -ScriptBlock {
-            param($key, $user, $ip, $script)
-            & ssh -i $key -o StrictHostKeyChecking=no -o ConnectTimeout=15 `
-                  -o LogLevel=ERROR "${user}@${ip}" "bash -s" < $script
-            return $LASTEXITCODE
-        } -ArgumentList $SSHKeyPath, $SSHUser, $ControlNodeIP, $tempScript
+        $sshArgs = @(
+            "-i", $SSHKeyPath,
+            "-o", "StrictHostKeyChecking=no",
+            "-o", "ConnectTimeout=15",
+            "-o", "LogLevel=ERROR",
+            "${SSHUser}@${ControlNodeIP}",
+            "bash -s"
+        )
+        Get-Content $tempScript | ssh @sshArgs
     }
 
-    # Show elapsed time every 10 seconds while job runs
-    $dots = 0
-    while ($job.State -eq "Running") {
-        Start-Sleep -Seconds 10
-        $elapsed = [int](New-TimeSpan -Start $startTime -End (Get-Date)).TotalSeconds
-        $mins    = [int]($elapsed / 60)
-        $secs    = $elapsed % 60
-        Write-Host "    ... still running  ($mins min $secs sec elapsed)" -ForegroundColor DarkGray
-    }
+    $exitCode = $LASTEXITCODE
+    $elapsed  = [int](New-TimeSpan -Start $startTime -End (Get-Date)).TotalSeconds
+    $mins     = [int]($elapsed / 60)
+    $secs     = $elapsed % 60
 
-    # Collect output and print it
-    $output = Receive-Job -Job $job
-    Remove-Job  -Job $job -Force
-    if ($output) { $output | ForEach-Object { Write-Host "    $_" } }
+    Remove-Item $tempScript -Force -ErrorAction SilentlyContinue
 
-    $elapsed = [int](New-TimeSpan -Start $startTime -End (Get-Date)).TotalSeconds
-    $mins    = [int]($elapsed / 60)
-    $secs    = $elapsed % 60
-
-    # Check exit code from the job output (last line if integer) or job state
-    $exitCode = if ($job.State -eq "Failed") { 1 } else { 0 }
     if ($exitCode -ne 0) {
         Write-Fail "Remote step failed: $Description (after ${mins}m ${secs}s)"
     }
     Write-OK "Done: $Description (${mins}m ${secs}s)"
-
-    Remove-Item $tempScript -Force -ErrorAction SilentlyContinue
 }
 
 # =============================================================================
@@ -637,7 +620,9 @@ Write-OK "SSH connection successful"
 # -- 8. System update ---------------------------------------------------------
 Write-Host "    [~1-3 min] Downloading and applying OS updates..." -ForegroundColor DarkGray
 Invoke-RemoteScript -Description "System update (dnf)" -Script @'
+echo "Checking for updates..."
 sudo dnf update -y -q
+echo "System update complete"
 '@
 
 # -- 9. Python 3 + pip on Control Node (needed by Ansible) --------------------
@@ -652,11 +637,11 @@ echo "Python and pip: OK"
 # -- 10. Ansible ---------------------------------------------------------------
 Write-Host "    [~1-2 min] Installing Ansible and its Python dependencies..." -ForegroundColor DarkGray
 Invoke-RemoteScript -Description "Ansible" -Script @'
+echo "Installing Ansible..."
 sudo dnf install -y ansible -q 2>/dev/null || \
     sudo pip3 install ansible --quiet
-# Verify ansible is callable and can show version
+echo "Verifying Ansible..."
 ansible --version | head -1 || { echo "FAIL: ansible not found after install"; exit 1; }
-# Verify ansible can parse a trivial playbook (catches broken Python deps)
 echo "---" | ansible-playbook /dev/stdin --syntax-check 2>/dev/null || true
 echo "Ansible: OK"
 '@
@@ -675,8 +660,9 @@ echo "Packer: OK"
 # -- 12. Java 17 (Jenkins dependency) -----------------------------------------
 Write-Host "    [~1-3 min] Downloading Amazon Corretto Java 17 (~200MB)..." -ForegroundColor DarkGray
 Invoke-RemoteScript -Description "Java 17 (Jenkins dependency)" -Script @'
+echo "Downloading Amazon Corretto Java 17 (this may take a few minutes)..."
 sudo dnf install -y java-17-amazon-corretto-headless -q
-# Verify java is callable and is version 17
+echo "Verifying Java 17..."
 java -version 2>&1 | head -1 || { echo "FAIL: java not found after install"; exit 1; }
 java_ver=$(java -version 2>&1 | head -1)
 echo "$java_ver" | grep -q "17\." || { echo "FAIL: Expected Java 17, got: $java_ver"; exit 1; }
@@ -686,19 +672,19 @@ echo "Java 17: OK"
 # -- 13. Jenkins ---------------------------------------------------------------
 Write-Host "    [~2-4 min] Installing Jenkins and waiting for JVM startup..." -ForegroundColor DarkGray
 Invoke-RemoteScript -Description "Jenkins LTS" -Script @'
+echo "Adding Jenkins repository..."
 sudo wget -q -O /etc/yum.repos.d/jenkins.repo https://pkg.jenkins.io/redhat-stable/jenkins.repo
 sudo rpm --import https://pkg.jenkins.io/redhat-stable/jenkins.io-2023.key 2>/dev/null || \
 sudo rpm --import https://pkg.jenkins.io/redhat-stable/jenkins.io.key
+echo "Installing Jenkins (this may take a few minutes)..."
 sudo dnf install -y jenkins -q
-
+echo "Starting Jenkins service..."
 sudo systemctl enable jenkins
 sudo systemctl start jenkins
-
-# Wait up to 60 seconds for Jenkins to be active
-echo "Waiting for Jenkins to start..."
+echo "Waiting for Jenkins JVM to start (up to 60 seconds)..."
 for i in $(seq 1 12); do
     if sudo systemctl is-active --quiet jenkins; then
-        echo "Jenkins is running"
+        echo "Jenkins service is running"
         break
     fi
     if [ $i -eq 12 ]; then
@@ -706,10 +692,9 @@ for i in $(seq 1 12); do
         sudo journalctl -u jenkins --no-pager -n 20
         exit 1
     fi
+    echo "  waiting... ($((i * 5))s)"
     sleep 5
 done
-
-# Verify Jenkins port 8080 is actually listening
 sleep 3
 if curl -sf http://localhost:8080/login 2>/dev/null | grep -q "Jenkins"; then
     echo "Jenkins web UI: responding on port 8080"
@@ -718,7 +703,6 @@ elif ss -tlnp | grep -q ":8080"; then
 else
     echo "WARN: Jenkins service is active but port 8080 not yet open  -  may need more time"
 fi
-
 sudo systemctl status jenkins --no-pager | grep -E "Active:|Main PID:"
 echo "Jenkins: OK"
 '@
