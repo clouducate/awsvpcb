@@ -611,7 +611,7 @@ Write-Host "    Step  8  -  System update       ~1-3 min   (downloads OS patches
 Write-Host "    Step  9  -  Python 3 + pip      ~1 min" -ForegroundColor DarkGray
 Write-Host "    Step 10  -  Ansible             ~1-2 min   (large dependency tree)" -ForegroundColor DarkGray
 Write-Host "    Step 11  -  Packer              ~1-2 min   (HashiCorp binary)" -ForegroundColor DarkGray
-Write-Host "    Step 12  -  Java 17             ~1-3 min   (Amazon Corretto, ~200MB)" -ForegroundColor DarkGray
+Write-Host "    Step 12  -  Java 21             ~1-3 min   (Amazon Corretto, ~200MB)" -ForegroundColor DarkGray
 Write-Host "    Step 13  -  Jenkins             ~2-4 min   (install + JVM startup)" -ForegroundColor DarkGray
 Write-Host "    Step 14  -  AWS CLI             ~1 min" -ForegroundColor DarkGray
 Write-Host ""
@@ -690,16 +690,16 @@ packer plugins installed 2>/dev/null || true
 echo "Packer: OK"
 '@
 
-# -- 12. Java 17 (Jenkins dependency) -----------------------------------------
-Write-Host "    [~1-3 min] Downloading Amazon Corretto Java 17 (~200MB)..." -ForegroundColor DarkGray
-Invoke-RemoteScript -Description "Java 17 (Jenkins dependency)" -Script @'
-echo "Downloading Amazon Corretto Java 17 (this may take a few minutes)..."
-sudo dnf install -y java-17-amazon-corretto-headless -q
-echo "Verifying Java 17..."
+# -- 12. Java 21 (Jenkins dependency) -----------------------------------------
+Write-Host "    [~1-3 min] Downloading Amazon Corretto Java 21 (~200MB)..." -ForegroundColor DarkGray
+Invoke-RemoteScript -Description "Java 21 (Jenkins dependency)" -Script @'
+echo "Downloading Amazon Corretto Java 21 (this may take a few minutes)..."
+sudo dnf install -y java-21-amazon-corretto-headless -q
+echo "Verifying Java 21..."
 java -version 2>&1 | head -1 || { echo "FAIL: java not found after install"; exit 1; }
 java_ver=$(java -version 2>&1 | head -1)
-echo "$java_ver" | grep -q "17\." || { echo "FAIL: Expected Java 17, got: $java_ver"; exit 1; }
-echo "Java 17: OK"
+echo "$java_ver" | grep -q "21\." || { echo "FAIL: Expected Java 21, got: $java_ver"; exit 1; }
+echo "Java 21: OK"
 '@
 
 # -- 13. Jenkins ---------------------------------------------------------------
@@ -709,6 +709,10 @@ echo "Adding Jenkins repository..."
 sudo wget -q -O /etc/yum.repos.d/jenkins.repo https://pkg.jenkins.io/redhat-stable/jenkins.repo
 sudo rpm --import https://pkg.jenkins.io/redhat-stable/jenkins.io-2023.key 2>/dev/null || \
 sudo rpm --import https://pkg.jenkins.io/redhat-stable/jenkins.io.key
+# Confirm Java 21 is active before installing Jenkins
+java_ver=$(java -version 2>&1 | head -1)
+echo "Using: $java_ver"
+echo "$java_ver" | grep -q "21\." || { echo "FAIL: Jenkins requires Java 21. Got: $java_ver"; exit 1; }
 echo "Installing Jenkins (this may take a few minutes)..."
 sudo dnf install -y jenkins -q
 echo "Starting Jenkins service..."
