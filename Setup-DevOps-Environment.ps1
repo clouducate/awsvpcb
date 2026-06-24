@@ -131,16 +131,23 @@ function Invoke-RemoteScript {
         [string]$Script
     )
     Write-Step "[REMOTE] $Description"
-    # Encode as ASCII to prevent BOM corrupting first bash command
-    $scriptBytes  = [System.Text.Encoding]::ASCII.GetBytes($Script)
-    $scriptStream = [System.IO.MemoryStream]::new($scriptBytes)
 
     if ($UsePlink) {
-        # plink handles .ppk and passphrase natively  -  no agent needed
-        # 2>$null suppresses host key warnings that PowerShell treats as errors
-        $scriptStream | plink -i $PPKKeyPath -l $SSHUser -pw $KeyPassphrase `
-                              -P 22 -auto-store-sshkey $ControlNodeIP -T "bash -s" 2>$null
+        # plink does not accept piped stdin reliably on Windows.
+        # Write script to a temp file (Unix line endings) and pass via -m flag.
+        $tempScript = "$env:TEMP\devops_remote_script.sh"
+        # Normalize to Unix line endings and write as ASCII
+        $unixScript = $Script -replace "`r`n", "`n" -replace "`r", "`n"
+        [System.IO.File]::WriteAllText($tempScript, $unixScript,
+            [System.Text.Encoding]::ASCII)
+        plink -i $PPKKeyPath -l $SSHUser -pw $KeyPassphrase `
+              -P 22 -auto-store-sshkey $ControlNodeIP -m $tempScript 2>$null
+        Remove-Item $tempScript -Force -ErrorAction SilentlyContinue
     } else {
+        # OpenSSH accepts piped stdin cleanly
+        $scriptBytes  = [System.Text.Encoding]::ASCII.GetBytes(
+                            $Script -replace "`r`n", "`n" -replace "`r", "`n")
+        $scriptStream = [System.IO.MemoryStream]::new($scriptBytes)
         $sshArgs = @(
             "-i", $SSHKeyPath,
             "-o", "StrictHostKeyChecking=no",
