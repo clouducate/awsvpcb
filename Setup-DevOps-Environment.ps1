@@ -137,7 +137,6 @@ function Invoke-RemoteScript {
         "-o", "StrictHostKeyChecking=no",
         "-o", "ConnectTimeout=15",
         "-o", "LogLevel=ERROR",
-        "-o", "BatchMode=yes",
         "${SSHUser}@${ControlNodeIP}",
         "bash -s"
     )
@@ -510,9 +509,11 @@ if ($agentSvc -and $agentSvc.Status -ne "Running") {
 $tempKey = "$env:TEMP\devops_temp_key"
 try {
     Copy-Item $SSHKeyPath "$tempKey" -Force
-    $keygenResult = (ssh-keygen -p -P $KeyPassphrase -N "" -f "$tempKey" 2>&1)
+    # Windows OpenSSH ssh-keygen requires old and new passphrase via -P and -N
+    # as a single combined argument string, not separate flags
+    $keygenResult = (& ssh-keygen -p "-P" $KeyPassphrase "-N" "" "-f" "$tempKey" 2>&1)
     if ($LASTEXITCODE -ne 0) { throw "ssh-keygen failed: $keygenResult" }
-    $addResult = (ssh-add "$tempKey" 2>&1)
+    $addResult = (& ssh-add "$tempKey" 2>&1)
     if ($LASTEXITCODE -ne 0) { throw "ssh-add failed: $addResult" }
     Write-OK "SSH key loaded into agent  -  passphrase will not be prompted again"
 } catch {
@@ -534,7 +535,6 @@ $sshOutput = (ssh -i $SSHKeyPath `
                -o StrictHostKeyChecking=no `
                -o ConnectTimeout=10 `
                -o LogLevel=ERROR `
-               -o BatchMode=yes `
                "${SSHUser}@${ControlNodeIP}" `
                "echo connected") 2>$null
 if ($LASTEXITCODE -ne 0 -or $sshOutput -notmatch "connected") {
