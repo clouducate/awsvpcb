@@ -94,6 +94,9 @@ if (-not (Test-Path $SSHKeyPath)) {
     Write-Fail "SSH key not found at '$SSHKeyPath'. Check that the professor setup script has run."
 }
 
+# Keep a reference to the original .ppk for plink use
+$PPKKeyPath = $SSHKeyPath
+
 # OpenSSH on Windows requires PEM format  -  convert .ppk if needed
 if ($SSHKeyPath -like "*.ppk") {
     $pemPath = $SSHKeyPath -replace "\.ppk$", ".pem"
@@ -128,19 +131,25 @@ function Invoke-RemoteScript {
         [string]$Script
     )
     Write-Step "[REMOTE] $Description"
-    # Encode script as ASCII bytes to prevent BOM or encoding issues
-    # from corrupting the first command sent to bash
+    # Encode as ASCII to prevent BOM corrupting first bash command
     $scriptBytes  = [System.Text.Encoding]::ASCII.GetBytes($Script)
     $scriptStream = [System.IO.MemoryStream]::new($scriptBytes)
-    $sshArgs = @(
-        "-i", $SSHKeyPath,
-        "-o", "StrictHostKeyChecking=no",
-        "-o", "ConnectTimeout=15",
-        "-o", "LogLevel=ERROR",
-        "${SSHUser}@${ControlNodeIP}",
-        "bash -s"
-    )
-    $scriptStream | ssh @sshArgs
+
+    if ($UsePlink) {
+        # plink handles .ppk and passphrase natively  -  no agent needed
+        $scriptStream | plink -i $PPKKeyPath -l $SSHUser -pw $KeyPassphrase `
+                              -P 22 $ControlNodeIP -T "bash -s"
+    } else {
+        $sshArgs = @(
+            "-i", $SSHKeyPath,
+            "-o", "StrictHostKeyChecking=no",
+            "-o", "ConnectTimeout=15",
+            "-o", "LogLevel=ERROR",
+            "${SSHUser}@${ControlNodeIP}",
+            "bash -s"
+        )
+        $scriptStream | ssh @sshArgs
+    }
     if ($LASTEXITCODE -ne 0) {
         Write-Fail "Remote step failed: $Description"
     }
@@ -504,24 +513,24 @@ if ($agentSvc -and $agentSvc.Status -ne "Running") {
     Write-Warn "ssh-agent service not found"
 }
 
-# Windows ssh-add does not accept passphrase from stdin.
-# Create a temporary passphrase-free copy, load it, then delete immediately.
-$tempKey = "$env:TEMP\devops_temp_key"
-try {
-    Copy-Item $SSHKeyPath "$tempKey" -Force
-    # Windows OpenSSH ssh-keygen requires old and new passphrase via -P and -N
-    # as a single combined argument string, not separate flags
-    $keygenResult = (& ssh-keygen -p "-P" $KeyPassphrase "-N" "" "-f" "$tempKey" 2>&1)
-    if ($LASTEXITCODE -ne 0) { throw "ssh-keygen failed: $keygenResult" }
-    $addResult = (& ssh-add "$tempKey" 2>&1)
-    if ($LASTEXITCODE -ne 0) { throw "ssh-add failed: $addResult" }
-    Write-OK "SSH key loaded into agent  -  passphrase will not be prompted again"
-} catch {
-    Write-Warn "Could not load key into agent: $_"
-    Write-Warn "SSH steps will continue but may prompt for passphrase"
-} finally {
-    if (Test-Path "$tempKey")     { Remove-Item "$tempKey"     -Force }
-    if (Test-Path "$tempKey.pub") { Remove-Item "$tempKey.pub" -Force }
+# Use plink (PuTTY) for all SSH connections  -  it handles .ppk keys and
+# passphrases natively without needing ssh-agent or key conversion.
+# plink was already installed with PuTTY during the .ppk -> .pem conversion step.
+Write-Step "Configuring SSH client (plink)"
+if (Test-Command "plink") {
+    Write-OK "plink available  -  will use for all remote connections"
+    # Accept the host key non-interactively on first connect
+    $plinkTest = (echo "y" | plink -i $PPKKeyPath -l $SSHUser -pw $KeyPassphrase `
+                  -P 22 $ControlNodeIP "echo connected" 2>&1)
+    if ($plinkTest -match "connected") {
+        Write-OK "plink connection test successful  -  host key accepted"
+    } else {
+        Write-Warn "plink test inconclusive: $plinkTest"
+    }
+    $UsePlink = $true
+} else {
+    Write-Warn "plink not found  -  falling back to OpenSSH (passphrase may be prompted)"
+    $UsePlink = $false
 }
 
 Write-Host "`n+==========================================+" -ForegroundColor Magenta
@@ -530,13 +539,17 @@ Write-Host   "+==========================================+" -ForegroundColor Mag
 
 # -- Test SSH connectivity first -----------------------------------------------
 Write-Step "Testing SSH connectivity to Control Node ($ControlNodeIP)"
-$sshOutput = ""
-$sshOutput = (ssh -i $SSHKeyPath `
-               -o StrictHostKeyChecking=no `
-               -o ConnectTimeout=10 `
-               -o LogLevel=ERROR `
-               "${SSHUser}@${ControlNodeIP}" `
-               "echo connected") 2>$null
+if ($UsePlink) {
+    $sshOutput = (echo "y" | plink -i $PPKKeyPath -l $SSHUser -pw $KeyPassphrase `
+                  -P 22 $ControlNodeIP "echo connected" 2>&1)
+} else {
+    $sshOutput = (ssh -i $SSHKeyPath `
+                   -o StrictHostKeyChecking=no `
+                   -o ConnectTimeout=10 `
+                   -o LogLevel=ERROR `
+                   "${SSHUser}@${ControlNodeIP}" `
+                   "echo connected") 2>$null
+}
 if ($LASTEXITCODE -ne 0 -or $sshOutput -notmatch "connected") {
     Write-Fail "Cannot SSH to $ControlNodeIP. Check the IP, key, and security group (port 22 from Bastion)."
 }
