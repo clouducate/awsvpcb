@@ -121,33 +121,6 @@ Write-Step "Fixing SSH key permissions on $SSHKeyPath"
 icacls $SSHKeyPath /inheritance:r /grant:r "${env:USERNAME}:(R)" | Out-Null
 Write-OK "Key permissions set"
 
-# -- Start ssh-agent and load key so passphrase is only entered once -----------
-Write-Step "Starting ssh-agent and loading key"
-# Start the OpenSSH Authentication Agent service if not running
-$agentSvc = Get-Service -Name ssh-agent -ErrorAction SilentlyContinue
-if ($agentSvc -and $agentSvc.Status -ne "Running") {
-    Set-Service -Name ssh-agent -StartupType Automatic
-    Start-Service -Name ssh-agent
-    Write-OK "ssh-agent service started"
-} elseif ($agentSvc) {
-    Write-OK "ssh-agent service already running"
-} else {
-    Write-Warn "ssh-agent service not found  -  will fall back to per-connection passphrase"
-}
-
-# Load the key into the agent using the passphrase non-interactively
-# We use a temporary expect-style approach via cmd /c echo to feed the passphrase
-$env:SSH_ASKPASS_REQUIRE = "never"
-$addResult = (echo $KeyPassphrase | ssh-add $SSHKeyPath 2>&1)
-if ($LASTEXITCODE -eq 0) {
-    Write-OK "SSH key loaded into agent  -  passphrase will not be prompted again"
-} else {
-    # Agent may not be available; warn but don't fail  -  passphrase prompt suppressed
-    # by passing it via SSH_ASKPASS or accept that some steps may need it
-    Write-Warn "Could not load key into agent: $addResult"
-    Write-Warn "SSH steps will continue but may prompt for passphrase"
-}
-
 # -- Helper: run a command block on the Control Node via SSH -------------------
 function Invoke-RemoteScript {
     param(
@@ -513,6 +486,42 @@ if ($dnsFailed.Count -gt 0) {
     Write-Warn "DNS failed for: $($dnsFailed -join ', ')  -  internet installs may fail."
 }
 
+
+# =============================================================================
+# PART 2  -  CONTROL NODE SETUP (SSH)
+# =============================================================================
+
+# -- Start ssh-agent and load key so passphrase is not prompted ---------------
+Write-Step "Starting ssh-agent and loading SSH key"
+
+$agentSvc = Get-Service -Name ssh-agent -ErrorAction SilentlyContinue
+if ($agentSvc -and $agentSvc.Status -ne "Running") {
+    Set-Service -Name ssh-agent -StartupType Automatic
+    Start-Service -Name ssh-agent
+    Write-OK "ssh-agent service started"
+} elseif ($agentSvc) {
+    Write-OK "ssh-agent service already running"
+} else {
+    Write-Warn "ssh-agent service not found"
+}
+
+# Windows ssh-add does not accept passphrase from stdin.
+# Create a temporary passphrase-free copy, load it, then delete immediately.
+$tempKey = "$env:TEMP\devops_temp_key"
+try {
+    Copy-Item $SSHKeyPath "$tempKey" -Force
+    $keygenResult = (ssh-keygen -p -P $KeyPassphrase -N "" -f "$tempKey" 2>&1)
+    if ($LASTEXITCODE -ne 0) { throw "ssh-keygen failed: $keygenResult" }
+    $addResult = (ssh-add "$tempKey" 2>&1)
+    if ($LASTEXITCODE -ne 0) { throw "ssh-add failed: $addResult" }
+    Write-OK "SSH key loaded into agent  -  passphrase will not be prompted again"
+} catch {
+    Write-Warn "Could not load key into agent: $_"
+    Write-Warn "SSH steps will continue but may prompt for passphrase"
+} finally {
+    if (Test-Path "$tempKey")     { Remove-Item "$tempKey"     -Force }
+    if (Test-Path "$tempKey.pub") { Remove-Item "$tempKey.pub" -Force }
+}
 
 Write-Host "`n+==========================================+" -ForegroundColor Magenta
 Write-Host   "|  PART 2  -  Control Node Setup (SSH)       |" -ForegroundColor Magenta
