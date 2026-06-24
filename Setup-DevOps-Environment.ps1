@@ -133,15 +133,21 @@ function Invoke-RemoteScript {
     Write-Step "[REMOTE] $Description"
     $startTime = Get-Date
 
-    # Write script to temp file with Unix line endings
-    $tempScript = "$env:TEMP\devops_remote_script.sh"
+    # Normalize line endings to Unix format
     $unixScript = $Script -replace "`r`n", "`n" -replace "`r", "`n"
+
+    # Write to temp file for both approaches
+    $tempScript = "$env:TEMP\devops_remote_script.sh"
     [System.IO.File]::WriteAllText($tempScript, $unixScript,
         [System.Text.Encoding]::ASCII)
 
     if ($UsePlink) {
-        plink -i $PPKKeyPath -l $SSHUser -pw $KeyPassphrase `
-              -P 22 $ControlNodeIP -m $tempScript 2>$null
+        # Use cmd.exe to pipe the file content to plink stdin.
+        # This is more reliable than plink -m which some versions do not support.
+        # cmd /c type pipes the raw file bytes without PowerShell re-encoding them.
+        $plinkArgs = "-i `"$PPKKeyPath`" -l $SSHUser -pw $KeyPassphrase " +
+                     "-P 22 $ControlNodeIP `"bash -s`""
+        cmd /c "type `"$tempScript`" | plink $plinkArgs" 2>$null
     } else {
         $sshArgs = @(
             "-i", $SSHKeyPath,
