@@ -580,6 +580,21 @@ if (Test-Command "plink") {
 Write-Host "`n+==========================================+" -ForegroundColor Magenta
 Write-Host   "|  PART 2  -  Control Node Setup (SSH)       |" -ForegroundColor Magenta
 Write-Host   "+==========================================+" -ForegroundColor Magenta
+Write-Host ""
+Write-Host "    Part 2 installs tools remotely on the Control Node via SSH." -ForegroundColor DarkGray
+Write-Host "    Estimated total time: 5 - 15 minutes depending on network speed." -ForegroundColor DarkGray
+Write-Host ""
+Write-Host "    Step  8  -  System update       ~1-3 min   (downloads OS patches)" -ForegroundColor DarkGray
+Write-Host "    Step  9  -  Python 3 + pip      ~1 min" -ForegroundColor DarkGray
+Write-Host "    Step 10  -  Ansible             ~1-2 min   (large dependency tree)" -ForegroundColor DarkGray
+Write-Host "    Step 11  -  Packer              ~1-2 min   (HashiCorp binary)" -ForegroundColor DarkGray
+Write-Host "    Step 12  -  Java 17             ~1-3 min   (Amazon Corretto, ~200MB)" -ForegroundColor DarkGray
+Write-Host "    Step 13  -  Jenkins             ~2-4 min   (install + JVM startup)" -ForegroundColor DarkGray
+Write-Host "    Step 14  -  AWS CLI             ~1 min" -ForegroundColor DarkGray
+Write-Host ""
+Write-Host "    The screen may appear frozen during downloads  -  this is normal." -ForegroundColor Yellow
+Write-Host "    Do NOT close this window." -ForegroundColor Yellow
+Write-Host ""
 
 # -- Test SSH connectivity first -----------------------------------------------
 Write-Step "Testing SSH connectivity to Control Node ($ControlNodeIP)"
@@ -600,6 +615,7 @@ if ($LASTEXITCODE -ne 0 -or $sshOutput -notmatch "connected") {
 Write-OK "SSH connection successful"
 
 # -- 8. System update ---------------------------------------------------------
+Write-Host "    [~1-3 min] Downloading and applying OS updates..." -ForegroundColor DarkGray
 Invoke-RemoteScript -Description "System update (dnf)" -Script @'
 sudo dnf update -y -q
 '@
@@ -614,6 +630,7 @@ echo "Python and pip: OK"
 '@
 
 # -- 10. Ansible ---------------------------------------------------------------
+Write-Host "    [~1-2 min] Installing Ansible and its Python dependencies..." -ForegroundColor DarkGray
 Invoke-RemoteScript -Description "Ansible" -Script @'
 sudo dnf install -y ansible -q 2>/dev/null || \
     sudo pip3 install ansible --quiet
@@ -636,6 +653,7 @@ echo "Packer: OK"
 '@
 
 # -- 12. Java 17 (Jenkins dependency) -----------------------------------------
+Write-Host "    [~1-3 min] Downloading Amazon Corretto Java 17 (~200MB)..." -ForegroundColor DarkGray
 Invoke-RemoteScript -Description "Java 17 (Jenkins dependency)" -Script @'
 sudo dnf install -y java-17-amazon-corretto-headless -q
 # Verify java is callable and is version 17
@@ -646,6 +664,7 @@ echo "Java 17: OK"
 '@
 
 # -- 13. Jenkins ---------------------------------------------------------------
+Write-Host "    [~2-4 min] Installing Jenkins and waiting for JVM startup..." -ForegroundColor DarkGray
 Invoke-RemoteScript -Description "Jenkins LTS" -Script @'
 sudo wget -q -O /etc/yum.repos.d/jenkins.repo https://pkg.jenkins.io/redhat-stable/jenkins.repo
 sudo rpm --import https://pkg.jenkins.io/redhat-stable/jenkins.io-2023.key 2>/dev/null || \
