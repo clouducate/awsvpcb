@@ -537,12 +537,7 @@ Write-Step "Configuring SSH client (plink)"
 if (Test-Command "plink") {
     Write-OK "plink available  -  will use for all remote connections"
 
-    # Accept the host key by pre-populating the PuTTY registry entry.
-    # This avoids the interactive prompt and the -auto-store-sshkey flag
-    # which is not available on all plink versions.
-    # Retrieve the host key fingerprint.
-    # ssh-keyscan writes a banner comment to stderr that PowerShell treats as an error.
-    # Use Start-Process to properly separate stdout from stderr.
+    # Pre-accept host key in PuTTY registry via ssh-keyscan
     $keyscanOut = "$env:TEMP\keyscan_out.txt"
     $keyscanErr = "$env:TEMP\keyscan_err.txt"
     Start-Process -FilePath "ssh-keyscan" `
@@ -553,34 +548,43 @@ if (Test-Command "plink") {
     $hostKeyLine = Get-Content $keyscanOut -ErrorAction SilentlyContinue
     Remove-Item $keyscanOut, $keyscanErr -Force -ErrorAction SilentlyContinue
     if ($hostKeyLine) {
-        # Parse out just the key portion (third field)
         $keyParts = ($hostKeyLine -split " ")
         if ($keyParts.Count -ge 3) {
-            $keyType  = $keyParts[1]   # e.g. ecdsa-sha2-nistp256
-            $keyValue = $keyParts[2]   # base64 key
-            # PuTTY stores host keys under SshHostKeys in the registry
-            $regKey = "HKCU:\Software\SimonTatham\PuTTY\SshHostKeys"
-            if (-not (Test-Path $regKey)) {
-                New-Item -Path $regKey -Force | Out-Null
-            }
-            $regName = "${keyType}@22:${ControlNodeIP}"
-            # PuTTY stores keys in a slightly different format  -  store raw value
-            Set-ItemProperty -Path $regKey -Name $regName -Value $keyValue -ErrorAction SilentlyContinue
+            $keyType  = $keyParts[1]
+            $keyValue = $keyParts[2]
+            $regKey   = "HKCU:\Software\SimonTatham\PuTTY\SshHostKeys"
+            if (-not (Test-Path $regKey)) { New-Item -Path $regKey -Force | Out-Null }
+            Set-ItemProperty -Path $regKey -Name "${keyType}@22:${ControlNodeIP}" `
+                             -Value $keyValue -ErrorAction SilentlyContinue
             Write-OK "Host key pre-accepted in PuTTY registry"
         }
-    } else {
-        Write-Warn "Could not retrieve host key via ssh-keyscan  -  plink may prompt on first connect"
     }
 
-    # Test connection with stderr suppressed
-    $plinkTest = (plink -i $PPKKeyPath -l $SSHUser -pw $KeyPassphrase `
-                  -P 22 $ControlNodeIP "echo connected") 2>$null
-    if ($plinkTest -match "connected") {
+    # Test plink using Start-Process so stdout/stderr are fully separated
+    # and plink cannot hang waiting for interactive input
+    $plinkOut = "$env:TEMP\plink_test_out.txt"
+    $plinkErr = "$env:TEMP\plink_test_err.txt"
+    $proc = Start-Process -FilePath "plink" `
+                          -ArgumentList @("-i", $PPKKeyPath, "-l", $SSHUser,
+                                         "-pw", $KeyPassphrase, "-P", "22",
+                                         "-batch", $ControlNodeIP, "echo connected") `
+                          -Wait -NoNewWindow -PassThru `
+                          -RedirectStandardOutput $plinkOut `
+                          -RedirectStandardError  $plinkErr
+    $plinkStdout = (Get-Content $plinkOut -ErrorAction SilentlyContinue) -join " "
+    $plinkStderr = (Get-Content $plinkErr -ErrorAction SilentlyContinue) -join " "
+    Remove-Item $plinkOut, $plinkErr -Force -ErrorAction SilentlyContinue
+
+    if ($plinkStdout -match "connected") {
         Write-OK "plink connection test successful"
+        $UsePlink = $true
     } else {
-        Write-Warn "plink test inconclusive  -  will attempt connections anyway"
+        Write-Warn "plink stdout: $plinkStdout"
+        Write-Warn "plink stderr: $plinkStderr"
+        Write-Warn "plink exit:   $($proc.ExitCode)"
+        Write-Warn "plink test failed  -  falling back to OpenSSH"
+        $UsePlink = $false
     }
-    $UsePlink = $true
 } else {
     Write-Warn "plink not found  -  falling back to OpenSSH (passphrase may be prompted)"
     $UsePlink = $false
