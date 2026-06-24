@@ -137,8 +137,9 @@ function Invoke-RemoteScript {
 
     if ($UsePlink) {
         # plink handles .ppk and passphrase natively  -  no agent needed
+        # 2>$null suppresses host key warnings that PowerShell treats as errors
         $scriptStream | plink -i $PPKKeyPath -l $SSHUser -pw $KeyPassphrase `
-                              -P 22 $ControlNodeIP -T "bash -s"
+                              -P 22 -auto-store-sshkey $ControlNodeIP -T "bash -s" 2>$null
     } else {
         $sshArgs = @(
             "-i", $SSHKeyPath,
@@ -519,13 +520,14 @@ if ($agentSvc -and $agentSvc.Status -ne "Running") {
 Write-Step "Configuring SSH client (plink)"
 if (Test-Command "plink") {
     Write-OK "plink available  -  will use for all remote connections"
-    # Accept the host key non-interactively on first connect
-    $plinkTest = (echo "y" | plink -i $PPKKeyPath -l $SSHUser -pw $KeyPassphrase `
-                  -P 22 $ControlNodeIP "echo connected" 2>&1)
+    # -auto-store-sshkey accepts and stores the host key non-interactively
+    # 2>$null suppresses plink's security warnings which PowerShell treats as errors
+    $plinkTest = (plink -i $PPKKeyPath -l $SSHUser -pw $KeyPassphrase `
+                  -P 22 -auto-store-sshkey $ControlNodeIP "echo connected") 2>$null
     if ($plinkTest -match "connected") {
-        Write-OK "plink connection test successful  -  host key accepted"
+        Write-OK "plink connection test successful"
     } else {
-        Write-Warn "plink test inconclusive: $plinkTest"
+        Write-Warn "plink test inconclusive  -  will attempt connections anyway"
     }
     $UsePlink = $true
 } else {
@@ -540,8 +542,8 @@ Write-Host   "+==========================================+" -ForegroundColor Mag
 # -- Test SSH connectivity first -----------------------------------------------
 Write-Step "Testing SSH connectivity to Control Node ($ControlNodeIP)"
 if ($UsePlink) {
-    $sshOutput = (echo "y" | plink -i $PPKKeyPath -l $SSHUser -pw $KeyPassphrase `
-                  -P 22 $ControlNodeIP "echo connected" 2>&1)
+    $sshOutput = (plink -i $PPKKeyPath -l $SSHUser -pw $KeyPassphrase `
+                  -P 22 -auto-store-sshkey $ControlNodeIP "echo connected") 2>$null
 } else {
     $sshOutput = (ssh -i $SSHKeyPath `
                    -o StrictHostKeyChecking=no `
