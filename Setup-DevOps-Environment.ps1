@@ -790,10 +790,18 @@ echo "AWS CLI: OK"
 
 # -- 16. Retrieve Jenkins initial admin password -------------------------------
 Write-Step "[REMOTE] Retrieving Jenkins initial admin password"
-$jenkinsPass = ssh -i $SSHKeyPath `
-                   -o StrictHostKeyChecking=no `
-                   "${SSHUser}@${ControlNodeIP}" `
-                   "sudo cat /var/lib/jenkins/secrets/initialAdminPassword 2>/dev/null || echo NOT_READY_YET"
+$passOut = "$env:TEMP\jenkins_pass_out.txt"
+$passErr = "$env:TEMP\jenkins_pass_err.txt"
+Start-Process -FilePath "plink" `
+              -ArgumentList @("-i", $PPKKeyPath, "-l", $SSHUser,
+                             "-pw", $KeyPassphrase, "-P", "22",
+                             "-batch", $ControlNodeIP,
+                             "sudo cat /var/lib/jenkins/secrets/initialAdminPassword 2>/dev/null || echo NOT_READY_YET") `
+              -Wait -NoNewWindow -PassThru `
+              -RedirectStandardOutput $passOut `
+              -RedirectStandardError  $passErr | Out-Null
+$jenkinsPass = (Get-Content $passOut -ErrorAction SilentlyContinue) -join "" | ForEach-Object { $_.Trim() }
+Remove-Item $passOut, $passErr -Force -ErrorAction SilentlyContinue
 
 # -- 17. Verify all remote installs --------------------------------------------
 Write-Step "[REMOTE] Verifying remote installations"
