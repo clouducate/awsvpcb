@@ -531,8 +531,18 @@ if (Test-Command "plink") {
     # Accept the host key by pre-populating the PuTTY registry entry.
     # This avoids the interactive prompt and the -auto-store-sshkey flag
     # which is not available on all plink versions.
-    # Retrieve the host key fingerprint first using ssh-keyscan (part of OpenSSH)
-    $hostKeyLine = (ssh-keyscan -t ecdsa $ControlNodeIP 2>$null)
+    # Retrieve the host key fingerprint.
+    # ssh-keyscan writes a banner comment to stderr that PowerShell treats as an error.
+    # Use Start-Process to properly separate stdout from stderr.
+    $keyscanOut = "$env:TEMP\keyscan_out.txt"
+    $keyscanErr = "$env:TEMP\keyscan_err.txt"
+    Start-Process -FilePath "ssh-keyscan" `
+                  -ArgumentList "-t", "ecdsa", $ControlNodeIP `
+                  -Wait -NoNewWindow `
+                  -RedirectStandardOutput $keyscanOut `
+                  -RedirectStandardError  $keyscanErr | Out-Null
+    $hostKeyLine = Get-Content $keyscanOut -ErrorAction SilentlyContinue
+    Remove-Item $keyscanOut, $keyscanErr -Force -ErrorAction SilentlyContinue
     if ($hostKeyLine) {
         # Parse out just the key portion (third field)
         $keyParts = ($hostKeyLine -split " ")
