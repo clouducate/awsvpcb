@@ -142,12 +142,23 @@ function Invoke-RemoteScript {
         [System.Text.Encoding]::ASCII)
 
     if ($UsePlink) {
-        # Use cmd.exe to pipe the file content to plink stdin.
-        # This is more reliable than plink -m which some versions do not support.
-        # cmd /c type pipes the raw file bytes without PowerShell re-encoding them.
-        $plinkArgs = "-i `"$PPKKeyPath`" -l $SSHUser -pw $KeyPassphrase " +
-                     "-P 22 $ControlNodeIP `"bash -s`""
-        cmd /c "type `"$tempScript`" | plink $plinkArgs" 2>$null
+        # Use Start-Process with -batch so plink never hangs waiting for input.
+        # The script file is passed via -m flag; Start-Process captures output
+        # and exit code cleanly without PowerShell stderr interference.
+        $remoteOut = "$env:TEMP\remote_out.txt"
+        $remoteErr = "$env:TEMP\remote_err.txt"
+        $remoteProc = Start-Process -FilePath "plink" `
+                                    -ArgumentList @("-i", $PPKKeyPath, "-l", $SSHUser,
+                                                   "-pw", $KeyPassphrase, "-P", "22",
+                                                   "-batch", $ControlNodeIP,
+                                                   "-m", $tempScript) `
+                                    -Wait -NoNewWindow -PassThru `
+                                    -RedirectStandardOutput $remoteOut `
+                                    -RedirectStandardError  $remoteErr
+        # Print remote output so students see echo progress statements
+        Get-Content $remoteOut -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "    $_" }
+        $exitCode = $remoteProc.ExitCode
+        Remove-Item $remoteOut, $remoteErr -Force -ErrorAction SilentlyContinue
     } else {
         $sshArgs = @(
             "-i", $SSHKeyPath,
@@ -158,9 +169,8 @@ function Invoke-RemoteScript {
             "bash -s"
         )
         Get-Content $tempScript | ssh @sshArgs
+        $exitCode = $LASTEXITCODE
     }
-
-    $exitCode = $LASTEXITCODE
     $elapsed  = [int](New-TimeSpan -Start $startTime -End (Get-Date)).TotalSeconds
     $mins     = [int]($elapsed / 60)
     $secs     = $elapsed % 60
@@ -612,8 +622,21 @@ Write-Host ""
 # -- Test SSH connectivity first -----------------------------------------------
 Write-Step "Testing SSH connectivity to Control Node ($ControlNodeIP)"
 if ($UsePlink) {
-    $sshOutput = (plink -i $PPKKeyPath -l $SSHUser -pw $KeyPassphrase `
-                  -P 22 $ControlNodeIP "echo connected") 2>$null
+    # Use Start-Process with -batch so plink never hangs waiting for input
+    $connOut = "$env:TEMP\conn_test_out.txt"
+    $connErr = "$env:TEMP\conn_test_err.txt"
+    $connProc = Start-Process -FilePath "plink" `
+                              -ArgumentList @("-i", $PPKKeyPath, "-l", $SSHUser,
+                                             "-pw", $KeyPassphrase, "-P", "22",
+                                             "-batch", $ControlNodeIP, "echo connected") `
+                              -Wait -NoNewWindow -PassThru `
+                              -RedirectStandardOutput $connOut `
+                              -RedirectStandardError  $connErr
+    $sshOutput = (Get-Content $connOut -ErrorAction SilentlyContinue) -join " "
+    Remove-Item $connOut, $connErr -Force -ErrorAction SilentlyContinue
+    if ($connProc.ExitCode -ne 0 -or $sshOutput -notmatch "connected") {
+        Write-Fail "Cannot connect to $ControlNodeIP via plink. Check IP, key, and security group."
+    }
 } else {
     $sshOutput = (ssh -i $SSHKeyPath `
                    -o StrictHostKeyChecking=no `
@@ -621,9 +644,9 @@ if ($UsePlink) {
                    -o LogLevel=ERROR `
                    "${SSHUser}@${ControlNodeIP}" `
                    "echo connected") 2>$null
-}
-if ($LASTEXITCODE -ne 0 -or $sshOutput -notmatch "connected") {
-    Write-Fail "Cannot SSH to $ControlNodeIP. Check the IP, key, and security group (port 22 from Bastion)."
+    if ($LASTEXITCODE -ne 0 -or $sshOutput -notmatch "connected") {
+        Write-Fail "Cannot SSH to $ControlNodeIP. Check the IP, key, and security group (port 22 from Bastion)."
+    }
 }
 Write-OK "SSH connection successful"
 
