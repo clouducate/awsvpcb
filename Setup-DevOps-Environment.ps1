@@ -547,6 +547,14 @@ Write-Step "Configuring SSH client (plink)"
 if (Test-Command "plink") {
     Write-OK "plink available  -  will use for all remote connections"
 
+    # Clear any stale known_hosts entry for this IP (handles new/rebuilt servers)
+    $knownHosts = "$env:USERPROFILE\.ssh\known_hosts"
+    if (Test-Path $knownHosts) {
+        $filtered = Get-Content $knownHosts | Where-Object { $_ -notmatch [regex]::Escape($ControlNodeIP) }
+        Set-Content $knownHosts $filtered -ErrorAction SilentlyContinue
+        Write-OK "Stale known_hosts entry cleared for $ControlNodeIP"
+    }
+
     # Pre-accept host key in PuTTY registry via ssh-keyscan
     $keyscanOut = "$env:TEMP\keyscan_out.txt"
     $keyscanErr = "$env:TEMP\keyscan_err.txt"
@@ -564,9 +572,17 @@ if (Test-Command "plink") {
             $keyValue = $keyParts[2]
             $regKey   = "HKCU:\Software\SimonTatham\PuTTY\SshHostKeys"
             if (-not (Test-Path $regKey)) { New-Item -Path $regKey -Force | Out-Null }
-            Set-ItemProperty -Path $regKey -Name "${keyType}@22:${ControlNodeIP}" `
+            # Remove ALL existing entries for this IP first (covers any key type
+            # from a previous server so stale keys never cause a security breach error)
+            $regName = "${keyType}@22:${ControlNodeIP}"
+            Get-Item -Path $regKey -ErrorAction SilentlyContinue |
+                Select-Object -ExpandProperty Property |
+                Where-Object { $_ -like "*@22:${ControlNodeIP}" } |
+                ForEach-Object { Remove-ItemProperty -Path $regKey -Name $_ -ErrorAction SilentlyContinue }
+            # Write the fresh key from the current server
+            Set-ItemProperty -Path $regKey -Name $regName `
                              -Value $keyValue -ErrorAction SilentlyContinue
-            Write-OK "Host key pre-accepted in PuTTY registry"
+            Write-OK "Host key pre-accepted in PuTTY registry (any stale keys cleared)"
         }
     }
 
@@ -840,6 +856,11 @@ if ($jenkinsPass -and $jenkinsPass -ne "NOT_READY_YET") {
     Write-Host "       `"sudo cat /var/lib/jenkins/secrets/initialAdminPassword`"" -ForegroundColor Gray
 }
 Write-Host "  4. Install suggested plugins + Blue Ocean plugin" -ForegroundColor Gray
+
+Write-Host "`nNext step: Authenticate GitHub CLI, then fork and clone the NM-FSM-App repo." -ForegroundColor Cyan
+Write-Host "  gh auth login                                              # authenticate once" -ForegroundColor Gray
+Write-Host "  gh repo fork https://github.com/ts0491/NM-FSM-App --clone # fork + clone in one step" -ForegroundColor Gray
+Write-Host "  cd NM-FSM-App`n" -ForegroundColor Gray
 
 # -- Close transcript ----------------------------------------------------------
 Stop-Transcript | Out-Null
