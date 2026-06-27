@@ -147,11 +147,16 @@ function Invoke-RemoteScript {
         # and exit code cleanly without PowerShell stderr interference.
         $remoteOut = "$env:TEMP\remote_out.txt"
         $remoteErr = "$env:TEMP\remote_err.txt"
+        $plinkRemoteArgs = if ($script:PlinkHostKey) {
+            @("-i", $PPKKeyPath, "-l", $SSHUser, "-pw", $KeyPassphrase,
+              "-P", "22", "-batch", "-hostkey", $script:PlinkHostKey,
+              $ControlNodeIP, "-m", $tempScript)
+        } else {
+            @("-i", $PPKKeyPath, "-l", $SSHUser, "-pw", $KeyPassphrase,
+              "-P", "22", "-batch", $ControlNodeIP, "-m", $tempScript)
+        }
         $remoteProc = Start-Process -FilePath "plink" `
-                                    -ArgumentList @("-i", $PPKKeyPath, "-l", $SSHUser,
-                                                   "-pw", $KeyPassphrase, "-P", "22",
-                                                   "-batch", $ControlNodeIP,
-                                                   "-m", $tempScript) `
+                                    -ArgumentList $plinkRemoteArgs `
                                     -Wait -NoNewWindow -PassThru `
                                     -RedirectStandardOutput $remoteOut `
                                     -RedirectStandardError  $remoteErr
@@ -555,7 +560,9 @@ if (Test-Command "plink") {
         Write-OK "Stale known_hosts entry cleared for $ControlNodeIP"
     }
 
-    # Pre-accept host key in PuTTY registry via ssh-keyscan
+    # Get the host key fingerprint using ssh-keyscan and pass it directly
+    # to plink via -hostkey flag. This bypasses the registry entirely and
+    # always uses the current server key  -  no stale key issues possible.
     $keyscanOut = "$env:TEMP\keyscan_out.txt"
     $keyscanErr = "$env:TEMP\keyscan_err.txt"
     Start-Process -FilePath "ssh-keyscan" `
@@ -563,43 +570,52 @@ if (Test-Command "plink") {
                   -Wait -NoNewWindow `
                   -RedirectStandardOutput $keyscanOut `
                   -RedirectStandardError  $keyscanErr | Out-Null
-    $hostKeyLine = Get-Content $keyscanOut -ErrorAction SilentlyContinue
+    $hostKeyLine  = (Get-Content $keyscanOut -ErrorAction SilentlyContinue) -join ""
     Remove-Item $keyscanOut, $keyscanErr -Force -ErrorAction SilentlyContinue
-    if ($hostKeyLine) {
-        $keyParts = ($hostKeyLine -split " ")
-        if ($keyParts.Count -ge 3) {
-            $keyType  = $keyParts[1]
-            $keyValue = $keyParts[2]
-            $regKey   = "HKCU:\Software\SimonTatham\PuTTY\SshHostKeys"
-            if (-not (Test-Path $regKey)) { New-Item -Path $regKey -Force | Out-Null }
-            # Remove ALL existing entries for this IP first (covers any key type
-            # from a previous server so stale keys never cause a security breach error)
-            $regName = "${keyType}@22:${ControlNodeIP}"
-            Get-Item -Path $regKey -ErrorAction SilentlyContinue |
-                Select-Object -ExpandProperty Property |
-                Where-Object { $_ -like "*@22:${ControlNodeIP}" } |
-                ForEach-Object { Remove-ItemProperty -Path $regKey -Name $_ -ErrorAction SilentlyContinue }
-            # Write the fresh key from the current server
-            Set-ItemProperty -Path $regKey -Name $regName `
-                             -Value $keyValue -ErrorAction SilentlyContinue
-            Write-OK "Host key pre-accepted in PuTTY registry (any stale keys cleared)"
-        }
+
+    # Extract fingerprint using ssh-keygen -l -f  
+    $fingerprintOut = "$env:TEMP\fp_out.txt"
+    $fingerprintErr = "$env:TEMP\fp_err.txt"
+    $hostKeyFile    = "$env:TEMP\hostkey_temp.txt"
+    [System.IO.File]::WriteAllText($hostKeyFile, $hostKeyLine + "`n", [System.Text.Encoding]::ASCII)
+    Start-Process -FilePath "ssh-keygen" `
+                  -ArgumentList "-l", "-f", $hostKeyFile `
+                  -Wait -NoNewWindow `
+                  -RedirectStandardOutput $fingerprintOut `
+                  -RedirectStandardError  $fingerprintErr | Out-Null
+    $fpLine = (Get-Content $fingerprintOut -ErrorAction SilentlyContinue) -join ""
+    Remove-Item $fingerprintOut, $fingerprintErr, $hostKeyFile -Force -ErrorAction SilentlyContinue
+
+    # Parse SHA256 fingerprint  -  plink -hostkey accepts "SHA256:xxxxx" format
+    $hostkey = ""
+    if ($fpLine -match "(SHA256:[A-Za-z0-9+/=]+)") {
+        $hostkey = $matches[1]
+        Write-OK "Host fingerprint retrieved: $hostkey"
+    } else {
+        Write-Warn "Could not parse host fingerprint  -  plink may prompt"
     }
 
-    # Test plink using Start-Process so stdout/stderr are fully separated
-    # and plink cannot hang waiting for interactive input
+    # Test plink using -hostkey to accept the current key without registry
     $plinkOut = "$env:TEMP\plink_test_out.txt"
     $plinkErr = "$env:TEMP\plink_test_err.txt"
+    $plinkHostkeyArgs = if ($hostkey) {
+        @("-i", $PPKKeyPath, "-l", $SSHUser, "-pw", $KeyPassphrase,
+          "-P", "22", "-batch", "-hostkey", $hostkey, $ControlNodeIP, "echo connected")
+    } else {
+        @("-i", $PPKKeyPath, "-l", $SSHUser, "-pw", $KeyPassphrase,
+          "-P", "22", "-batch", $ControlNodeIP, "echo connected")
+    }
     $proc = Start-Process -FilePath "plink" `
-                          -ArgumentList @("-i", $PPKKeyPath, "-l", $SSHUser,
-                                         "-pw", $KeyPassphrase, "-P", "22",
-                                         "-batch", $ControlNodeIP, "echo connected") `
+                          -ArgumentList $plinkHostkeyArgs `
                           -Wait -NoNewWindow -PassThru `
                           -RedirectStandardOutput $plinkOut `
                           -RedirectStandardError  $plinkErr
     $plinkStdout = (Get-Content $plinkOut -ErrorAction SilentlyContinue) -join " "
     $plinkStderr = (Get-Content $plinkErr -ErrorAction SilentlyContinue) -join " "
     Remove-Item $plinkOut, $plinkErr -Force -ErrorAction SilentlyContinue
+
+    # Store hostkey for use in all subsequent plink calls
+    $script:PlinkHostKey = $hostkey
 
     if ($plinkStdout -match "connected") {
         Write-OK "plink connection test successful"
@@ -641,10 +657,16 @@ if ($UsePlink) {
     # Use Start-Process with -batch so plink never hangs waiting for input
     $connOut = "$env:TEMP\conn_test_out.txt"
     $connErr = "$env:TEMP\conn_test_err.txt"
+    $connArgs = if ($script:PlinkHostKey) {
+        @("-i", $PPKKeyPath, "-l", $SSHUser, "-pw", $KeyPassphrase,
+          "-P", "22", "-batch", "-hostkey", $script:PlinkHostKey,
+          $ControlNodeIP, "echo connected")
+    } else {
+        @("-i", $PPKKeyPath, "-l", $SSHUser, "-pw", $KeyPassphrase,
+          "-P", "22", "-batch", $ControlNodeIP, "echo connected")
+    }
     $connProc = Start-Process -FilePath "plink" `
-                              -ArgumentList @("-i", $PPKKeyPath, "-l", $SSHUser,
-                                             "-pw", $KeyPassphrase, "-P", "22",
-                                             "-batch", $ControlNodeIP, "echo connected") `
+                              -ArgumentList $connArgs `
                               -Wait -NoNewWindow -PassThru `
                               -RedirectStandardOutput $connOut `
                               -RedirectStandardError  $connErr
@@ -808,11 +830,17 @@ echo "AWS CLI: OK"
 Write-Step "[REMOTE] Retrieving Jenkins initial admin password"
 $passOut = "$env:TEMP\jenkins_pass_out.txt"
 $passErr = "$env:TEMP\jenkins_pass_err.txt"
+$passArgs = if ($script:PlinkHostKey) {
+    @("-i", $PPKKeyPath, "-l", $SSHUser, "-pw", $KeyPassphrase,
+      "-P", "22", "-batch", "-hostkey", $script:PlinkHostKey, $ControlNodeIP,
+      "sudo cat /var/lib/jenkins/secrets/initialAdminPassword 2>/dev/null || echo NOT_READY_YET")
+} else {
+    @("-i", $PPKKeyPath, "-l", $SSHUser, "-pw", $KeyPassphrase,
+      "-P", "22", "-batch", $ControlNodeIP,
+      "sudo cat /var/lib/jenkins/secrets/initialAdminPassword 2>/dev/null || echo NOT_READY_YET")
+}
 Start-Process -FilePath "plink" `
-              -ArgumentList @("-i", $PPKKeyPath, "-l", $SSHUser,
-                             "-pw", $KeyPassphrase, "-P", "22",
-                             "-batch", $ControlNodeIP,
-                             "sudo cat /var/lib/jenkins/secrets/initialAdminPassword 2>/dev/null || echo NOT_READY_YET") `
+              -ArgumentList $passArgs `
               -Wait -NoNewWindow -PassThru `
               -RedirectStandardOutput $passOut `
               -RedirectStandardError  $passErr | Out-Null
