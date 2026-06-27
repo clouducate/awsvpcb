@@ -885,11 +885,6 @@ if ($jenkinsPass -and $jenkinsPass -ne "NOT_READY_YET") {
 }
 Write-Host "  4. Install suggested plugins + Blue Ocean plugin" -ForegroundColor Gray
 
-Write-Host "`nNext step: Authenticate GitHub CLI, then fork and clone the NM-FSM-App repo." -ForegroundColor Cyan
-Write-Host "  gh auth login                                              # authenticate once" -ForegroundColor Gray
-Write-Host "  gh repo fork https://github.com/ts0491/NM-FSM-App --clone # fork + clone in one step" -ForegroundColor Gray
-Write-Host "  cd NM-FSM-App`n" -ForegroundColor Gray
-
 # -- Close transcript ----------------------------------------------------------
 Stop-Transcript | Out-Null
 Write-Host "`n------------------------------------------------------------" -ForegroundColor DarkGray
