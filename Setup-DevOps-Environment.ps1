@@ -5,7 +5,7 @@
     Run once on the Windows Bastion (t3.large) after first RDP login.
 
 .DESCRIPTION
-    LOCAL  (this Bastion):  WSL2, Python 3, Flask, Git, GitHub CLI, AWS CLI v2, Terraform
+    LOCAL  (this Bastion):  WSL2, Python 3, Flask, Git, GitHub CLI, AWS CLI v2, Terraform, paramiko
     REMOTE (Control Node):  Jenkins, Ansible, Packer
 
 .NOTES
@@ -363,19 +363,20 @@ if (Test-Command "python") {
     Confirm-Install "pip" { python -m pip --version } "pip should be bundled with Python 3.4+."
 }
 
-# -- 5. Flask + SQLAlchemy (course dependencies) -------------------------------
-# Only flask and flask-sqlalchemy are needed on the Bastion  -  the app uses
-# SQLite here (no MySQL driver required). PyMySQL and cryptography belong in
-# the project's requirements.txt so they are installed inside the Docker image
-# during Module 5 (docker build), giving the container MySQL connectivity.
-Write-Step "Installing Flask and SQLAlchemy via pip"
+# -- 5. Flask + SQLAlchemy + paramiko (course dependencies) -------------------
+# Only flask, flask-sqlalchemy, and paramiko are needed on the Bastion.
+# paramiko provides SSH connectivity used by Google Antigravity to connect
+# programmatically to the Linux Control Node.
+# PyMySQL and cryptography belong in the project's requirements.txt so they
+# are installed inside the Docker image during Module 5 (docker build).
+Write-Step "Installing Flask, SQLAlchemy and paramiko via pip"
 python -m pip install --upgrade pip --quiet
 if ($LASTEXITCODE -ne 0) { Write-Fail "pip upgrade failed. Check Python installation." }
 
-python -m pip install flask flask-sqlalchemy --quiet
-if ($LASTEXITCODE -ne 0) { Write-Fail "Flask/SQLAlchemy install failed. Check pip and internet connectivity." }
+python -m pip install flask flask-sqlalchemy paramiko --quiet
+if ($LASTEXITCODE -ne 0) { Write-Fail "Flask/SQLAlchemy/paramiko install failed. Check pip and internet connectivity." }
 
-# Verify both packages are actually importable  -  install succeeding is not enough
+# Verify packages are actually importable  -  install succeeding is not enough
 $flaskCheck = python -c "import importlib.metadata; print(importlib.metadata.version('flask'))" 2>&1
 if ($LASTEXITCODE -ne 0) { Write-Fail "Flask installed but not importable: $flaskCheck" }
 Write-OK "Flask: $flaskCheck"
@@ -383,6 +384,10 @@ Write-OK "Flask: $flaskCheck"
 $sqlaCheck = python -c "import importlib.metadata; print(importlib.metadata.version('flask-sqlalchemy'))" 2>&1
 if ($LASTEXITCODE -ne 0) { Write-Fail "SQLAlchemy installed but not importable: $sqlaCheck" }
 Write-OK "Flask-SQLAlchemy: $sqlaCheck"
+
+$paramikoCheck = python -c "import importlib.metadata; print(importlib.metadata.version('paramiko'))" 2>&1
+if ($LASTEXITCODE -ne 0) { Write-Fail "paramiko installed but not importable: $paramikoCheck" }
+Write-OK "paramiko: $paramikoCheck"
 
 Write-Warn "PyMySQL + cryptography + gunicorn go in requirements.txt (needed in Docker image, not here)"
 
@@ -867,7 +872,7 @@ Write-Host   "|  SETUP COMPLETE                                              |" 
 Write-Host   "+==============================================================+" -ForegroundColor Green
 
 Write-Host "`nBastion (local):" -ForegroundColor White
-Write-Host "  WSL2, Git, GitHub CLI, Python 3, Flask, SQLAlchemy, AWS CLI v2, Terraform" -ForegroundColor Gray
+Write-Host "  WSL2, Git, GitHub CLI, Python 3, Flask, SQLAlchemy, paramiko, AWS CLI v2, Terraform" -ForegroundColor Gray
 
 Write-Host "`nControl Node ($ControlNodeIP):" -ForegroundColor White
 Write-Host "  Ansible, Packer, Jenkins (port 8080), AWS CLI v2" -ForegroundColor Gray
