@@ -28,7 +28,7 @@ if [ "$AWSVPCB_NAT_ID" != "" ]; then
       exit 1
    fi
    $AWSCLI_HOME/procs/log "New NAT instance $AWSVPCB_NAT_ID modified to not check for source-destination...."
-   if aws iam get-instance-profile --instance-profile-name LabInstanceProfile 2>/dev/null; then
+   if aws iam get-instance-profile --instance-profile-name LabInstanceProfile >/dev/null 2>&1; then
       $AWSCLI_HOME/procs/clicall "ec2 associate-iam-instance-profile --instance-id $AWSVPCB_NAT_ID --iam-instance-profile Name=LabInstanceProfile" "$AWSCLI_HOME/tempfiles/create.natinstance.4" "$AWSCLI_HOME/tempfiles/create.natinstance.4.error"
       if [ $? -ne 0 ]; then
          $AWSCLI_HOME/procs/log "Error associating lab profile to the NAT instance $AWSVPCB_NAT_ID in AWS -  please capture any output, zip up entire directory and send to professor for review...."

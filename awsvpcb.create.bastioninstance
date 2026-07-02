@@ -22,7 +22,7 @@ if [ "$AWSVPCB_BASTION_ID" != "" ]; then
       $AWSCLI_HOME/procs/log "Error tagging BASTION instance in AWS -  please capture any output, zip up entire directory and send to professor for review...."
       exit 1
    fi
-   if aws iam get-instance-profile --instance-profile-name LabInstanceProfile 2>/dev/null; then
+   if aws iam get-instance-profile --instance-profile-name LabInstanceProfile >/dev/null 2>&1; then
       $AWSCLI_HOME/procs/clicall "ec2 associate-iam-instance-profile --instance-id $AWSVPCB_BASTION_ID --iam-instance-profile Name=LabInstanceProfile" "$AWSCLI_HOME/tempfiles/create.bastioninstance.3" "$AWSCLI_HOME/tempfiles/create.bastioninstance.3.error"
       if [ $? -ne 0 ]; then
          $AWSCLI_HOME/procs/log "Error adding lab profile to the bastion instance in AWS -  please capture any output, zip up entire directory and send to professor for review...."
