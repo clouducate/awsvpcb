@@ -30,9 +30,9 @@ param(
     [string]$ControlNodeIP  = "172.31.132.151",
 
     # SSH private key  -  placed on the Bastion by professor setup script
-    [string]$SSHKeyPath     = "C:\Users\Administrator\Desktop\awsvpcb-scripts\secfiles\privkey.ppk",
+    [string]$SSHKeyPath     = "C:\Users\Administrator\Desktop\awsvpcb-scripts\secfiles\privkey.pem",
 
-    # SSH key passphrase  -  pre-configured for course key; override if needed
+    # SSH key passphrase  -  pre-configured for course key
     [string]$KeyPassphrase  = "cts4743",
 
     [string]$SSHUser        = "ec2-user"
@@ -89,80 +89,37 @@ function Confirm-Install {
     }
 }
 
-# -- Verify SSH key exists and convert .ppk to .pem if needed -----------------
+# -- Verify SSH key exists and create unencrypted working copy ----------------
 if (-not (Test-Path $SSHKeyPath)) {
     Write-Fail "SSH key not found at '$SSHKeyPath'. Check that the professor setup script has run."
 }
 
-# OpenSSH on Windows requires PEM format. We convert the passphrase-protected
-# .ppk to an UNENCRYPTED OpenSSH .pem once. An unencrypted key removes the need
-# for ssh-agent, ssh-add, or SSH_ASKPASS  -  every ssh call then just works with
-# -i and never prompts. This is acceptable in the ephemeral Learner Lab (shared
-# course key, 4-hour sessions). The .pem stays on the Bastion only.
-#
-# Assumes a CURRENT PuTTY (0.75+) is installed  -  its puttygen supports the
-# --old-passphrase / --new-passphrase batch flags, so the conversion runs fully
-# non-interactively. Every puttygen run is wrapped in a timeout so an unexpected
-# dialog (e.g. wrong passphrase) can never hang the script.
-if ($SSHKeyPath -like "*.ppk") {
-    $ppkSource = $SSHKeyPath                       # original .ppk  -  never mutated
-    $pemPath   = $SSHKeyPath -replace "\.ppk$", ".pem"
+# privkey.pem is passphrase-protected. Create an unencrypted working copy
+# (privkey-nopass.pem) using Python's cryptography library which is already
+# installed for paramiko. The original privkey.pem is never modified.
+Write-Step "Creating unencrypted SSH key for non-interactive use"
+$noPassPath = $SSHKeyPath -replace "\.pem$", "-nopass.pem"
+$pyScript   = "$env:TEMP\pem_strip_pass.py"
+$pyCode     = @"
+from cryptography.hazmat.primitives.serialization import (
+    load_pem_private_key, Encoding, PrivateFormat, NoEncryption
+)
+import sys
+data = open(sys.argv[1], 'rb').read()
+key  = load_pem_private_key(data, sys.argv[2].encode())
+open(sys.argv[3], 'wb').write(
+    key.private_bytes(Encoding.PEM, PrivateFormat.TraditionalOpenSSL, NoEncryption()))
+print('done')
+"@
+[System.IO.File]::WriteAllText($pyScript, $pyCode, [System.Text.Encoding]::ASCII)
+$result = python $pyScript $SSHKeyPath $KeyPassphrase $noPassPath 2>&1
+Remove-Item $pyScript -Force -ErrorAction SilentlyContinue
 
-    # Reuse an existing unencrypted PEM if present and valid (fast re-runs)
-    $reusable = $false
-    if ((Test-Path $pemPath) -and ((Get-Item $pemPath).Length -gt 0)) {
-        $pemText = Get-Content $pemPath -Raw -ErrorAction SilentlyContinue
-        if ($pemText -match "BEGIN (OPENSSH|RSA|EC) PRIVATE KEY" -and
-            $pemText -notmatch "ENCRYPTED" -and $pemText -notmatch "Proc-Type:.*ENCRYPTED") {
-            Write-Step "Using existing unencrypted PEM key"
-            Write-OK "PEM already present: $pemPath"
-            $reusable = $true
-        }
-    }
-
-    if (-not $reusable) {
-        # Resolve the installed puttygen (standard install path first, then PATH)
-        $puttygenExe = "C:\Program Files\PuTTY\puttygen.exe"
-        if (-not (Test-Path $puttygenExe)) {
-            $pg = Get-Command puttygen -ErrorAction SilentlyContinue
-            if ($pg) { $puttygenExe = $pg.Source }
-        }
-        if (-not (Test-Path $puttygenExe)) {
-            Write-Fail "puttygen not found. Ensure PuTTY (0.75+) is installed on the Bastion."
-        }
-
-        Write-Step "Converting .ppk key to unencrypted .pem for OpenSSH"
-        if (Test-Path $pemPath) { Remove-Item $pemPath -Force -ErrorAction SilentlyContinue }
-
-        # Two passphrase files:
-        #   --old-passphrase : decrypts the input .ppk (contains $KeyPassphrase)
-        #   --new-passphrase : passphrase for the OUTPUT key. EMPTY = unencrypted.
-        $oldPassFile = "$env:TEMP\ppk_old_pass.txt"
-        $newPassFile = "$env:TEMP\ppk_new_pass.txt"
-        [System.IO.File]::WriteAllText($oldPassFile, $KeyPassphrase, [System.Text.Encoding]::ASCII)
-        [System.IO.File]::WriteAllText($newPassFile, "",             [System.Text.Encoding]::ASCII)
-
-        # Quote every path; run under a timeout so any dialog can't hang the run.
-        $pgArgs = "`"$ppkSource`" -O private-openssh -o `"$pemPath`" " +
-                  "--old-passphrase `"$oldPassFile`" --new-passphrase `"$newPassFile`""
-        $pgProc = Start-Process -FilePath $puttygenExe -ArgumentList $pgArgs `
-                                -NoNewWindow -PassThru
-        if (-not $pgProc.WaitForExit(30000)) {
-            try { $pgProc.Kill() } catch {}
-            Remove-Item $oldPassFile, $newPassFile -Force -ErrorAction SilentlyContinue
-            Write-Fail ("puttygen did not exit  -  it likely opened a dialog. Verify PuTTY is " +
-                        "0.75+ and that the .ppk passphrase in `$KeyPassphrase ('$KeyPassphrase') is correct.")
-        }
-        Remove-Item $oldPassFile, $newPassFile -Force -ErrorAction SilentlyContinue
-
-        if (-not (Test-Path $pemPath) -or (Get-Item $pemPath).Length -eq 0) {
-            Write-Fail ("Key conversion failed  -  .pem not created. Verify the .ppk passphrase " +
-                        "in `$KeyPassphrase ('$KeyPassphrase') is correct.")
-        }
-        Write-OK "Converted to unencrypted PEM: $pemPath"
-    }
-    $SSHKeyPath = $pemPath
+if ($LASTEXITCODE -ne 0 -or $result -notmatch "done") {
+    Write-Fail "Failed to create unencrypted key: $result"
 }
+Write-OK "Unencrypted working key: $noPassPath"
+$SSHKeyPath = $noPassPath
 
 # Fix key permissions  -  OpenSSH on Windows requires restricted ACL
 Write-Step "Fixing SSH key permissions on $SSHKeyPath"
