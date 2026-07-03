@@ -94,27 +94,72 @@ if (-not (Test-Path $SSHKeyPath)) {
     Write-Fail "SSH key not found at '$SSHKeyPath'. Check that the professor setup script has run."
 }
 
-# Keep a reference to the original .ppk for plink use
-$PPKKeyPath = $SSHKeyPath
-
-# OpenSSH on Windows requires PEM format  -  convert .ppk if needed
+# OpenSSH on Windows requires PEM format. We convert the passphrase-protected
+# .ppk to an UNENCRYPTED OpenSSH .pem once. An unencrypted key removes the need
+# for ssh-agent, ssh-add, or SSH_ASKPASS  -  every ssh call then just works with
+# -i and never prompts. This is acceptable in the ephemeral Learner Lab (shared
+# course key, 4-hour sessions). The .pem stays on the Bastion only.
+#
+# Assumes a CURRENT PuTTY (0.75+) is installed  -  its puttygen supports the
+# --old-passphrase / --new-passphrase batch flags, so the conversion runs fully
+# non-interactively. Every puttygen run is wrapped in a timeout so an unexpected
+# dialog (e.g. wrong passphrase) can never hang the script.
 if ($SSHKeyPath -like "*.ppk") {
-    $pemPath = $SSHKeyPath -replace "\.ppk$", ".pem"
-    if (-not (Test-Path $pemPath)) {
-        Write-Step "Converting .ppk key to .pem format for OpenSSH"
-        # Install PuTTY tools via Chocolatey to get puttygen
-        if (-not (Test-Command "puttygen")) {
-            choco install putty -y --no-progress | Out-Null
-            $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" +
-                        [System.Environment]::GetEnvironmentVariable("Path", "User")
+    $ppkSource = $SSHKeyPath                       # original .ppk  -  never mutated
+    $pemPath   = $SSHKeyPath -replace "\.ppk$", ".pem"
+
+    # Reuse an existing unencrypted PEM if present and valid (fast re-runs)
+    $reusable = $false
+    if ((Test-Path $pemPath) -and ((Get-Item $pemPath).Length -gt 0)) {
+        $pemText = Get-Content $pemPath -Raw -ErrorAction SilentlyContinue
+        if ($pemText -match "BEGIN (OPENSSH|RSA|EC) PRIVATE KEY" -and
+            $pemText -notmatch "ENCRYPTED" -and $pemText -notmatch "Proc-Type:.*ENCRYPTED") {
+            Write-Step "Using existing unencrypted PEM key"
+            Write-OK "PEM already present: $pemPath"
+            $reusable = $true
         }
-        & puttygen $SSHKeyPath -O private-openssh -o $pemPath
-        if (-not (Test-Path $pemPath)) {
-            Write-Fail "Key conversion failed. Ensure PuTTY is installed and the .ppk file is valid."
+    }
+
+    if (-not $reusable) {
+        # Resolve the installed puttygen (standard install path first, then PATH)
+        $puttygenExe = "C:\Program Files\PuTTY\puttygen.exe"
+        if (-not (Test-Path $puttygenExe)) {
+            $pg = Get-Command puttygen -ErrorAction SilentlyContinue
+            if ($pg) { $puttygenExe = $pg.Source }
         }
-        Write-OK "Converted: $pemPath"
-    } else {
-        Write-OK "PEM key already exists: $pemPath"
+        if (-not (Test-Path $puttygenExe)) {
+            Write-Fail "puttygen not found. Ensure PuTTY (0.75+) is installed on the Bastion."
+        }
+
+        Write-Step "Converting .ppk key to unencrypted .pem for OpenSSH"
+        if (Test-Path $pemPath) { Remove-Item $pemPath -Force -ErrorAction SilentlyContinue }
+
+        # Two passphrase files:
+        #   --old-passphrase : decrypts the input .ppk (contains $KeyPassphrase)
+        #   --new-passphrase : passphrase for the OUTPUT key. EMPTY = unencrypted.
+        $oldPassFile = "$env:TEMP\ppk_old_pass.txt"
+        $newPassFile = "$env:TEMP\ppk_new_pass.txt"
+        [System.IO.File]::WriteAllText($oldPassFile, $KeyPassphrase, [System.Text.Encoding]::ASCII)
+        [System.IO.File]::WriteAllText($newPassFile, "",             [System.Text.Encoding]::ASCII)
+
+        # Quote every path; run under a timeout so any dialog can't hang the run.
+        $pgArgs = "`"$ppkSource`" -O private-openssh -o `"$pemPath`" " +
+                  "--old-passphrase `"$oldPassFile`" --new-passphrase `"$newPassFile`""
+        $pgProc = Start-Process -FilePath $puttygenExe -ArgumentList $pgArgs `
+                                -NoNewWindow -PassThru
+        if (-not $pgProc.WaitForExit(30000)) {
+            try { $pgProc.Kill() } catch {}
+            Remove-Item $oldPassFile, $newPassFile -Force -ErrorAction SilentlyContinue
+            Write-Fail ("puttygen did not exit  -  it likely opened a dialog. Verify PuTTY is " +
+                        "0.75+ and that the .ppk passphrase in `$KeyPassphrase ('$KeyPassphrase') is correct.")
+        }
+        Remove-Item $oldPassFile, $newPassFile -Force -ErrorAction SilentlyContinue
+
+        if (-not (Test-Path $pemPath) -or (Get-Item $pemPath).Length -eq 0) {
+            Write-Fail ("Key conversion failed  -  .pem not created. Verify the .ppk passphrase " +
+                        "in `$KeyPassphrase ('$KeyPassphrase') is correct.")
+        }
+        Write-OK "Converted to unencrypted PEM: $pemPath"
     }
     $SSHKeyPath = $pemPath
 }
@@ -125,6 +170,12 @@ icacls $SSHKeyPath /inheritance:r /grant:r "${env:USERNAME}:(R)" | Out-Null
 Write-OK "Key permissions set"
 
 # -- Helper: run a command block on the Control Node via SSH -------------------
+# ROBUST REMOTE EXECUTION: the script body is base64-encoded on the Bastion and
+# decoded on the Control Node (echo <b64> | base64 -d | bash). Base64 is pure
+# ASCII with no spaces or newlines, so it passes through PowerShell's native-
+# command pipeline and ssh untouched  -  no BOM, no CRLF, no quoting issues.
+# This permanently eliminates the "$'\r'" and BOM ("bad character") failures
+# that arise from piping raw script text through PowerShell to bash.
 function Invoke-RemoteScript {
     param(
         [string]$Description,
@@ -133,54 +184,24 @@ function Invoke-RemoteScript {
     Write-Step "[REMOTE] $Description"
     $startTime = Get-Date
 
-    # Normalize line endings to Unix format
+    # Normalize to Unix line endings, then base64-encode the UTF-8 bytes.
     $unixScript = $Script -replace "`r`n", "`n" -replace "`r", "`n"
+    $b64 = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($unixScript))
 
-    # Write to temp file for both approaches
-    $tempScript = "$env:TEMP\devops_remote_script.sh"
-    [System.IO.File]::WriteAllText($tempScript, $unixScript,
-        [System.Text.Encoding]::ASCII)
+    # Single-token remote command  -  pipes are interpreted by the REMOTE shell.
+    $remoteCmd = "echo $b64 | base64 -d | bash"
 
-    if ($UsePlink) {
-        # Use Start-Process with -batch so plink never hangs waiting for input.
-        # The script file is passed via -m flag; Start-Process captures output
-        # and exit code cleanly without PowerShell stderr interference.
-        $remoteOut = "$env:TEMP\remote_out.txt"
-        $remoteErr = "$env:TEMP\remote_err.txt"
-        $plinkRemoteArgs = if ($script:PlinkHostKey) {
-            @("-i", $PPKKeyPath, "-l", $SSHUser, "-pw", $KeyPassphrase,
-              "-P", "22", "-batch", "-hostkey", $script:PlinkHostKey,
-              $ControlNodeIP, "-m", $tempScript)
-        } else {
-            @("-i", $PPKKeyPath, "-l", $SSHUser, "-pw", $KeyPassphrase,
-              "-P", "22", "-batch", $ControlNodeIP, "-m", $tempScript)
-        }
-        $remoteProc = Start-Process -FilePath "plink" `
-                                    -ArgumentList $plinkRemoteArgs `
-                                    -Wait -NoNewWindow -PassThru `
-                                    -RedirectStandardOutput $remoteOut `
-                                    -RedirectStandardError  $remoteErr
-        # Print remote output so students see echo progress statements
-        Get-Content $remoteOut -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "    $_" }
-        $exitCode = $remoteProc.ExitCode
-        Remove-Item $remoteOut, $remoteErr -Force -ErrorAction SilentlyContinue
-    } else {
-        $sshArgs = @(
-            "-i", $SSHKeyPath,
-            "-o", "StrictHostKeyChecking=no",
-            "-o", "ConnectTimeout=15",
-            "-o", "LogLevel=ERROR",
-            "${SSHUser}@${ControlNodeIP}",
-            "bash -s"
-        )
-        Get-Content $tempScript | ssh @sshArgs
-        $exitCode = $LASTEXITCODE
-    }
+    ssh -i $SSHKeyPath `
+        -o StrictHostKeyChecking=no `
+        -o ConnectTimeout=15 `
+        -o LogLevel=ERROR `
+        "${SSHUser}@${ControlNodeIP}" `
+        $remoteCmd
+    $exitCode = $LASTEXITCODE
+
     $elapsed  = [int](New-TimeSpan -Start $startTime -End (Get-Date)).TotalSeconds
     $mins     = [int]($elapsed / 60)
     $secs     = $elapsed % 60
-
-    Remove-Item $tempScript -Force -ErrorAction SilentlyContinue
 
     if ($exitCode -ne 0) {
         Write-Fail "Remote step failed: $Description (after ${mins}m ${secs}s)"
@@ -536,107 +557,20 @@ if ($dnsFailed.Count -gt 0) {
 # PART 2  -  CONTROL NODE SETUP (SSH)
 # =============================================================================
 
-# -- Start ssh-agent and load key so passphrase is not prompted ---------------
-Write-Step "Starting ssh-agent and loading SSH key"
+# -- Prepare SSH client (unencrypted PEM  -  no agent needed) ------------------
+# The key was converted to an UNENCRYPTED PEM above, so no ssh-agent, ssh-add,
+# or SSH_ASKPASS is required. Every ssh call uses -i $SSHKeyPath and connects
+# without a prompt. We only need to clear any stale known_hosts entry so a
+# rebuilt Control Node with a new host key does not trigger a mismatch.
+Write-Step "Preparing SSH client"
 
-$agentSvc = Get-Service -Name ssh-agent -ErrorAction SilentlyContinue
-if ($agentSvc -and $agentSvc.Status -ne "Running") {
-    Set-Service -Name ssh-agent -StartupType Automatic
-    Start-Service -Name ssh-agent
-    Write-OK "ssh-agent service started"
-} elseif ($agentSvc) {
-    Write-OK "ssh-agent service already running"
-} else {
-    Write-Warn "ssh-agent service not found"
+$knownHosts = "$env:USERPROFILE\.ssh\known_hosts"
+if (Test-Path $knownHosts) {
+    $filtered = Get-Content $knownHosts | Where-Object { $_ -notmatch [regex]::Escape($ControlNodeIP) }
+    Set-Content $knownHosts $filtered -ErrorAction SilentlyContinue
+    Write-OK "Stale known_hosts entry cleared for $ControlNodeIP"
 }
-
-# Use plink (PuTTY) for all SSH connections  -  it handles .ppk keys and
-# passphrases natively without needing ssh-agent or key conversion.
-# plink was already installed with PuTTY during the .ppk -> .pem conversion step.
-Write-Step "Configuring SSH client (plink)"
-if (Test-Command "plink") {
-    Write-OK "plink available  -  will use for all remote connections"
-
-    # Clear any stale known_hosts entry for this IP (handles new/rebuilt servers)
-    $knownHosts = "$env:USERPROFILE\.ssh\known_hosts"
-    if (Test-Path $knownHosts) {
-        $filtered = Get-Content $knownHosts | Where-Object { $_ -notmatch [regex]::Escape($ControlNodeIP) }
-        Set-Content $knownHosts $filtered -ErrorAction SilentlyContinue
-        Write-OK "Stale known_hosts entry cleared for $ControlNodeIP"
-    }
-
-    # Get the host key fingerprint using ssh-keyscan and pass it directly
-    # to plink via -hostkey flag. This bypasses the registry entirely and
-    # always uses the current server key  -  no stale key issues possible.
-    $keyscanOut = "$env:TEMP\keyscan_out.txt"
-    $keyscanErr = "$env:TEMP\keyscan_err.txt"
-    Start-Process -FilePath "ssh-keyscan" `
-                  -ArgumentList "-t", "ecdsa", $ControlNodeIP `
-                  -Wait -NoNewWindow `
-                  -RedirectStandardOutput $keyscanOut `
-                  -RedirectStandardError  $keyscanErr | Out-Null
-    $hostKeyLine  = (Get-Content $keyscanOut -ErrorAction SilentlyContinue) -join ""
-    Remove-Item $keyscanOut, $keyscanErr -Force -ErrorAction SilentlyContinue
-
-    # Extract fingerprint using ssh-keygen -l -f  
-    $fingerprintOut = "$env:TEMP\fp_out.txt"
-    $fingerprintErr = "$env:TEMP\fp_err.txt"
-    $hostKeyFile    = "$env:TEMP\hostkey_temp.txt"
-    [System.IO.File]::WriteAllText($hostKeyFile, $hostKeyLine + "`n", [System.Text.Encoding]::ASCII)
-    Start-Process -FilePath "ssh-keygen" `
-                  -ArgumentList "-l", "-f", $hostKeyFile `
-                  -Wait -NoNewWindow `
-                  -RedirectStandardOutput $fingerprintOut `
-                  -RedirectStandardError  $fingerprintErr | Out-Null
-    $fpLine = (Get-Content $fingerprintOut -ErrorAction SilentlyContinue) -join ""
-    Remove-Item $fingerprintOut, $fingerprintErr, $hostKeyFile -Force -ErrorAction SilentlyContinue
-
-    # Parse SHA256 fingerprint  -  plink -hostkey accepts "SHA256:xxxxx" format
-    $hostkey = ""
-    if ($fpLine -match "(SHA256:[A-Za-z0-9+/=]+)") {
-        $hostkey = $matches[1]
-        Write-OK "Host fingerprint retrieved: $hostkey"
-    } else {
-        Write-Warn "Could not parse host fingerprint  -  plink may prompt"
-    }
-
-    # Test plink using -hostkey to accept the current key without registry
-    $plinkOut = "$env:TEMP\plink_test_out.txt"
-    $plinkErr = "$env:TEMP\plink_test_err.txt"
-    $plinkHostkeyArgs = if ($hostkey) {
-        @("-i", $PPKKeyPath, "-l", $SSHUser, "-pw", $KeyPassphrase,
-          "-P", "22", "-batch", "-hostkey", $hostkey, $ControlNodeIP, "echo connected")
-    } else {
-        @("-i", $PPKKeyPath, "-l", $SSHUser, "-pw", $KeyPassphrase,
-          "-P", "22", "-batch", $ControlNodeIP, "echo connected")
-    }
-    $proc = Start-Process -FilePath "plink" `
-                          -ArgumentList $plinkHostkeyArgs `
-                          -Wait -NoNewWindow -PassThru `
-                          -RedirectStandardOutput $plinkOut `
-                          -RedirectStandardError  $plinkErr
-    $plinkStdout = (Get-Content $plinkOut -ErrorAction SilentlyContinue) -join " "
-    $plinkStderr = (Get-Content $plinkErr -ErrorAction SilentlyContinue) -join " "
-    Remove-Item $plinkOut, $plinkErr -Force -ErrorAction SilentlyContinue
-
-    # Store hostkey for use in all subsequent plink calls
-    $script:PlinkHostKey = $hostkey
-
-    if ($plinkStdout -match "connected") {
-        Write-OK "plink connection test successful"
-        $UsePlink = $true
-    } else {
-        Write-Warn "plink stdout: $plinkStdout"
-        Write-Warn "plink stderr: $plinkStderr"
-        Write-Warn "plink exit:   $($proc.ExitCode)"
-        Write-Warn "plink test failed  -  falling back to OpenSSH"
-        $UsePlink = $false
-    }
-} else {
-    Write-Warn "plink not found  -  falling back to OpenSSH (passphrase may be prompted)"
-    $UsePlink = $false
-}
-
+Write-OK "Using unencrypted PEM key  -  no passphrase prompts during remote steps"
 Write-Host "`n+==========================================+" -ForegroundColor Magenta
 Write-Host   "|  PART 2  -  Control Node Setup (SSH)       |" -ForegroundColor Magenta
 Write-Host   "+==========================================+" -ForegroundColor Magenta
@@ -658,38 +592,17 @@ Write-Host ""
 
 # -- Test SSH connectivity first -----------------------------------------------
 Write-Step "Testing SSH connectivity to Control Node ($ControlNodeIP)"
-if ($UsePlink) {
-    # Use Start-Process with -batch so plink never hangs waiting for input
-    $connOut = "$env:TEMP\conn_test_out.txt"
-    $connErr = "$env:TEMP\conn_test_err.txt"
-    $connArgs = if ($script:PlinkHostKey) {
-        @("-i", $PPKKeyPath, "-l", $SSHUser, "-pw", $KeyPassphrase,
-          "-P", "22", "-batch", "-hostkey", $script:PlinkHostKey,
-          $ControlNodeIP, "echo connected")
-    } else {
-        @("-i", $PPKKeyPath, "-l", $SSHUser, "-pw", $KeyPassphrase,
-          "-P", "22", "-batch", $ControlNodeIP, "echo connected")
-    }
-    $connProc = Start-Process -FilePath "plink" `
-                              -ArgumentList $connArgs `
-                              -Wait -NoNewWindow -PassThru `
-                              -RedirectStandardOutput $connOut `
-                              -RedirectStandardError  $connErr
-    $sshOutput = (Get-Content $connOut -ErrorAction SilentlyContinue) -join " "
-    Remove-Item $connOut, $connErr -Force -ErrorAction SilentlyContinue
-    if ($connProc.ExitCode -ne 0 -or $sshOutput -notmatch "connected") {
-        Write-Fail "Cannot connect to $ControlNodeIP via plink. Check IP, key, and security group."
-    }
-} else {
-    $sshOutput = (ssh -i $SSHKeyPath `
-                   -o StrictHostKeyChecking=no `
-                   -o ConnectTimeout=10 `
-                   -o LogLevel=ERROR `
-                   "${SSHUser}@${ControlNodeIP}" `
-                   "echo connected") 2>$null
-    if ($LASTEXITCODE -ne 0 -or $sshOutput -notmatch "connected") {
-        Write-Fail "Cannot SSH to $ControlNodeIP. Check the IP, key, and security group (port 22 from Bastion)."
-    }
+$sshOutput = (ssh -i $SSHKeyPath `
+               -o StrictHostKeyChecking=no `
+               -o ConnectTimeout=10 `
+               -o LogLevel=ERROR `
+               "${SSHUser}@${ControlNodeIP}" `
+               "echo connected") 2>$null
+if ($LASTEXITCODE -ne 0 -or $sshOutput -notmatch "connected") {
+    Write-Fail ("Cannot SSH to $ControlNodeIP. Check: " +
+                "(1) Control Node is running, " +
+                "(2) security group allows TCP 22 from this Bastion, " +
+                "(3) SSH key is correct.")
 }
 Write-OK "SSH connection successful"
 
@@ -833,24 +746,13 @@ echo "AWS CLI: OK"
 
 # -- 16. Retrieve Jenkins initial admin password -------------------------------
 Write-Step "[REMOTE] Retrieving Jenkins initial admin password"
-$passOut = "$env:TEMP\jenkins_pass_out.txt"
-$passErr = "$env:TEMP\jenkins_pass_err.txt"
-$passArgs = if ($script:PlinkHostKey) {
-    @("-i", $PPKKeyPath, "-l", $SSHUser, "-pw", $KeyPassphrase,
-      "-P", "22", "-batch", "-hostkey", $script:PlinkHostKey, $ControlNodeIP,
-      "sudo cat /var/lib/jenkins/secrets/initialAdminPassword 2>/dev/null || echo NOT_READY_YET")
-} else {
-    @("-i", $PPKKeyPath, "-l", $SSHUser, "-pw", $KeyPassphrase,
-      "-P", "22", "-batch", $ControlNodeIP,
-      "sudo cat /var/lib/jenkins/secrets/initialAdminPassword 2>/dev/null || echo NOT_READY_YET")
-}
-Start-Process -FilePath "plink" `
-              -ArgumentList $passArgs `
-              -Wait -NoNewWindow -PassThru `
-              -RedirectStandardOutput $passOut `
-              -RedirectStandardError  $passErr | Out-Null
-$jenkinsPass = (Get-Content $passOut -ErrorAction SilentlyContinue) -join "" | ForEach-Object { $_.Trim() }
-Remove-Item $passOut, $passErr -Force -ErrorAction SilentlyContinue
+$jenkinsPass = (ssh -i $SSHKeyPath `
+                    -o StrictHostKeyChecking=no `
+                    -o ConnectTimeout=10 `
+                    -o LogLevel=ERROR `
+                    "${SSHUser}@${ControlNodeIP}" `
+                    "sudo cat /var/lib/jenkins/secrets/initialAdminPassword 2>/dev/null || echo NOT_READY_YET") 2>$null
+$jenkinsPass = ($jenkinsPass -join "").Trim()
 
 # -- 17. Verify all remote installs --------------------------------------------
 Write-Step "[REMOTE] Verifying remote installations"
