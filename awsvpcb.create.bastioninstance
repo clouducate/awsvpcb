@@ -7,10 +7,18 @@ if [ "$AWSVPCB_BASTION_ID" != "" ]; then
    exit
 fi
 
-$AWSCLI_HOME/procs/clicall "ec2 run-instances --image-id $BASTION_AMI --instance-type $BASTION_INSTANCE_TYPE --security-group-ids $AWSVPCB_PUBLIC_SECGROUPID --subnet-id $AWSVPCB_PUBLIC_SUBNETID --key-name $AWSVPCB_KEYPAIR --private-ip-address $BASTION_IP --associate-public-ip-address" "$AWSCLI_HOME/tempfiles/create.bastioninstance.1" "$AWSCLI_HOME/tempfiles/create.bastioninstance.1.error"
-if [ $? -ne 0 ]; then
-   $AWSCLI_HOME/procs/log "Error creating BASTION instance in AWS -  please capture any output, zip up entire directory and send to professor for review...."
-   exit 1
+if aws iam get-instance-profile --instance-profile-name LabInstanceProfile >/dev/null 2>&1; then
+   $AWSCLI_HOME/procs/clicall "ec2 run-instances --image-id $BASTION_AMI --iam-instance-profile Name=LabInstanceProfile --instance-type $BASTION_INSTANCE_TYPE --security-group-ids $AWSVPCB_PUBLIC_SECGROUPID --subnet-id $AWSVPCB_PUBLIC_SUBNETID --key-name $AWSVPCB_KEYPAIR --private-ip-address $BASTION_IP --associate-public-ip-address" "$AWSCLI_HOME/tempfiles/create.bastioninstance.1" "$AWSCLI_HOME/tempfiles/create.bastioninstance.1.error"
+   if [ $? -ne 0 ]; then
+      $AWSCLI_HOME/procs/log "Error creating BASTION instance in AWS with lab profile -  please capture any output, zip up entire directory and send to professor for review...."
+      exit 1
+   fi
+else
+   $AWSCLI_HOME/procs/clicall "ec2 run-instances --image-id $BASTION_AMI --instance-type $BASTION_INSTANCE_TYPE --security-group-ids $AWSVPCB_PUBLIC_SECGROUPID --subnet-id $AWSVPCB_PUBLIC_SUBNETID --key-name $AWSVPCB_KEYPAIR --private-ip-address $BASTION_IP --associate-public-ip-address" "$AWSCLI_HOME/tempfiles/create.bastioninstance.1" "$AWSCLI_HOME/tempfiles/create.bastioninstance.1.error"
+   if [ $? -ne 0 ]; then
+      $AWSCLI_HOME/procs/log "Error creating BASTION instance in AWS without lab profile-  please capture any output, zip up entire directory and send to professor for review...."
+      exit 1
+   fi
 fi
 export json=`cat $AWSCLI_HOME/tempfiles/create.bastioninstance.1`
 export AWSVPCB_BASTION_ID=`$AWSCLI_HOME/procs/json-read "InstanceId:"` 
@@ -21,13 +29,6 @@ if [ "$AWSVPCB_BASTION_ID" != "" ]; then
    if [ $? -ne 0 ]; then
       $AWSCLI_HOME/procs/log "Error tagging BASTION instance in AWS -  please capture any output, zip up entire directory and send to professor for review...."
       exit 1
-   fi
-   if aws iam get-instance-profile --instance-profile-name LabInstanceProfile >/dev/null 2>&1; then
-      $AWSCLI_HOME/procs/clicall "ec2 associate-iam-instance-profile --instance-id $AWSVPCB_BASTION_ID --iam-instance-profile Name=LabInstanceProfile" "$AWSCLI_HOME/tempfiles/create.bastioninstance.3" "$AWSCLI_HOME/tempfiles/create.bastioninstance.3.error"
-      if [ $? -ne 0 ]; then
-         $AWSCLI_HOME/procs/log "Error adding lab profile to the bastion instance in AWS -  please capture any output, zip up entire directory and send to professor for review...."
-         exit 1
-      fi
    fi
    $AWSCLI_HOME/procs/log "Successfully added lab profile to the BASTION instance $AWSVPCB_BASTION_ID...."
    $AWSCLI_HOME/procs/log "Waiting for BASTION instance $AWSVPCB_BASTION_ID to start - this may take a while...."
