@@ -7,10 +7,18 @@ if [ "$AWSVPCB_NAT_ID" != "" ]; then
    exit
 fi
 
-$AWSCLI_HOME/procs/clicall "ec2 run-instances --image-id $NAT_AMI --instance-type $NAT_INSTANCE_TYPE --security-group-ids $AWSVPCB_PUBLIC_SECGROUPID --subnet-id $AWSVPCB_PUBLIC_SUBNETID --key-name $AWSVPCB_KEYPAIR --private-ip-address $NAT_IP --associate-public-ip-address" "$AWSCLI_HOME/tempfiles/create.natinstance.1" "$AWSCLI_HOME/tempfiles/create.natinstance.1.error"
-if [ $? -ne 0 ]; then
-   $AWSCLI_HOME/procs/log "Error creating NAT instance in AWS -  please capture any output, zip up entire directory and send to professor for review...."
-   exit 1
+if aws iam get-instance-profile --instance-profile-name LabInstanceProfile >/dev/null 2>&1; then
+   $AWSCLI_HOME/procs/clicall "ec2 run-instances --image-id $NAT_AMI --instance-type $NAT_INSTANCE_TYPE --iam-instance-profile Name=LabInstanceProfile --security-group-ids $AWSVPCB_PUBLIC_SECGROUPID --subnet-id $AWSVPCB_PUBLIC_SUBNETID --key-name $AWSVPCB_KEYPAIR --private-ip-address $NAT_IP --associate-public-ip-address" "$AWSCLI_HOME/tempfiles/create.natinstance.1" "$AWSCLI_HOME/tempfiles/create.natinstance.1.error"
+   if [ $? -ne 0 ]; then
+      $AWSCLI_HOME/procs/log "Error creating NAT instance in AWS with a lab profile-  please capture any output, zip up entire directory and send to professor for review...."
+      exit 1
+   fi
+else
+   $AWSCLI_HOME/procs/clicall "ec2 run-instances --image-id $NAT_AMI --instance-type $NAT_INSTANCE_TYPE --security-group-ids $AWSVPCB_PUBLIC_SECGROUPID --subnet-id $AWSVPCB_PUBLIC_SUBNETID --key-name $AWSVPCB_KEYPAIR --private-ip-address $NAT_IP --associate-public-ip-address" "$AWSCLI_HOME/tempfiles/create.natinstance.1" "$AWSCLI_HOME/tempfiles/create.natinstance.1.error"
+   if [ $? -ne 0 ]; then
+      $AWSCLI_HOME/procs/log "Error creating NAT instance in AWS without a lab profile-  please capture any output, zip up entire directory and send to professor for review...."
+      exit 1
+   fi
 fi
 export json=`cat $AWSCLI_HOME/tempfiles/create.natinstance.1`
 export AWSVPCB_NAT_ID=`$AWSCLI_HOME/procs/json-read "InstanceId:"` 
@@ -28,14 +36,6 @@ if [ "$AWSVPCB_NAT_ID" != "" ]; then
       exit 1
    fi
    $AWSCLI_HOME/procs/log "New NAT instance $AWSVPCB_NAT_ID modified to not check for source-destination...."
-   if aws iam get-instance-profile --instance-profile-name LabInstanceProfile >/dev/null 2>&1; then
-      $AWSCLI_HOME/procs/clicall "ec2 associate-iam-instance-profile --instance-id $AWSVPCB_NAT_ID --iam-instance-profile Name=LabInstanceProfile" "$AWSCLI_HOME/tempfiles/create.natinstance.4" "$AWSCLI_HOME/tempfiles/create.natinstance.4.error"
-      if [ $? -ne 0 ]; then
-         $AWSCLI_HOME/procs/log "Error associating lab profile to the NAT instance $AWSVPCB_NAT_ID in AWS -  please capture any output, zip up entire directory and send to professor for review...."
-         exit 1
-      fi
-      $AWSCLI_HOME/procs/log "New NAT instance $AWSVPCB_NAT_ID associated to lab profile successfully...."
-   fi
    $AWSCLI_HOME/procs/log "Waiting for NAT instance $AWSVPCB_NAT_ID to start - this may take a while...."
    running=0
    count=0
