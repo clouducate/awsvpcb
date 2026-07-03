@@ -30,7 +30,6 @@ if [ "$AWSVPCB_BASTION_ID" != "" ]; then
       $AWSCLI_HOME/procs/log "Error tagging BASTION instance in AWS -  please capture any output, zip up entire directory and send to professor for review...."
       exit 1
    fi
-   $AWSCLI_HOME/procs/log "Successfully added lab profile to the BASTION instance $AWSVPCB_BASTION_ID...."
    $AWSCLI_HOME/procs/log "Waiting for BASTION instance $AWSVPCB_BASTION_ID to start - this may take a while...."
    running=0
    count=0
