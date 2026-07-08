@@ -7,6 +7,7 @@
 .DESCRIPTION
     LOCAL  (this Bastion):  WSL2, Python 3, Flask, Git, GitHub CLI, AWS CLI v2, Terraform, paramiko
     REMOTE (Control Node):  Jenkins, Ansible, Packer
+    PERSISTENT:             ANSIBLE_VAULT_PASSWORD_FILE and TF_VAR_db_password set for all future sessions
 
 .NOTES
     Prerequisites:
@@ -724,6 +725,57 @@ echo "Python  : $(python3 --version)"
 '@
 
 # =============================================================================
+# 18. Set persistent environment variables
+# =============================================================================
+# These are set once here and never need to be set again  -  they survive
+# reboots and are inherited by every PowerShell window the student opens.
+# The Ansible vault is the single source of truth for the db password.
+# =============================================================================
+Write-Step "Setting persistent environment variables"
+
+# -- Ansible vault password file -----------------------------------------------
+# Written to the user profile (not TEMP) so it survives across sessions.
+$vaultPassFile = "$env:USERPROFILE\.ansible_vault_pass"
+[System.IO.File]::WriteAllText($vaultPassFile, $KeyPassphrase, [System.Text.Encoding]::ASCII)
+[System.Environment]::SetEnvironmentVariable("ANSIBLE_VAULT_PASSWORD_FILE", $vaultPassFile, "User")
+$env:ANSIBLE_VAULT_PASSWORD_FILE = $vaultPassFile
+Write-OK "ANSIBLE_VAULT_PASSWORD_FILE set (User scope): $vaultPassFile"
+
+# -- Extract db password from Ansible vault ------------------------------------
+# The vault on the Control Node is the single source of truth.
+# We extract the 'pass' key from group_vars/dbservers.yml and store it as a
+# persistent User environment variable so Terraform always has it available.
+Write-Step "Extracting db password from Ansible vault on Control Node"
+$b64 = [Convert]::ToBase64String(
+    [System.Text.Encoding]::UTF8.GetBytes(
+        "ansible-vault view ~/devops-course/group_vars/dbservers.yml " +
+        "--vault-password-file ~/.vault_pass " +
+        "| grep '^pass:' | awk '{print `$2}'"
+    )
+)
+$dbPass = (ssh -i $SSHKeyPath `
+               -o StrictHostKeyChecking=no `
+               -o ConnectTimeout=10 `
+               -o LogLevel=ERROR `
+               "${SSHUser}@${ControlNodeIP}" `
+               "echo $b64 | base64 -d | bash") 2>$null
+$dbPass = ($dbPass -join "").Trim()
+
+if ($dbPass) {
+    [System.Environment]::SetEnvironmentVariable("TF_VAR_db_password", $dbPass, "User")
+    $env:TF_VAR_db_password = $dbPass
+    Write-OK "TF_VAR_db_password extracted from vault and set (User scope)"
+    Write-OK "This variable will be available in every PowerShell window from now on"
+} else {
+    Write-Warn ("Could not extract db password from vault. Check: " +
+                "(1) ~/devops-course/group_vars/dbservers.yml exists on Control Node, " +
+                "(2) ~/.vault_pass exists on Control Node, " +
+                "(3) The vault file contains a 'pass:' key.")
+    Write-Warn "TF_VAR_db_password was NOT set  -  terraform apply will fail until this is resolved."
+    Write-Warn "Re-run this script after the Ansible vault is configured in Module 2."
+}
+
+# =============================================================================
 # SUMMARY
 # =============================================================================
 Write-Host "`n+==============================================================+" -ForegroundColor Green
@@ -735,6 +787,11 @@ Write-Host "  WSL2, Git, GitHub CLI, Python 3, Flask, SQLAlchemy, paramiko, AWS 
 
 Write-Host "`nControl Node ($ControlNodeIP):" -ForegroundColor White
 Write-Host "  Ansible, Packer, Jenkins (port 8080), AWS CLI v2" -ForegroundColor Gray
+
+Write-Host "`nPersistent environment variables (available in all future PowerShell windows):" -ForegroundColor White
+Write-Host "  ANSIBLE_VAULT_PASSWORD_FILE = $env:USERPROFILE\.ansible_vault_pass" -ForegroundColor Gray
+Write-Host "  TF_VAR_db_password          = (set, not displayed)" -ForegroundColor Gray
+Write-Host "  Note: open a NEW PowerShell window to pick these up immediately." -ForegroundColor Yellow
 
 Write-Host "`nJenkins first-time setup:" -ForegroundColor Yellow
 Write-Host "  1. RDP to this Bastion and open a browser" -ForegroundColor Gray
