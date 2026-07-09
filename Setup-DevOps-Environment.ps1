@@ -6,7 +6,7 @@
 
 .DESCRIPTION
     LOCAL  (this Bastion):  WSL2, Python 3, Flask, Git, GitHub CLI, AWS CLI v2, Terraform, paramiko
-    REMOTE (Control Node):  Jenkins, Ansible, Packer
+    REMOTE (Control Node):  Jenkins, Ansible, Packer, Docker
     PERSISTENT:             ANSIBLE_VAULT_PASSWORD_FILE and TF_VAR_db_password set for all future sessions
 
 .NOTES
@@ -543,6 +543,7 @@ Write-Host "    Step 11  -  Packer              ~1-2 min   (HashiCorp binary)" -
 Write-Host "    Step 12  -  Java 21             ~1-3 min   (Amazon Corretto, ~200MB)" -ForegroundColor DarkGray
 Write-Host "    Step 13  -  Jenkins             ~2-4 min   (install + JVM startup)" -ForegroundColor DarkGray
 Write-Host "    Step 14  -  AWS CLI             ~1 min" -ForegroundColor DarkGray
+Write-Host "    Step 15  -  Docker              ~1-2 min  (container builds in Module 5)" -ForegroundColor DarkGray
 Write-Host ""
 Write-Host "    The screen may appear frozen during downloads  -  this is normal." -ForegroundColor Yellow
 Write-Host "    Do NOT close this window." -ForegroundColor Yellow
@@ -702,7 +703,35 @@ aws sts get-caller-identity --output text 2>/dev/null && \
 echo "AWS CLI: OK"
 '@
 
-# -- 16. Retrieve Jenkins initial admin password -------------------------------
+# -- 16. Docker on Control Node ------------------------------------------------
+# Docker is installed on the Control Node (Linux) so students build and push
+# images from there in Module 5. This mirrors how Jenkins will run docker build
+# in Module 6. Idempotent: skips install if Docker is already present and
+# active, only enables/starts the service if it exists but is not running.
+Invoke-RemoteScript -Description "Docker on Control Node" -Script @'
+if command -v docker &>/dev/null && docker --version &>/dev/null; then
+    echo "Docker already installed: $(docker --version)"
+else
+    echo "Installing Docker..."
+    sudo dnf install -y docker
+fi
+# Enable and start service if not already running (idempotent)
+if ! sudo systemctl is-active --quiet docker; then
+    sudo systemctl enable docker
+    sudo systemctl start docker
+fi
+# Add ec2-user to docker group so students can run docker without sudo
+if ! groups ec2-user | grep -q docker; then
+    sudo usermod -aG docker ec2-user
+    echo "Added ec2-user to docker group (re-login required for group to take effect)"
+fi
+# Verify
+docker --version || { echo "FAIL: docker not callable after install"; exit 1; }
+sudo systemctl is-active docker || { echo "FAIL: docker service not running"; exit 1; }
+echo "Docker: OK"
+'@
+
+# -- 17. Retrieve Jenkins initial admin password -------------------------------
 Write-Step "[REMOTE] Retrieving Jenkins initial admin password"
 $jenkinsPass = (ssh -i $SSHKeyPath `
                     -o StrictHostKeyChecking=no `
@@ -722,6 +751,7 @@ echo "Jenkins : $(java -jar /usr/share/java/jenkins.war --version 2>/dev/null ||
 echo "Java    : $(java -version 2>&1 | head -1)"
 echo "AWS CLI : $(aws --version)"
 echo "Python  : $(python3 --version)"
+echo "Docker  : $(docker --version)"
 '@
 
 # =============================================================================
@@ -762,7 +792,7 @@ Write-Host "`nBastion (local):" -ForegroundColor White
 Write-Host "  WSL2, Git, GitHub CLI, Python 3, Flask, SQLAlchemy, paramiko, AWS CLI v2, Terraform" -ForegroundColor Gray
 
 Write-Host "`nControl Node ($ControlNodeIP):" -ForegroundColor White
-Write-Host "  Ansible, Packer, Jenkins (port 8080), AWS CLI v2" -ForegroundColor Gray
+Write-Host "  Ansible, Packer, Jenkins (port 8080), AWS CLI v2, Docker" -ForegroundColor Gray
 
 Write-Host "`nPersistent environment variables (available in all future PowerShell windows):" -ForegroundColor White
 Write-Host "  ANSIBLE_VAULT_PASSWORD_FILE = $env:USERPROFILE\.ansible_vault_pass" -ForegroundColor Gray
