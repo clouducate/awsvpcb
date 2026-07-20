@@ -5,8 +5,8 @@
     Run once on the Windows Bastion (t3.large) after first RDP login.
 
 .DESCRIPTION
-    LOCAL  (this Bastion):  WSL2, Python 3, Flask, Git, GitHub CLI, AWS CLI v2, Terraform, paramiko
-    REMOTE (Control Node):  Jenkins, Ansible, Packer, Docker
+    LOCAL  (this Bastion):  WSL2, Python 3, Flask, Git, GitHub CLI, AWS CLI v2, paramiko
+    REMOTE (Control Node):  Jenkins, Ansible, Packer, Terraform, Docker
     PERSISTENT:             ANSIBLE_VAULT_PASSWORD_FILE and TF_VAR_db_password set for all future sessions
 
 .NOTES
@@ -387,15 +387,6 @@ if (Test-Command "aws") {
     Confirm-Install "aws" { aws --version } "Try reopening PowerShell as Administrator."
 }
 
-# -- 7. Terraform -------------------------------------------------------------
-Write-Step "Installing Terraform"
-if (Test-Command "terraform") {
-    Write-OK "Terraform already installed: $(terraform version | Select-Object -First 1)"
-} else {
-    choco install terraform -y --no-progress
-    Confirm-Install "terraform" { terraform version } "Try reopening PowerShell as Administrator."
-}
-
 # -- Verify local installs -----------------------------------------------------
 Write-Step "Final verification of all local installations"
 $checks = @(
@@ -403,8 +394,7 @@ $checks = @(
     @{ Name = "gh";        Cmd = { gh --version | Select-Object -First 1 } },
     @{ Name = "python";    Cmd = { python --version } },
     @{ Name = "pip";       Cmd = { python -m pip --version } },
-    @{ Name = "aws";       Cmd = { aws --version } },
-    @{ Name = "terraform"; Cmd = { terraform version | Select-Object -First 1 } }
+    @{ Name = "aws";       Cmd = { aws --version } }
 )
 $failedTools = @()
 foreach ($c in $checks) {
@@ -543,7 +533,8 @@ Write-Host "    Step 11  -  Packer              ~1-2 min   (HashiCorp binary)" -
 Write-Host "    Step 12  -  Java 21             ~1-3 min   (Amazon Corretto, ~200MB)" -ForegroundColor DarkGray
 Write-Host "    Step 13  -  Jenkins             ~2-4 min   (install + JVM startup)" -ForegroundColor DarkGray
 Write-Host "    Step 14  -  AWS CLI             ~1 min" -ForegroundColor DarkGray
-Write-Host "    Step 15  -  Docker              ~1-2 min  (container builds in Module 5)" -ForegroundColor DarkGray
+Write-Host "    Step 15  -  Docker              ~1-2 min   (container builds in Module 5)" -ForegroundColor DarkGray
+Write-Host "    Step 16  -  Terraform           ~1-2 min   (CI/CD pipeline in Module 6)" -ForegroundColor DarkGray
 Write-Host ""
 Write-Host "    The screen may appear frozen during downloads  -  this is normal." -ForegroundColor Yellow
 Write-Host "    Do NOT close this window." -ForegroundColor Yellow
@@ -703,7 +694,25 @@ aws sts get-caller-identity --output text 2>/dev/null && \
 echo "AWS CLI: OK"
 '@
 
-# -- 16. Docker on Control Node ------------------------------------------------
+# -- 16. Terraform on Control Node ---------------------------------------------
+# Terraform runs on the Control Node so Jenkins can call terraform plan/apply
+# as part of the CI/CD pipeline in Module 6. Idempotent: skips install if
+# Terraform is already present.
+Invoke-RemoteScript -Description "Terraform on Control Node" -Script @'
+if command -v terraform &>/dev/null; then
+    echo "Terraform already installed: $(terraform version | head -1)"
+else
+    echo "Installing Terraform..."
+    # Add HashiCorp repo and install via dnf
+    sudo dnf install -y dnf-plugins-core
+    sudo dnf config-manager --add-repo https://rpm.releases.hashicorp.com/AmazonLinux/hashicorp.repo
+    sudo dnf install -y terraform
+fi
+terraform version | head -1 || { echo "FAIL: terraform not callable after install"; exit 1; }
+echo "Terraform: OK"
+'@
+
+# -- 17. Docker on Control Node ------------------------------------------------
 # Docker is installed on the Control Node (Linux) so students build and push
 # images from there in Module 5. This mirrors how Jenkins will run docker build
 # in Module 6. Idempotent: skips install if Docker is already present and
@@ -731,7 +740,7 @@ sudo systemctl is-active docker || { echo "FAIL: docker service not running"; ex
 echo "Docker: OK"
 '@
 
-# -- 17. Retrieve Jenkins initial admin password -------------------------------
+# -- 18. Retrieve Jenkins initial admin password -------------------------------
 Write-Step "[REMOTE] Retrieving Jenkins initial admin password"
 $jenkinsPass = (ssh -i $SSHKeyPath `
                     -o StrictHostKeyChecking=no `
@@ -741,21 +750,22 @@ $jenkinsPass = (ssh -i $SSHKeyPath `
                     "sudo cat /var/lib/jenkins/secrets/initialAdminPassword 2>/dev/null || echo NOT_READY_YET") 2>$null
 $jenkinsPass = ($jenkinsPass -join "").Trim()
 
-# -- 17. Verify all remote installs --------------------------------------------
+# -- 19. Verify all remote installs --------------------------------------------
 Write-Step "[REMOTE] Verifying remote installations"
 Invoke-RemoteScript -Description "Version check" -Script @'
 echo "--- Remote Tool Versions ---"
-echo "Ansible : $(ansible --version | head -1)"
-echo "Packer  : $(packer version)"
-echo "Jenkins : $(java -jar /usr/share/java/jenkins.war --version 2>/dev/null || systemctl is-active jenkins)"
-echo "Java    : $(java -version 2>&1 | head -1)"
-echo "AWS CLI : $(aws --version)"
-echo "Python  : $(python3 --version)"
-echo "Docker  : $(docker --version)"
+echo "Ansible   : $(ansible --version | head -1)"
+echo "Packer    : $(packer version)"
+echo "Terraform : $(terraform version | head -1)"
+echo "Jenkins   : $(java -jar /usr/share/java/jenkins.war --version 2>/dev/null || systemctl is-active jenkins)"
+echo "Java      : $(java -version 2>&1 | head -1)"
+echo "AWS CLI   : $(aws --version)"
+echo "Python    : $(python3 --version)"
+echo "Docker    : $(docker --version)"
 '@
 
 # =============================================================================
-# 18. Set persistent environment variables
+# 20. Set persistent environment variables
 # =============================================================================
 # These are set once here and never need to be set again  -  they survive
 # reboots and are inherited by every PowerShell window the student opens.
@@ -789,10 +799,10 @@ Write-Host   "|  SETUP COMPLETE                                              |" 
 Write-Host   "+==============================================================+" -ForegroundColor Green
 
 Write-Host "`nBastion (local):" -ForegroundColor White
-Write-Host "  WSL2, Git, GitHub CLI, Python 3, Flask, SQLAlchemy, paramiko, AWS CLI v2, Terraform" -ForegroundColor Gray
+Write-Host "  WSL2, Git, GitHub CLI, Python 3, Flask, SQLAlchemy, paramiko, AWS CLI v2" -ForegroundColor Gray
 
 Write-Host "`nControl Node ($ControlNodeIP):" -ForegroundColor White
-Write-Host "  Ansible, Packer, Jenkins (port 8080), AWS CLI v2, Docker" -ForegroundColor Gray
+Write-Host "  Ansible, Packer, Terraform, Jenkins (port 8080), AWS CLI v2, Docker" -ForegroundColor Gray
 
 Write-Host "`nPersistent environment variables (available in all future PowerShell windows):" -ForegroundColor White
 Write-Host "  ANSIBLE_VAULT_PASSWORD_FILE = $env:USERPROFILE\.ansible_vault_pass" -ForegroundColor Gray
