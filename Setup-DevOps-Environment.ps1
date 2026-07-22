@@ -7,7 +7,7 @@
 .DESCRIPTION
     LOCAL  (this Bastion):  WSL2, Python 3, Flask, Git, GitHub CLI, AWS CLI v2, paramiko
     REMOTE (Control Node):  Jenkins, Ansible, Packer, Terraform, Docker
-    PERSISTENT:             ANSIBLE_VAULT_PASSWORD_FILE and TF_VAR_db_password set for all future sessions
+    PERSISTENT:             ANSIBLE_VAULT_PASSWORD_FILE and TF_VAR_db_password set on Bastion (User scope) and Control Node (/etc/environment)
 
 .NOTES
     Prerequisites:
@@ -531,7 +531,7 @@ Write-Host "    Step  9  -  Python 3 + pip      ~1 min" -ForegroundColor DarkGra
 Write-Host "    Step 10  -  Ansible             ~1-2 min   (large dependency tree)" -ForegroundColor DarkGray
 Write-Host "    Step 11  -  Packer              ~1-2 min   (HashiCorp binary)" -ForegroundColor DarkGray
 Write-Host "    Step 12  -  Java 21             ~1-3 min   (Amazon Corretto, ~200MB)" -ForegroundColor DarkGray
-Write-Host "    Step 13  -  Jenkins             ~2-4 min   (install + JVM startup)" -ForegroundColor DarkGray
+Write-Host "    Step 13  -  Jenkins             ~2-4 min   (install + JVM tuning + startup)" -ForegroundColor DarkGray
 Write-Host "    Step 14  -  AWS CLI             ~1 min" -ForegroundColor DarkGray
 Write-Host "    Step 15  -  Docker              ~1-2 min   (container builds in Module 5)" -ForegroundColor DarkGray
 Write-Host "    Step 16  -  Terraform           ~1-2 min   (CI/CD pipeline in Module 6)" -ForegroundColor DarkGray
@@ -648,6 +648,35 @@ else
 fi
 sudo systemctl status jenkins --no-pager | grep -E "Active:|Main PID:"
 echo "Jenkins: OK"
+'@
+
+# -- 13b. JVM tuning via systemd override (Amazon Linux 2023) ------------------
+# /etc/sysconfig/jenkins is NOT read on Amazon Linux 2023 - systemd override required
+Invoke-RemoteScript -Description "Jenkins JVM tuning (systemd override)" -Script @'
+echo "Applying JVM memory limits via systemd override..."
+sudo mkdir -p /etc/systemd/system/jenkins.service.d/
+sudo tee /etc/systemd/system/jenkins.service.d/override.conf > /dev/null << 'EOF'
+[Service]
+Environment="JAVA_OPTS=-Xmx512m -Xms256m"
+EOF
+sudo systemctl daemon-reload
+sudo systemctl restart jenkins
+echo "Waiting for Jenkins to restart..."
+sleep 10
+for i in $(seq 1 12); do
+    if curl -sf http://localhost:8080/login 2>/dev/null | grep -q "Jenkins"; then
+        echo "Jenkins restarted successfully"
+        break
+    fi
+    if [ $i -eq 12 ]; then
+        echo "WARN: Jenkins may still be starting after JVM tuning restart"
+    fi
+    sleep 5
+done
+# Verify JVM opts applied
+jvm_opts=$(sudo systemctl show jenkins | grep JAVA_OPTS)
+echo "JVM config: $jvm_opts"
+echo "$jvm_opts" | grep -q "Xmx512m" && echo "JVM tuning: OK" || echo "WARN: JVM tuning may not have applied"
 '@
 
 # -- 14. Open port 8080 for Bastion in firewalld (if running) -----------------
@@ -791,6 +820,26 @@ $dbPassword = "ProtectPass_123"
 $env:TF_VAR_db_password = $dbPassword
 Write-OK "TF_VAR_db_password set (User scope)  -  available in all future PowerShell windows"
 
+# -- Set TF_VAR_db_password on Control Node ------------------------------------
+# Jenkins runs terraform apply on the Control Node. Terraform needs
+# TF_VAR_db_password as an environment variable to supply var.db_password
+# without prompting interactively (which would hang the pipeline).
+# Written to /etc/environment so it is available to all users including jenkins.
+$b64EnvLine = [Convert]::ToBase64String(
+    [System.Text.Encoding]::UTF8.GetBytes(
+        "grep -q 'TF_VAR_db_password' /etc/environment || " +
+        "echo 'TF_VAR_db_password=ProtectPass_123' | sudo tee -a /etc/environment > /dev/null && " +
+        "echo 'TF_VAR_db_password set in /etc/environment'"
+    )
+)
+$remoteEnvOut = (ssh -i $SSHKeyPath `
+    -o StrictHostKeyChecking=no `
+    -o ConnectTimeout=10 `
+    -o LogLevel=ERROR `
+    "${SSHUser}@${ControlNodeIP}" `
+    "echo $b64EnvLine | base64 -d | bash") 2>$null
+Write-OK "TF_VAR_db_password set on Control Node (/etc/environment) for Jenkins pipeline"
+
 # =============================================================================
 # SUMMARY
 # =============================================================================
@@ -807,6 +856,7 @@ Write-Host "  Ansible, Packer, Terraform, Jenkins (port 8080), AWS CLI v2, Docke
 Write-Host "`nPersistent environment variables (available in all future PowerShell windows):" -ForegroundColor White
 Write-Host "  ANSIBLE_VAULT_PASSWORD_FILE = $env:USERPROFILE\.ansible_vault_pass" -ForegroundColor Gray
 Write-Host "  TF_VAR_db_password          = (set, not displayed)" -ForegroundColor Gray
+Write-Host "  Note: also set on Control Node in /etc/environment for Jenkins pipeline." -ForegroundColor Gray
 Write-Host "  Note: open a NEW PowerShell window to pick these up immediately." -ForegroundColor Yellow
 
 Write-Host "`nJenkins first-time setup:" -ForegroundColor Yellow
