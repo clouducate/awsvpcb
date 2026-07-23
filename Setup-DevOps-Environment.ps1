@@ -531,7 +531,7 @@ Write-Host "    Step  9  -  Python 3 + pip      ~1 min" -ForegroundColor DarkGra
 Write-Host "    Step 10  -  Ansible             ~1-2 min   (large dependency tree)" -ForegroundColor DarkGray
 Write-Host "    Step 11  -  Packer              ~1-2 min   (HashiCorp binary)" -ForegroundColor DarkGray
 Write-Host "    Step 12  -  Java 21             ~1-3 min   (Amazon Corretto, ~200MB)" -ForegroundColor DarkGray
-Write-Host "    Step 13  -  Jenkins             ~2-4 min   (install + JVM tuning + startup)" -ForegroundColor DarkGray
+Write-Host "    Step 13  -  Jenkins             ~4-6 min   (install + JVM + swap + executors + thresholds)" -ForegroundColor DarkGray
 Write-Host "    Step 14  -  AWS CLI             ~1 min" -ForegroundColor DarkGray
 Write-Host "    Step 15  -  Docker              ~1-2 min   (container builds in Module 5)" -ForegroundColor DarkGray
 Write-Host "    Step 16  -  Terraform           ~1-2 min   (CI/CD pipeline in Module 6)" -ForegroundColor DarkGray
@@ -658,6 +658,7 @@ sudo mkdir -p /etc/systemd/system/jenkins.service.d/
 sudo tee /etc/systemd/system/jenkins.service.d/override.conf > /dev/null << 'EOF'
 [Service]
 Environment="JAVA_OPTS=-Xmx512m -Xms256m"
+EnvironmentFile=/etc/environment
 EOF
 sudo systemctl daemon-reload
 sudo systemctl restart jenkins
@@ -678,6 +679,103 @@ jvm_opts=$(sudo systemctl show jenkins | grep JAVA_OPTS)
 echo "JVM config: $jvm_opts"
 echo "$jvm_opts" | grep -q "Xmx512m" && echo "JVM tuning: OK" || echo "WARN: JVM tuning may not have applied"
 '@
+
+# -- 13c. Swap file (2 GB) — prevents OOM kills during pipeline runs ----------
+# t3.small has 2 GB RAM and no swap by default. Packer + Terraform + Docker
+# running simultaneously can exceed 2 GB, causing the OOM killer to terminate
+# Jenkins mid-pipeline. A 2 GB swap file provides the headroom needed.
+Invoke-RemoteScript -Description "Swap file: create 2 GB (prevents OOM)" -Script @'
+if sudo swapon --show | grep -q /swapfile; then
+    echo "Swap file already active: $(free -h | grep Swap)"
+else
+    echo "Creating 2 GB swap file..."
+    sudo fallocate -l 2G /swapfile
+    sudo chmod 600 /swapfile
+    sudo mkswap /swapfile
+    sudo swapon /swapfile
+    # Persist across reboots
+    if ! grep -q '/swapfile' /etc/fstab; then
+        echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+    fi
+    echo "Swap: OK — $(free -h | grep Swap)"
+fi
+'@
+
+# -- 13d. Jenkins: set executors to 1 and /tmp threshold to 200 MiB -----------
+# Newer Jenkins defaults to 0 executors on the built-in node (forces agents).
+# For this course everything runs on the built-in node — set to 1.
+# The default /tmp threshold of 1 GiB takes the node offline (only ~950 MiB
+# free on /tmp on t3.small). Lower it to 200 MiB.
+Invoke-RemoteScript -Description "Jenkins: set executors=1 and /tmp threshold" -Script @'
+echo "Configuring Jenkins executors and disk threshold..."
+# Wait for Jenkins to be fully started before editing config
+for i in $(seq 1 12); do
+    if curl -sf http://localhost:8080/login 2>/dev/null | grep -q "Jenkins"; then
+        break
+    fi
+    sleep 5
+done
+# Set executors to 1 in config.xml
+sudo sed -i 's/<numExecutors>[0-9]*<\/numExecutors>/<numExecutors>1<\/numExecutors>/'     /var/lib/jenkins/config.xml
+echo "Executors set to 1"
+# Write nodeMonitors.xml with 200 MiB /tmp threshold
+sudo tee /var/lib/jenkins/nodeMonitors.xml > /dev/null << 'EOF'
+<?xml version='1.1' encoding='UTF-8'?>
+<hudson.util.DescribableList>
+  <hudson.node__monitors.ArchitectureMonitor>
+    <ignored>false</ignored>
+  </hudson.node__monitors.ArchitectureMonitor>
+  <hudson.node__monitors.ClockMonitor>
+    <ignored>false</ignored>
+  </hudson.node__monitors.ClockMonitor>
+  <hudson.node__monitors.DiskSpaceMonitor>
+    <ignored>false</ignored>
+    <freeSpaceThreshold>1GiB</freeSpaceThreshold>
+    <freeSpaceWarningThreshold>2GiB</freeSpaceWarningThreshold>
+  </hudson.node__monitors.DiskSpaceMonitor>
+  <hudson.node__monitors.SwapSpaceMonitor>
+    <ignored>false</ignored>
+  </hudson.node__monitors.SwapSpaceMonitor>
+  <hudson.node__monitors.TemporarySpaceMonitor>
+    <ignored>false</ignored>
+    <freeSpaceThreshold>200MiB</freeSpaceThreshold>
+    <freeSpaceWarningThreshold>500MiB</freeSpaceWarningThreshold>
+  </hudson.node__monitors.TemporarySpaceMonitor>
+  <hudson.node__monitors.ResponseTimeMonitor>
+    <ignored>false</ignored>
+  </hudson.node__monitors.ResponseTimeMonitor>
+</hudson.util.DescribableList>
+EOF
+echo "nodeMonitors.xml: /tmp threshold set to 200 MiB"
+# Restart Jenkins to apply config changes
+sudo systemctl restart jenkins
+sleep 10
+for i in $(seq 1 12); do
+    if curl -sf http://localhost:8080/login 2>/dev/null | grep -q "Jenkins"; then
+        echo "Jenkins restarted: OK"
+        break
+    fi
+    if [ $i -eq 12 ]; then
+        echo "WARN: Jenkins may still be starting"
+    fi
+    sleep 5
+done
+'@
+
+# -- 13e. chmod 755 on ec2-user home (Jenkins traversal) ----------------------
+# Jenkins runs as the jenkins user. Linux home directories default to 700
+# which prevents jenkins from traversing /home/ec2-user/ to reach the
+# NM-FSM-App repo and terraform state files.
+Invoke-RemoteScript -Description "chmod 755 /home/ec2-user (Jenkins traversal)" -Script @'
+current=$(stat -c "%a" /home/ec2-user)
+if [ "$current" = "755" ]; then
+    echo "/home/ec2-user already 755"
+else
+    chmod 755 /home/ec2-user
+    echo "/home/ec2-user: $current -> 755 (Jenkins can now traverse)"
+fi
+'@
+
 
 # -- 14. Open port 8080 for Bastion in firewalld (if running) -----------------
 Invoke-RemoteScript -Description "Firewall: allow port 8080 (Jenkins)" -Script @'
@@ -762,6 +860,13 @@ fi
 if ! groups ec2-user | grep -q docker; then
     sudo usermod -aG docker ec2-user
     echo "Added ec2-user to docker group (re-login required for group to take effect)"
+fi
+# Add jenkins to docker group so Jenkins pipeline can run docker build/push
+if ! groups jenkins 2>/dev/null | grep -q docker; then
+    sudo usermod -aG docker jenkins
+    echo "Added jenkins to docker group"
+else
+    echo "jenkins already in docker group"
 fi
 # Verify
 docker --version || { echo "FAIL: docker not callable after install"; exit 1; }
