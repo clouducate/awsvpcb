@@ -533,8 +533,9 @@ Write-Host "    Step 11  -  Packer              ~1-2 min   (HashiCorp binary)" -
 Write-Host "    Step 12  -  Java 21             ~1-3 min   (Amazon Corretto, ~200MB)" -ForegroundColor DarkGray
 Write-Host "    Step 13  -  Jenkins             ~4-6 min   (install + JVM + swap + executors + thresholds)" -ForegroundColor DarkGray
 Write-Host "    Step 14  -  AWS CLI             ~1 min" -ForegroundColor DarkGray
-Write-Host "    Step 15  -  Docker              ~1-2 min   (container builds in Module 5)" -ForegroundColor DarkGray
-Write-Host "    Step 16  -  Terraform           ~1-2 min   (CI/CD pipeline in Module 6)" -ForegroundColor DarkGray
+Write-Host "    Step 15  -  Terraform           ~1-2 min   (CI/CD pipeline in Module 6)" -ForegroundColor DarkGray
+Write-Host "    Step 16  -  Docker              ~1-2 min   (container builds in Module 5)" -ForegroundColor DarkGray
+Write-Host "    Step 17  -  pytest + Playwright + Checkov  ~3-5 min  (Module 7: DAST, IaC scan)" -ForegroundColor DarkGray
 Write-Host ""
 Write-Host "    The screen may appear frozen during downloads  -  this is normal." -ForegroundColor Yellow
 Write-Host "    Do NOT close this window." -ForegroundColor Yellow
@@ -801,8 +802,16 @@ if (-not $port8080After) {
 
 # -- 15. AWS CLI on Control Node -----------------------------------------------
 Invoke-RemoteScript -Description "AWS CLI v2 on Control Node" -Script @'
-if command -v aws &>/dev/null; then
-    echo "AWS CLI already installed: $(aws --version)"
+# Remove RPM-managed awscli v1 if present.
+# It lives at /usr/bin/aws and /usr/bin takes priority over /usr/local/bin.
+# v1 also depends on RPM-managed jmespath which pip installs can corrupt.
+# Removing v1 lets the manually-installed v2 at /usr/local/bin/aws own the command.
+if rpm -q awscli &>/dev/null; then
+    echo "Removing RPM awscli v1 (conflicts with v2 and pip-managed jmespath)..."
+    sudo dnf remove -y awscli -q
+fi
+if /usr/local/bin/aws --version &>/dev/null; then
+    echo "AWS CLI v2 already installed: $(/usr/local/bin/aws --version)"
 else
     curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o /tmp/awscliv2.zip
     if [ ! -f /tmp/awscliv2.zip ]; then
@@ -812,8 +821,8 @@ else
     sudo /tmp/aws/install
     rm -rf /tmp/awscliv2.zip /tmp/aws
 fi
-# Verify regardless of whether it was already installed
-aws --version || { echo "FAIL: aws not callable after install"; exit 1; }
+# Verify with explicit path — /usr/local/bin/aws is always v2
+/usr/local/bin/aws --version || { echo "FAIL: aws not callable after install"; exit 1; }
 # Verify Instance Role is working (no credentials needed)
 aws sts get-caller-identity --output text 2>/dev/null && \
     echo "AWS Instance Role: OK" || \
@@ -874,7 +883,89 @@ sudo systemctl is-active docker || { echo "FAIL: docker service not running"; ex
 echo "Docker: OK"
 '@
 
-# -- 18. Retrieve Jenkins initial admin password -------------------------------
+# -- 18. Testing tools: pytest, Playwright, Checkov, Flask runtime deps --------
+# Required for Module 7: DAST/SAST testing in the Jenkins pipeline.
+#   - pytest + plugins : test runner
+#   - playwright       : DAST browser automation (Chromium installed as jenkins user)
+#   - checkov          : IaC SAST scanner (standalone mode, no Prisma Cloud key needed)
+#   - Flask runtime    : lets the app run on the Control Node so DAST tests can hit it
+#
+# All installs are idempotent: pip skips packages already at the target version,
+# playwright install skips if Chromium is already present.
+Write-Host "    [~3-5 min] Installing Module 7 testing tools..." -ForegroundColor DarkGray
+Invoke-RemoteScript -Description "Module 7 testing tools (pytest, Playwright, Checkov, Flask runtime)" -Script @'
+set -e
+
+echo "=== pytest and plugins ==="
+sudo python3 -m pip install pytest pytest-env pytest-flask pytest-playwright -q
+python3 -m pytest --version
+
+echo "=== Playwright Python package ==="
+sudo python3 -m pip install playwright -q
+python3 -m playwright --version
+
+echo "=== Playwright system dependencies ==="
+# playwright install-deps only supports Debian/Ubuntu (uses apt-get).
+# On Amazon Linux 2023, install the RPM equivalents directly via dnf.
+if grep -q 'Amazon Linux' /etc/system-release 2>/dev/null; then
+    echo 'Amazon Linux detected -- installing Chromium system deps via dnf...'
+    sudo dnf install -y alsa-lib at-spi2-atk at-spi2-core atk cairo cups-libs gtk3 libX11 libXcomposite libXdamage libXext libXfixes libXrandr libXtst libdrm mesa-libgbm nss nspr pango libxkbcommon xdg-utils -q 2>/dev/null || true
+    echo 'Chromium system deps (dnf): OK'
+else
+    sudo python3 -m playwright install-deps chromium
+fi
+
+echo "=== Playwright Chromium browser (jenkins user) ==="
+# Browser binaries are stored per-user; must be installed as jenkins
+# so the Jenkins pipeline can find them at runtime.
+# playwright install is idempotent: skips download if already present.
+sudo -u jenkins python3 -m playwright install chromium
+echo "Playwright Chromium: OK"
+
+echo "=== Checkov ==="
+# Install Checkov in an isolated virtual environment so it never touches
+# system packages. Amazon Linux 2023 ships jmespath/requests via RPM;
+# pip --ignore-installed corrupts those and breaks the system AWS CLI.
+# A venv gives Checkov its own dependency tree with zero system impact.
+if [ ! -f /opt/checkov-env/bin/checkov ]; then
+    sudo python3 -m venv /opt/checkov-env
+    sudo /opt/checkov-env/bin/pip install checkov -q
+fi
+# Expose as a system-wide command
+sudo ln -sf /opt/checkov-env/bin/checkov /usr/local/bin/checkov
+checkov --version
+
+echo "=== Build dependencies for native Python packages ==="
+# cryptography and others compile C extensions and need gcc + dev headers
+sudo dnf install -y gcc libffi-devel openssl-devel python3-devel -q
+echo "Build deps: OK"
+
+echo "=== Flask app runtime dependencies (from requirements.txt) ==="
+# Clone the repo to a temp dir, install from requirements.txt, then remove.
+# This ensures the installed packages always match the repo, not a hardcoded list.
+REPO_URL="https://github.com/nmonfort577/NM-FSM-App.git"
+TMP_REPO=$(mktemp -d)
+git clone --depth 1 --quiet "$REPO_URL" "$TMP_REPO"
+if [ -f "$TMP_REPO/requirements.txt" ]; then
+    sudo python3 -m pip install -r "$TMP_REPO/requirements.txt" -q
+    echo "requirements.txt installed: OK"
+else
+    echo "WARN: requirements.txt not found in repo root -- falling back to known packages"
+    sudo python3 -m pip install Flask Flask-SQLAlchemy PyMySQL cryptography gunicorn python-dotenv -q
+fi
+rm -rf "$TMP_REPO"
+python3 -c "import flask, flask_sqlalchemy, pymysql, cryptography; print('Flask runtime deps: OK')"
+
+echo "=== FLASK_APP environment variable ==="
+# Set system-wide so Jenkins can run flask commands without extra env config.
+# Value 'app' assumes the entry point is app.py at the repo root.
+grep -q 'FLASK_APP' /etc/environment || echo 'FLASK_APP=app' | sudo tee -a /etc/environment > /dev/null
+echo 'FLASK_APP set in /etc/environment: OK'
+
+echo "=== Module 7 testing tools: ALL OK ==="
+'@
+
+# -- 19. Retrieve Jenkins initial admin password -------------------------------
 Write-Step "[REMOTE] Retrieving Jenkins initial admin password"
 $jenkinsPass = (ssh -i $SSHKeyPath `
                     -o StrictHostKeyChecking=no `
@@ -884,7 +975,7 @@ $jenkinsPass = (ssh -i $SSHKeyPath `
                     "sudo cat /var/lib/jenkins/secrets/initialAdminPassword 2>/dev/null || echo NOT_READY_YET") 2>$null
 $jenkinsPass = ($jenkinsPass -join "").Trim()
 
-# -- 19. Verify all remote installs --------------------------------------------
+# -- 20. Verify all remote installs --------------------------------------------
 Write-Step "[REMOTE] Verifying remote installations"
 Invoke-RemoteScript -Description "Version check" -Script @'
 echo "--- Remote Tool Versions ---"
@@ -899,7 +990,7 @@ echo "Docker    : $(docker --version)"
 '@
 
 # =============================================================================
-# 20. Set persistent environment variables
+# 21. Set persistent environment variables
 # =============================================================================
 # These are set once here and never need to be set again  -  they survive
 # reboots and are inherited by every PowerShell window the student opens.
@@ -957,6 +1048,7 @@ Write-Host "  WSL2, Git, GitHub CLI, Python 3, Flask, SQLAlchemy, paramiko, AWS 
 
 Write-Host "`nControl Node ($ControlNodeIP):" -ForegroundColor White
 Write-Host "  Ansible, Packer, Terraform, Jenkins (port 8080), AWS CLI v2, Docker" -ForegroundColor Gray
+Write-Host "  pytest, pytest-flask, pytest-playwright, Playwright (Chromium/jenkins), Checkov, Flask runtime deps" -ForegroundColor Gray
 
 Write-Host "`nPersistent environment variables (available in all future PowerShell windows):" -ForegroundColor White
 Write-Host "  ANSIBLE_VAULT_PASSWORD_FILE = $env:USERPROFILE\.ansible_vault_pass" -ForegroundColor Gray
