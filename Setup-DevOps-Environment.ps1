@@ -1,4 +1,4 @@
-#Requires -RunAsAdministrator
+﻿#Requires -RunAsAdministrator
 <#
 .SYNOPSIS
     CIS-4641 Cloud DevOps  -  Environment Setup Script
@@ -1036,6 +1036,37 @@ $remoteEnvOut = (ssh -i $SSHKeyPath `
     "echo $b64EnvLine | base64 -d | bash") 2>$null
 Write-OK "TF_VAR_db_password set on Control Node (/etc/environment) for Jenkins pipeline"
 
+# -- Ansible vault password file on Control Node --------------------------------
+# Ansible runs on the Control Node in two contexts: manually as ec2-user
+# (Module 2, when students create the vault with this same password) and via
+# Packer under the jenkins user (Module 6+ pipeline builds the Golden AMI and
+# must decrypt the vaulted DB password from group_vars). Both users need the
+# vault password file. The vault password is the course key passphrase - the
+# same one Assignment 2 instructs students to use when creating the vault.
+$vaultRemoteScript = @'
+set -e
+# ec2-user copy (Module 2 manual ansible-vault / ansible-playbook runs)
+if [ ! -f /home/ec2-user/.ansible_vault_pass ]; then
+  echo '__VAULTPASS__' > /home/ec2-user/.ansible_vault_pass
+fi
+chmod 400 /home/ec2-user/.ansible_vault_pass
+# system-wide env var so login shells find it automatically (idempotent)
+grep -q 'ANSIBLE_VAULT_PASSWORD_FILE' /etc/environment || \
+  echo 'ANSIBLE_VAULT_PASSWORD_FILE=/home/ec2-user/.ansible_vault_pass' | \
+  sudo tee -a /etc/environment > /dev/null
+# jenkins copy (jenkins was installed earlier in this script)
+if id jenkins > /dev/null 2>&1; then
+  sudo install -o jenkins -g jenkins -m 400 \
+    /home/ec2-user/.ansible_vault_pass /var/lib/jenkins/.ansible_vault_pass
+  echo "vault password file installed for jenkins"
+else
+  echo "WARNING: jenkins user not found - jenkins vault file NOT created"
+fi
+echo "Ansible vault password file: OK"
+'@
+$vaultRemoteScript = $vaultRemoteScript.Replace('__VAULTPASS__', $KeyPassphrase)
+Invoke-RemoteScript -Description "Ansible vault password file (ec2-user + jenkins)" -Script $vaultRemoteScript
+
 # =============================================================================
 # SUMMARY
 # =============================================================================
@@ -1054,6 +1085,8 @@ Write-Host "`nPersistent environment variables (available in all future PowerShe
 Write-Host "  ANSIBLE_VAULT_PASSWORD_FILE = $env:USERPROFILE\.ansible_vault_pass" -ForegroundColor Gray
 Write-Host "  TF_VAR_db_password          = (set, not displayed)" -ForegroundColor Gray
 Write-Host "  Note: also set on Control Node in /etc/environment for Jenkins pipeline." -ForegroundColor Gray
+Write-Host "  Note: vault password file installed on Control Node for ec2-user and jenkins" -ForegroundColor Gray
+Write-Host "        (/home/ec2-user/.ansible_vault_pass and /var/lib/jenkins/.ansible_vault_pass)." -ForegroundColor Gray
 Write-Host "  Note: open a NEW PowerShell window to pick these up immediately." -ForegroundColor Yellow
 
 Write-Host "`nJenkins first-time setup:" -ForegroundColor Yellow
