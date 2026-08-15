@@ -1,4 +1,4 @@
-﻿#Requires -RunAsAdministrator
+#Requires -RunAsAdministrator
 <#
 .SYNOPSIS
     CIS-4641 Cloud DevOps  -  Environment Setup Script
@@ -90,14 +90,52 @@ function Confirm-Install {
     }
 }
 
+# -- Bootstrap: Chocolatey + Python 3 + cryptography (must run before SSH key strip) -----
+# The SSH key stripping below requires Python's cryptography library.
+# Chocolatey and Python are therefore bootstrapped here, ahead of PART 1, so this
+# dependency is always satisfied regardless of which reboot path the script takes.
+# Both step 1 (Chocolatey) and step 4 (Python) in PART 1 are idempotent and will
+# skip gracefully because their Test-Command guards will already be satisfied.
+
+Write-Step "Bootstrap — Chocolatey package manager"
+if (Test-Command "choco") {
+    Write-OK "Chocolatey already installed: $(choco --version)"
+} else {
+    Set-ExecutionPolicy Bypass -Scope Process -Force
+    [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
+    Invoke-Expression ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
+    $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" +
+                [System.Environment]::GetEnvironmentVariable("Path", "User")
+    Confirm-Install "choco" { choco --version } "Check https://chocolatey.org/install for troubleshooting."
+}
+
+Write-Step "Bootstrap — Python 3"
+if (Test-Command "python") {
+    Write-OK "Python already installed: $(python --version)"
+} else {
+    choco install python3 -y --no-progress --params "'/AddToPath=1'"
+    Confirm-Install "python" { python --version } "Try reopening PowerShell as Administrator."
+    Confirm-Install "pip"    { python -m pip --version } "pip should be bundled with Python 3.4+."
+}
+
+Write-Step "Bootstrap — cryptography package (for SSH key passphrase removal)"
+$cryptoVer = python -c "import cryptography; print(cryptography.__version__)" 2>&1
+if ($LASTEXITCODE -eq 0) {
+    Write-OK "cryptography already installed: $cryptoVer"
+} else {
+    python -m pip install cryptography --quiet
+    if ($LASTEXITCODE -ne 0) { Write-Fail "pip install cryptography failed. Check Python and internet connectivity." }
+    Write-OK "cryptography installed"
+}
+
 # -- Verify SSH key exists and create unencrypted working copy ----------------
 if (-not (Test-Path $SSHKeyPath)) {
     Write-Fail "SSH key not found at '$SSHKeyPath'. Check that the professor setup script has run."
 }
 
 # privkey.pem is passphrase-protected. Create an unencrypted working copy
-# (privkey-nopass.pem) using Python's cryptography library which is already
-# installed for paramiko. The original privkey.pem is never modified.
+# (privkey-nopass.pem) using Python's cryptography library, bootstrapped above.
+# The original privkey.pem is never modified.
 Write-Step "Creating unencrypted SSH key for non-interactive use"
 $noPassPath = $SSHKeyPath -replace "\.pem$", "-nopass.pem"
 $pyScript   = "$env:TEMP\pem_strip_pass.py"
