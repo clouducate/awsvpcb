@@ -90,12 +90,18 @@ function Confirm-Install {
     }
 }
 
+# =============================================================================
+# PART 1  -  LOCAL INSTALLS (Windows Bastion)
+# =============================================================================
+Write-Host "`n+==========================================+" -ForegroundColor Magenta
+Write-Host   "|  PART 1  -  Local Bastion Setup            |" -ForegroundColor Magenta
+Write-Host   "+==========================================+" -ForegroundColor Magenta
+
 # -- Bootstrap: Chocolatey + Python 3 + cryptography (must run before SSH key strip) -----
 # The SSH key stripping below requires Python's cryptography library.
-# Chocolatey and Python are therefore bootstrapped here, ahead of PART 1, so this
-# dependency is always satisfied regardless of which reboot path the script takes.
-# Both step 1 (Chocolatey) and step 4 (Python) in PART 1 are idempotent and will
-# skip gracefully because their Test-Command guards will already be satisfied.
+# Chocolatey and Python are installed here, once, before any SSH operations.
+# All remaining PART 1 steps (Git, GitHub CLI, Flask, AWS CLI) depend on
+# Chocolatey and Python already being present.
 
 Write-Step "Bootstrap - Chocolatey package manager"
 if (Test-Command "choco") {
@@ -202,13 +208,6 @@ function Invoke-RemoteScript {
     Write-OK "Done: $Description (${mins}m ${secs}s)"
 }
 
-# =============================================================================
-# PART 1  -  LOCAL INSTALLS (Windows Bastion)
-# =============================================================================
-Write-Host "`n+==========================================+" -ForegroundColor Magenta
-Write-Host   "|  PART 1  -  Local Bastion Setup            |" -ForegroundColor Magenta
-Write-Host   "+==========================================+" -ForegroundColor Magenta
-
 # -- 0. WSL2  -  must run before all other installs; requires a reboot -----------
 # WSL2 is required by Docker Desktop. We check if it is already enabled first
 # so this step is safe to skip on re-runs after the reboot.
@@ -293,60 +292,6 @@ if (Get-ItemProperty -Path $regPath -Name "DevOpsSetupResume" -ErrorAction Silen
     Write-OK "Auto-resume registry key removed"
 }
 
-# -- 1. Chocolatey (package manager) ------------------------------------------
-Write-Step "Installing Chocolatey package manager"
-if (Test-Command "choco") {
-    Write-OK "Chocolatey already installed: $(choco --version)"
-} else {
-    Set-ExecutionPolicy Bypass -Scope Process -Force
-    [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
-    Invoke-Expression ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
-
-    # Reload PATH so choco is visible immediately
-    $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" +
-                [System.Environment]::GetEnvironmentVariable("Path", "User")
-
-    # Check if .NET 4.8 was just installed and needs a reboot before choco works
-    $dotNetPending = $false
-    $rebootPending = Get-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Component Based Servicing" `
-                                      -Name "RebootPending" -ErrorAction SilentlyContinue
-    $dotNetKey     = Get-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full" `
-                                      -Name "Release" -ErrorAction SilentlyContinue
-    if (-not $dotNetKey -or $dotNetKey.Release -lt 528040) {
-        $dotNetPending = $true
-    }
-
-    if ($dotNetPending -or $rebootPending) {
-        Write-Host ""
-        Write-Host "    ============================================================" -ForegroundColor Yellow
-        Write-Host "    REBOOT REQUIRED  -  .NET Framework was just installed"        -ForegroundColor Yellow
-        Write-Host "    ============================================================" -ForegroundColor Yellow
-        Write-Host "    Chocolatey requires .NET 4.8 which was just installed."       -ForegroundColor Yellow
-        Write-Host "    A reboot is needed before the remaining tools can install."   -ForegroundColor Yellow
-        Write-Host "    This script will RESUME AUTOMATICALLY after you log back in." -ForegroundColor Yellow
-        Write-Host "    You do NOT need to run it again manually."                    -ForegroundColor Yellow
-        Write-Host ""
-
-        $scriptPath = $MyInvocation.MyCommand.Path
-        if (-not $scriptPath) {
-            $scriptPath = Join-Path (Get-Location).Path "Setup-DevOps-Environment.ps1"
-        }
-        $scriptPath = (Resolve-Path $scriptPath).Path
-        $regPath    = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run"
-        Set-ItemProperty -Path $regPath -Name "DevOpsSetupResume" `
-                         -Value "powershell.exe -NoExit -WindowStyle Normal -NoProfile -ExecutionPolicy Bypass -File `"$scriptPath`""
-        Write-OK "Script will resume automatically after reboot from: $scriptPath"
-
-        Write-Warn "Rebooting in 15 seconds  -  press Ctrl+C to cancel."
-        Start-Sleep -Seconds 15
-        Stop-Transcript | Out-Null
-        Restart-Computer -Force
-        exit
-    }
-
-    Confirm-Install "choco" { choco --version } "Check https://chocolatey.org/install for troubleshooting."
-}
-
 # -- 2. Git --------------------------------------------------------------------
 Write-Step "Installing Git"
 if (Test-Command "git") {
@@ -365,16 +310,6 @@ if (Test-Command "gh") {
 } else {
     choco install gh -y --no-progress
     Confirm-Install "gh" { gh --version } "Try reopening PowerShell as Administrator."
-}
-
-# -- 4. Python 3 ---------------------------------------------------------------
-Write-Step "Installing Python 3"
-if (Test-Command "python") {
-    Write-OK "Python already installed: $(python --version)"
-} else {
-    choco install python3 -y --no-progress --params "'/AddToPath=1'"
-    Confirm-Install "python" { python --version } "Try reopening PowerShell as Administrator."
-    Confirm-Install "pip" { python -m pip --version } "pip should be bundled with Python 3.4+."
 }
 
 # -- 5. Flask + SQLAlchemy + paramiko (course dependencies) -------------------
