@@ -119,14 +119,11 @@ if (Test-Command "python") {
 }
 
 Write-Step "Bootstrap - cryptography package (for SSH key passphrase removal)"
-$cryptoVer = python -c "import cryptography; print(cryptography.__version__)" 2>&1
-if ($LASTEXITCODE -eq 0) {
-    Write-OK "cryptography already installed: $cryptoVer"
-} else {
-    python -m pip install cryptography --quiet
-    if ($LASTEXITCODE -ne 0) { Write-Fail "pip install cryptography failed. Check Python and internet connectivity." }
-    Write-OK "cryptography installed"
-}
+# pip install is idempotent: prints "already satisfied" if present, installs if not.
+# Avoids a python -c check that triggers $ErrorActionPreference=Stop on stderr.
+python -m pip install cryptography --quiet
+if ($LASTEXITCODE -ne 0) { Write-Fail "pip install cryptography failed. Check Python and internet connectivity." }
+Write-OK "cryptography package ready"
 
 # -- Verify SSH key exists and create unencrypted working copy ----------------
 if (-not (Test-Path $SSHKeyPath)) {
