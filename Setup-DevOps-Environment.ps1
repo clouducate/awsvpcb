@@ -1,4 +1,4 @@
-#Requires -RunAsAdministrator
+﻿#Requires -RunAsAdministrator
 <#
 .SYNOPSIS
     CIS-4641 Cloud DevOps  -  Environment Setup Script
@@ -97,7 +97,7 @@ function Confirm-Install {
 # Both step 1 (Chocolatey) and step 4 (Python) in PART 1 are idempotent and will
 # skip gracefully because their Test-Command guards will already be satisfied.
 
-Write-Step "Bootstrap — Chocolatey package manager"
+Write-Step "Bootstrap - Chocolatey package manager"
 if (Test-Command "choco") {
     Write-OK "Chocolatey already installed: $(choco --version)"
 } else {
@@ -109,7 +109,7 @@ if (Test-Command "choco") {
     Confirm-Install "choco" { choco --version } "Check https://chocolatey.org/install for troubleshooting."
 }
 
-Write-Step "Bootstrap — Python 3"
+Write-Step "Bootstrap - Python 3"
 if (Test-Command "python") {
     Write-OK "Python already installed: $(python --version)"
 } else {
@@ -118,7 +118,7 @@ if (Test-Command "python") {
     Confirm-Install "pip"    { python -m pip --version } "pip should be bundled with Python 3.4+."
 }
 
-Write-Step "Bootstrap — cryptography package (for SSH key passphrase removal)"
+Write-Step "Bootstrap - cryptography package (for SSH key passphrase removal)"
 $cryptoVer = python -c "import cryptography; print(cryptography.__version__)" 2>&1
 if ($LASTEXITCODE -eq 0) {
     Write-OK "cryptography already installed: $cryptoVer"
