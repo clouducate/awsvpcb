@@ -1,0 +1,91 @@
+#!/bin/bash
+# This script removes the Azure resources created by azurevpcb-setup for this professor.
+# It does NOT touch anything local - no software is uninstalled, no local files other
+# than this script's own tiny temp files are removed. Azure-side resources only.
+#
+# Everything azurevpcb-setup creates (storage account, blob container, function app,
+# managed identity, role assignments, action group, metric alert) lives inside the
+# single resource group "VPCBPermanent", so cleanup is just: confirm it's really there,
+# show what's in it, and delete the resource group - Azure cascades the deletion to
+# everything inside it in one atomic operation. There's no need to delete each resource
+# individually or in a particular order.
+#
+# Not touched by this script (deliberately):
+#   - The Microsoft.Web / Microsoft.Storage provider REGISTRATIONS on the subscription.
+#     Registration is a harmless, no-cost, subscription-wide setting - not a resource,
+#     and other things on the same subscription could depend on it already being set.
+#   - Your entry in the central admin's student-facing config registry, if you opted in
+#     to AZUREVPCB_REGISTRY_ADD=Y during setup. That entry lives in the CENTRAL ADMIN's
+#     storage account, not yours, and there's no delete endpoint exposed for it - only
+#     the central admin can remove it, manually, on their own end.
+
+echo $(date) "Starting script azurevpcb-cleanup" >> azurevpcb-cleanup.log
+
+if ! command -v az > /dev/null 2>&1; then
+   echo $(date) "Azure CLI not found on this machine - nothing for this script to do." | tee -a azurevpcb-cleanup.log
+   exit 1
+fi
+
+# "az account show" only reads the local cached profile and can report "logged in" even
+# when the session has actually expired - "az account get-access-token" forces a real
+# check against Azure AD. Same fix as azurevpcb-setup, same reason.
+az account get-access-token > UID_good.temp 2> UID_bad.temp
+echo $(date) "Standard out of az account get-access-token is as follows:" >> azurevpcb-cleanup.log
+cat  UID_good.temp >> azurevpcb-cleanup.log
+echo $(date) "Standard error of az account get-access-token is as follows:" >> azurevpcb-cleanup.log
+cat UID_bad.temp >> azurevpcb-cleanup.log
+if [ -s UID_bad.temp ]; then
+   echo $(date) "Not logged in, or your session has expired, initiating AZ Login" | tee -a azurevpcb-cleanup.log
+   az login | tee -a azurevpcb-cleanup.log
+   az account get-access-token > UID_good.temp 2> UID_bad.temp
+   echo $(date) "Standard out of az account get-access-token is as follows:" >> azurevpcb-cleanup.log
+   cat  UID_good.temp >> azurevpcb-cleanup.log
+   echo $(date) "Standard error of az account get-access-token is as follows:" >> azurevpcb-cleanup.log
+   cat UID_bad.temp >> azurevpcb-cleanup.log
+   if [ -s UID_bad.temp ]; then
+      echo $(date) "Login failed - please check previous messages and contact nmonfort@fiu.edu for help" | tee -a azurevpcb-cleanup.log
+      exit 1
+   fi
+else
+   echo $(date) "User already logged in, moving on..." | tee -a azurevpcb-cleanup.log
+fi
+
+az account show > UID_good.temp 2> UID_bad.temp
+AZ_UID=`grep name UID_good.temp | grep "@" | cut -d "\"" -f4`
+echo $(date) "The account logged in is $AZ_UID" | tee -a azurevpcb-cleanup.log
+rm UID_*.temp
+
+az account set --subscription "Azure for Students" >> azurevpcb-cleanup.log 2>&1
+
+echo $(date) "Checking for the VPCBPermanent resource group..." | tee -a azurevpcb-cleanup.log
+az group show --name VPCBPermanent --subscription "Azure for Students" > RG_good.temp 2> RG_bad.temp
+if [ ! -s RG_good.temp ]; then
+   echo $(date) "VPCBPermanent does not exist under this account - nothing to clean up." | tee -a azurevpcb-cleanup.log
+   rm -f RG_*.temp
+   exit 0
+fi
+rm -f RG_*.temp
+
+echo
+echo "The following will be PERMANENTLY DELETED (this cannot be undone):"
+echo
+az resource list --resource-group VPCBPermanent --subscription "Azure for Students" --query "[].{Name:name, Type:type}" -o table
+echo
+az resource list --resource-group VPCBPermanent --subscription "Azure for Students" --query "[].{Name:name, Type:type}" -o table >> azurevpcb-cleanup.log
+
+read -p "Type DELETE (all caps) to permanently remove the VPCBPermanent resource group and everything listed above: " confirm
+if [ "$confirm" != "DELETE" ]; then
+   echo $(date) "Confirmation not given - exiting without deleting anything." | tee -a azurevpcb-cleanup.log
+   exit 0
+fi
+
+echo $(date) "Deleting resource group VPCBPermanent - this can take several minutes..." | tee -a azurevpcb-cleanup.log
+az group delete --name VPCBPermanent --subscription "Azure for Students" --yes
+if [ $? -eq 0 ]; then
+   echo $(date) "VPCBPermanent and everything in it has been deleted." | tee -a azurevpcb-cleanup.log
+else
+   echo $(date) "az group delete reported an error - check the output above and azurevpcb-cleanup.log." | tee -a azurevpcb-cleanup.log
+   exit 1
+fi
+
+echo $(date) "azurevpcb-cleanup Completed!" | tee -a azurevpcb-cleanup.log

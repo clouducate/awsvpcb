@@ -5,7 +5,17 @@
 echo $(date) "Starting script azurevpcb-setup" >> azurevpcb-setup.log
 
 # Defining preferred Azure region list for retries
-Region_List="eastus2 westus2 centralus northcentralus westus westus3 eastus eastus3 westcentralus southcentralus"
+Region_List="eastus2 eastus eastus3 westus westus2 westus3 centralus northcentralus southcentralus westcentralus canadacentral canadaeast mexicocentral"
+
+# Pulls the exact list of regions Azure Policy allows out of a RequestDisallowedByPolicy
+# error message, e.g.:
+#   Reasons: 'You can create resources in the following regions mexicocentral, centralus,
+#   westus3, eastus, northcentralus only. ...'
+# Prints a space-delimited region list to stdout, or nothing if the error text doesn't
+# match that format (caller keeps using the broad NA fallback list in that case).
+parse_allowed_regions() {
+   grep -oE "following regions [a-z0-9, ]+ only" "$1" 2>/dev/null | sed -E 's/^following regions //; s/ only$//' | tr -d ',' | head -1
+}
 
 # Adding pre-requisites and Azure CLI
 echo $(date) "Updating packages and installing prerequisites..." | tee -a azurevpcb-setup.log
@@ -19,7 +29,12 @@ sudo mkdir -p /etc/apt/keyrings
 curl -sLS https://packages.microsoft.com/keys/microsoft.asc |
   gpg --dearmor | sudo tee /etc/apt/keyrings/microsoft.gpg > /dev/null
 sudo chmod go+r /etc/apt/keyrings/microsoft.gpg
-AZ_DIST=$(lsb_release -cs)
+# Microsoft's azure-cli apt repo lags behind the newest Ubuntu LTS release by months, so a
+# freshly-released host codename (e.g. resolute/26.04) often has no matching Release file
+# there yet, even though Ubuntu's own archives already support it fine. The azure-cli .deb
+# itself isn't tied to the host's exact suite, so we pin this repo to a codename Microsoft
+# is known to publish rather than trusting whatever the host reports.
+AZ_DIST=noble
 echo "Types: deb
 URIs: https://packages.microsoft.com/repos/azure-cli/
 Suites: ${AZ_DIST}
@@ -28,7 +43,9 @@ Architectures: $(dpkg --print-architecture)
 Signed-by: /etc/apt/keyrings/microsoft.gpg" | sudo tee /etc/apt/sources.list.d/azure-cli.sources >> azurevpcb-setup.log 2>&1
 
 echo $(date) "Installing Latest Azure CLI version..." | tee -a azurevpcb-setup.log
-sudo apt-get install --only-upgrade -y azure-cli >> azurevpcb-setup.log 2>&1
+# Plain "install" (not --only-upgrade) both installs it fresh if missing and upgrades it
+# to the latest available version if it's already present - covers both cases in one line.
+sudo apt-get install -y azure-cli >> azurevpcb-setup.log 2>&1
 
 # Verify whether the AWS CLI is installed or not
 az --version > azcliout.temp 2> azclierror.temp
@@ -60,18 +77,23 @@ rm azcli*.temp
 
 
 # Create credentials, if needed
-az account show > UID_good.temp 2> UID_bad.temp 
-echo $(date) "Standard out of az account show is as follows:" >> azurevpcb-setup.log
+# "az account show" only reads the local cached profile - it does NOT verify the refresh
+# token is still valid, so it happily reports "logged in" even when the session has
+# actually expired (e.g. after 90 days of inactivity, or a stale profile under a
+# different user/subscription). "az account get-access-token" forces a real check
+# against Azure AD, so use that to decide whether a fresh login is actually needed.
+az account get-access-token > UID_good.temp 2> UID_bad.temp
+echo $(date) "Standard out of az account get-access-token is as follows:" >> azurevpcb-setup.log
 cat  UID_good.temp >> azurevpcb-setup.log
-echo $(date) "Standard error of az account show is as follows:" >> azurevpcb-setup.log
+echo $(date) "Standard error of az account get-access-token is as follows:" >> azurevpcb-setup.log
 cat UID_bad.temp >> azurevpcb-setup.log
 if [ -s UID_bad.temp ]; then
-   echo $(date) "User not logged in, initiating AZ Login" | tee -a azurevpcb-setup.log
+   echo $(date) "Not logged in, or your session has expired, initiating AZ Login" | tee -a azurevpcb-setup.log
    az login | tee -a azurevpcb-setup.log
-   az account show > UID_good.temp 2> UID_bad.temp 
-   echo $(date) "Standard out of az account show is as follows:" >> azurevpcb-setup.log
+   az account get-access-token > UID_good.temp 2> UID_bad.temp
+   echo $(date) "Standard out of az account get-access-token is as follows:" >> azurevpcb-setup.log
    cat  UID_good.temp >> azurevpcb-setup.log
-   echo $(date) "Standard error of az account show is as follows:" >> azurevpcb-setup.log
+   echo $(date) "Standard error of az account get-access-token is as follows:" >> azurevpcb-setup.log
    cat UID_bad.temp >> azurevpcb-setup.log
    if [ -s UID_bad.temp ]; then
       echo $(date) "User failed to login, ending script - please check previous messages and contact nmonfort@fiu.edu for help" | tee -a azurevpcb-setup.log
@@ -82,17 +104,125 @@ else
    echo $(date) "User already logged in, moving on..." | tee -a azurevpcb-setup.log
 fi
 
+az account show > UID_good.temp 2> UID_bad.temp
+echo $(date) "Standard out of az account show is as follows:" >> azurevpcb-setup.log
+cat  UID_good.temp >> azurevpcb-setup.log
+echo $(date) "Standard error of az account show is as follows:" >> azurevpcb-setup.log
+cat UID_bad.temp >> azurevpcb-setup.log
+
 AZ_UID=`grep name UID_good.temp | grep "@" | cut -d "\"" -f4`
 echo $(date) "The account logged in is $AZ_UID" | tee -a azurevpcb-setup.log
 rm UID_*.temp
 
+# A personal Microsoft account (hotmail/outlook/live, etc.) shows up in az account show as
+# a plain email, but Azure AD actually represents it internally with a mangled "external
+# guest" UPN like "name_domain.com#EXT#@tenant.onmicrosoft.com" - even inside its own
+# auto-created tenant. Role-assignment calls that look the account up by email fail with
+# "Cannot find user or service principal in graph database" as a result. The object ID is
+# stable regardless of UPN format, so resolve that once here and use it everywhere below
+# instead of looking the account up by email again.
+AZ_UID_OBJECT_ID=$(az ad signed-in-user show --query id -o tsv 2>>azurevpcb-setup.log)
+
+# "az login" can land on whichever subscription Azure treats as default for the tenant,
+# which is not necessarily "Azure for Students" (e.g. if the account has access to
+# other FIU subscriptions too). Every az call below is supposed to pin --subscription
+# explicitly, but pinning the CLI's own default here too means a call that forgets it
+# still lands on the right subscription instead of silently acting on the wrong one.
+az account set --subscription "Azure for Students" >> azurevpcb-setup.log 2>&1
+
 # Create for VPCBPermanent resource group
+CREATED=0
+REGIONS_NARROWED=0
 echo $(date) "Creating VPCBPermanent resource group, if it does not exist..." | tee -a azurevpcb-setup.log
-az group create --name VPCBPermanent --location eastus2 --subscription "Azure for Students" >> azurevpcb-setup.log
+while true; do
+	NARROWED_THIS_PASS=0
+	for region in $Region_List; do
+		 #az group create --name VPCBPermanent --location eastus2 --subscription "Azure for Students" >> azurevpcb-setup.log
+		 az group create --name VPCBPermanent --location $region --subscription "Azure for Students"  > STG_good.temp 2> STG_bad.temp
+		 # A subscription that "az login" just listed can still come back as SubscriptionNotFound
+		 # on this call. If that happens, it isn't a per-region problem retrying regions would fix,
+		 # and it isn't reliably transient either - stop and say so plainly instead of grinding.
+		 SubscriptionNotFound=`grep "SubscriptionNotFound" STG_bad.temp | wc -l`
+		 if [ $SubscriptionNotFound -ge 1 ]; then
+			 echo $(date) "Azure reports the 'Azure for Students' subscription does not exist (SubscriptionNotFound), even though it was listed at login." | tee -a azurevpcb-setup.log
+			 echo $(date) "This is not a script problem - check portal.azure.com under Subscriptions for a pending activation/verification step on that subscription, then rerun." | tee -a azurevpcb-setup.log
+			 echo $(date) "Exiting script..." | tee -a azurevpcb-setup.log
+			 exit 1
+		 fi
+		 echo $(date) "Standard out of az resource group create is as follows:" >> azurevpcb-setup.log
+		 cat  STG_good.temp >> azurevpcb-setup.log
+
+		 if [ -s STG_bad.temp ]; then
+			echo $(date) "Standard error of az resource group create is as follows:" >> azurevpcb-setup.log
+			cat STG_bad.temp >> azurevpcb-setup.log
+
+			# Possible errors
+			PolicyDisallowed=`grep "RequestDisallowedByPolicy" STG_bad.temp | wc -l`
+			AlreadyExists=`grep "InvalidResourceGroupLocation" STG_bad.temp | wc -l`
+			if [ $AlreadyExists -ge 1 ]; then
+				echo $(date) "Resource group exists in region $region. Proceeding..." | tee -a azurevpcb-setup.log
+				CREATED=1
+				break
+			elif [ $PolicyDisallowed -ge 1 ]; then
+				echo $(date) "Not allowed to create resource group in region $region. Trying the next one..." | tee -a azurevpcb-setup.log
+				# The policy error tells us exactly which regions this subscription is allowed to
+				# use - the first time we see it, switch to that exact list immediately instead of
+				# wasting time working through the rest of the broad NA fallback list.
+				if [ $REGIONS_NARROWED -eq 0 ]; then
+					ALLOWED_REGIONS=$(parse_allowed_regions STG_bad.temp)
+					if [ -n "$ALLOWED_REGIONS" ]; then
+						echo $(date) "Azure Policy restricts this subscription to region(s): $ALLOWED_REGIONS. Focusing retries there..." | tee -a azurevpcb-setup.log
+						Region_List="$ALLOWED_REGIONS"
+						REGIONS_NARROWED=1
+						NARROWED_THIS_PASS=1
+						break
+					fi
+				fi
+				continue
+			else
+				echo $(date) "Unknown error trying to create resource group in region $region." | tee -a azurevpcb-setup.log
+				echo $(date) "Review log and contact nmonfort@fiu.edu for help" | tee -a azurevpcb-setup.log
+				echo $(date) "Exiting script..." | tee -a azurevpcb-setup.log
+				#exit 1
+				break
+			fi
+		else
+			echo $(date) "Successfully created VPCBPermanent resource group or it was already present in region $region..." | tee -a azurevpcb-setup.log
+			CREATED=1
+			break
+		fi
+	done
+
+	if [ $CREATED -eq 1 ]; then
+		break
+	fi
+	if [ $NARROWED_THIS_PASS -eq 1 ]; then
+		continue
+	fi
+	break
+done
+
+rm STG_*.temp
+
+if [ $CREATED -eq 0 ]; then
+	exit 1
+fi
+
+# On an established subscription, Azure auto-registers a resource provider the first
+# time it's used. On a genuinely brand-new subscription that auto-registration doesn't
+# reliably happen before this next call needs it, and the resulting failure shows up as
+# a confusing SubscriptionNotFound rather than an obvious "provider not registered"
+# error. Register explicitly and wait for it to actually finish before proceeding.
+echo $(date) "Ensuring the Microsoft.Storage provider is registered..." | tee -a azurevpcb-setup.log
+az provider register --namespace Microsoft.Storage --subscription "Azure for Students" --wait >> azurevpcb-setup.log 2>&1
 
 # Try to create uniquely named Storage Account (vpcbperm + email prefix (first 13 chars) + email domain (first 3 chars)) in whichever region works
-NAME_PART=$(echo "$AZ_UID" | cut -d '@' -f 1)
-DOMAIN_PART=$(echo "$AZ_UID" | cut -d '@' -f 2 | cut -d '.' -f 1)
+# Storage account (and container/function app) names only allow lowercase letters and
+# digits, but email local-parts commonly contain underscores, dots, or plus-signs (e.g.
+# the_monforts@hotmail.com, first.last@..., first+tag@...) - strip anything that isn't
+# a-z0-9 so those don't produce an invalid name.
+NAME_PART=$(echo "$AZ_UID" | cut -d '@' -f 1 | tr '[:upper:]' '[:lower:]' | tr -cd 'a-z0-9')
+DOMAIN_PART=$(echo "$AZ_UID" | cut -d '@' -f 2 | cut -d '.' -f 1 | tr '[:upper:]' '[:lower:]' | tr -cd 'a-z0-9')
 TRUNCATED_NAME=${NAME_PART:0:13}
 TRUNCATED_DOMAIN=${DOMAIN_PART:0:3}
 STG_NAME="vpcbperm${TRUNCATED_NAME}${TRUNCATED_DOMAIN}"
@@ -104,36 +234,77 @@ cat STG_bad.temp >> azurevpcb-setup.log
 if [ -s STG_good.temp ]; then
    echo $(date) "Storage Account $STG_NAME already exists in the proper resource group.  Moving on..." | tee -a azurevpcb-setup.log
 else
-   for region in $Region_List; do
-      echo $(date) "Attempting to create Storage Account $STG_NAME in region $region..." | tee -a azurevpcb-setup.log
-      az storage account create --name $STG_NAME --resource-group VPCBPermanent --location $region --subscription "Azure for Students" > STG_good.temp 2> STG_bad.temp 
-      echo $(date) "Standard out of az storage account create is as follows:" >> azurevpcb-setup.log
-      cat  STG_good.temp >> azurevpcb-setup.log
-      echo $(date) "Standard error of az storage account create is as follows:" >> azurevpcb-setup.log
-      cat STG_bad.temp >> azurevpcb-setup.log
-      if [ -s STG_bad.temp ]; then
-         Name_conflict=`grep StorageAccountAlreadyTaken STG_bad.temp | wc -l`
-         Restricted=`grep "have sufficient access" STG_bad.temp | wc -l`
-         Restricted2=`grep "have authorization" STG_bad.temp | wc -l`
-         Limited=`grep "have resources available" STG_bad.temp | wc -l`
-         if [ $Name_conflict -ge 1 ]; then
-            echo $(date) "The name $STG_NAME already in use!!" | tee -a azurevpcb-setup.log
-            echo $(date) "If you created and deleted it, then wait an hour for it to clear.  If not, then contact nmonfort@fiu.edu for help" | tee -a azurevpcb-setup.log
-            echo $(date) "Exiting script..." | tee -a azurevpcb-setup.log
-            exit 1
-         elif [ $Restricted -ge 1 -o $Limited -ge 1 -o $Restricted2 -ge 1 ]; then
-            echo $(date) "Not allowed to create Storage Account in region $region. Trying the next one..." | tee -a azurevpcb-setup.log
-            continue
-         else
-            echo $(date) "Unknown error trying to create storage account $STG_NAME in region $region." | tee -a azurevpcb-setup.log
-            echo $(date) "Review log and contact nmonfort@fiu.edu for help" | tee -a azurevpcb-setup.log
+   STG_REGIONS_NARROWED=0
+   while true; do
+      STG_NARROWED_THIS_PASS=0
+      STG_CREATED=0
+      for region in $Region_List; do
+         echo $(date) "Attempting to create Storage Account $STG_NAME in region $region..." | tee -a azurevpcb-setup.log
+         az storage account create --name $STG_NAME --resource-group VPCBPermanent --location $region --subscription "Azure for Students" > STG_good.temp 2> STG_bad.temp
+         # See the matching comment on the resource group loop above - not a per-region
+         # problem, and not reliably transient, so stop and say so plainly instead of grinding.
+         SubscriptionNotFound=`grep "SubscriptionNotFound" STG_bad.temp | wc -l`
+         if [ $SubscriptionNotFound -ge 1 ]; then
+            echo $(date) "Azure reports the 'Azure for Students' subscription does not exist (SubscriptionNotFound), even though it was listed at login." | tee -a azurevpcb-setup.log
+            echo $(date) "This is not a script problem - check portal.azure.com under Subscriptions for a pending activation/verification step on that subscription, then rerun." | tee -a azurevpcb-setup.log
             echo $(date) "Exiting script..." | tee -a azurevpcb-setup.log
             exit 1
          fi
-      else
-         echo $(date) "Successfully created Storage Account $STG_NAME in region $region..." | tee -a azurevpcb-setup.log
+         echo $(date) "Standard out of az storage account create is as follows:" >> azurevpcb-setup.log
+         cat  STG_good.temp >> azurevpcb-setup.log
+         echo $(date) "Standard error of az storage account create is as follows:" >> azurevpcb-setup.log
+         cat STG_bad.temp >> azurevpcb-setup.log
+         if [ -s STG_bad.temp ]; then
+            Name_conflict=`grep StorageAccountAlreadyTaken STG_bad.temp | wc -l`
+            Restricted=`grep "have sufficient access" STG_bad.temp | wc -l`
+            Restricted2=`grep "have authorization" STG_bad.temp | wc -l`
+            Limited=`grep "have resources available" STG_bad.temp | wc -l`
+            PolicyDisallowed=`grep "RequestDisallowedByPolicy" STG_bad.temp | wc -l`
+
+            if [ $Name_conflict -ge 1 ]; then
+               echo $(date) "The name $STG_NAME already in use!!" | tee -a azurevpcb-setup.log
+               echo $(date) "If you created and deleted it, then wait an hour for it to clear.  If not, then contact nmonfort@fiu.edu for help" | tee -a azurevpcb-setup.log
+               echo $(date) "Exiting script..." | tee -a azurevpcb-setup.log
+               exit 1
+            elif [ $PolicyDisallowed -ge 1 ]; then
+               echo $(date) "Not allowed to create Storage Account in region $region. Trying the next one..." | tee -a azurevpcb-setup.log
+               # Same idea as the resource group loop above - once the policy error tells us the
+               # exact allowed regions, switch to that list immediately rather than working
+               # through the rest of the broad NA fallback list.
+               if [ $STG_REGIONS_NARROWED -eq 0 ]; then
+                  ALLOWED_REGIONS=$(parse_allowed_regions STG_bad.temp)
+                  if [ -n "$ALLOWED_REGIONS" ]; then
+                     echo $(date) "Azure Policy restricts this subscription to region(s): $ALLOWED_REGIONS. Focusing retries there..." | tee -a azurevpcb-setup.log
+                     Region_List="$ALLOWED_REGIONS"
+                     STG_REGIONS_NARROWED=1
+                     STG_NARROWED_THIS_PASS=1
+                     break
+                  fi
+               fi
+               continue
+            elif [ $Restricted -ge 1 -o $Limited -ge 1 -o $Restricted2 -ge 1 ]; then
+               echo $(date) "Not allowed to create Storage Account in region $region. Trying the next one..." | tee -a azurevpcb-setup.log
+               continue
+            else
+               echo $(date) "Unknown error trying to create storage account $STG_NAME in region $region." | tee -a azurevpcb-setup.log
+               echo $(date) "Review log and contact nmonfort@fiu.edu for help" | tee -a azurevpcb-setup.log
+               echo $(date) "Exiting script..." | tee -a azurevpcb-setup.log
+               exit 1
+            fi
+         else
+            echo $(date) "Successfully created Storage Account $STG_NAME in region $region..." | tee -a azurevpcb-setup.log
+            STG_CREATED=1
+            break
+         fi
+      done
+
+      if [ $STG_CREATED -eq 1 ]; then
          break
       fi
+      if [ $STG_NARROWED_THIS_PASS -eq 1 ]; then
+         continue
+      fi
+      break
    done
 fi
 rm STG_*.temp
@@ -155,7 +326,21 @@ else
 fi
 rm STG_*.temp
 
+az provider list --subscription "Azure for Students" --query "[].{Provider:namespace, Status:registrationState}" --output table > NAMESPACE_good.temp 2> NAMESPACE_bad.temp
+echo $(date) "Standard out of az provider list is as follows:" >> azurevpcb-setup.log
+cat NAMESPACE_good.temp >> azurevpcb-setup.log
+echo $(date) "Standard error of az provider list is as follows:" >> azurevpcb-setup.log
+cat NAMESPACE_bad.temp >> azurevpcb-setup.log
+rm NAMESPACE_*.temp
 
+echo $(date) "Registering Microsoft.Web namespace:" >> azurevpcb-setup.log
+az provider register --namespace Microsoft.Web --subscription "Azure for Students" > NAMESPACE_good.temp 2> NAMESPACE_bad.temp
+echo $(date) "Standard out of az provider register is as follows:" >> azurevpcb-setup.log
+cat NAMESPACE_good.temp >> azurevpcb-setup.log
+echo $(date) "Standard error of az provider register is as follows:" >> azurevpcb-setup.log
+cat NAMESPACE_bad.temp >> azurevpcb-setup.log
+rm NAMESPACE_*.temp
+	  
 # Look for function app and create it in a Consumption Plan if not found
 REDEPLOY=1
 FUNCTION_NAME=af2-$STG_NAME
@@ -169,9 +354,9 @@ if [ -s FUN_good.temp ]; then
    echo  
    read -p "REDPLOYMENT TAKES ABOUT 6 MINUTES. DO YOU NEED TO REDEPLOY IT [N]? (Y/N): " answer
    if [ "$answer" == "y" -o "$answer" == "Y" ]; then 
-      REDPLOY=1
+      REDEPLOY=1
    else
-      REDPLOY=0
+      REDEPLOY=0
       echo $(date) "Bypassing re-deployment of Function App $FUNCTION_NAME.  Moving on..." | tee -a azurevpcb-setup.log
    fi
 else
@@ -225,16 +410,33 @@ PRINCIPAL_ID=$(az functionapp identity show \
 # Grant the Managed Identity access to the Storage Container ---
 # Role: "Storage Blob Data Contributor" allows read, write, and delete blob data
 sleep 10  # Make sure there's time for Azure to propagate principal
-echo $(date) "Granting 'Storage Blob Data Contributor' role to the function app's managed identity..." | tee -a azurevpcb-setup.log
-az role assignment create \
-    --assignee "$PRINCIPAL_ID" \
-    --role "Storage Blob Data Contributor" \
-    --scope "/subscriptions/$(az account show --subscription "Azure for Students" --query id -o tsv)/resourceGroups/VPCBPermanent/providers/Microsoft.Storage/storageAccounts/$STG_NAME/blobServices/default/containers/$CONTAINER_NAME" >> azurevpcb-setup.log
+CONTAINER_SCOPE="/subscriptions/$(az account show --subscription "Azure for Students" --query id -o tsv)/resourceGroups/VPCBPermanent/providers/Microsoft.Storage/storageAccounts/$STG_NAME/blobServices/default/containers/$CONTAINER_NAME"
 
-az role assignment create \
-    --assignee "$AZ_UID" \
-    --role "Storage Blob Data Contributor" \
-    --scope "/subscriptions/$(az account show --subscription "Azure for Students" --query id -o tsv)/resourceGroups/VPCBPermanent/providers/Microsoft.Storage/storageAccounts/$STG_NAME/blobServices/default/containers/$CONTAINER_NAME" >> azurevpcb-setup.log
+# az role assignment create is not idempotent on its own - calling it again for a principal
+# that already has this exact role at this exact scope creates a second, duplicate
+# assignment rather than a no-op. Check first and only create if it's actually missing.
+echo $(date) "Granting 'Storage Blob Data Contributor' role to the function app's managed identity..." | tee -a azurevpcb-setup.log
+EXISTING_ROLE=$(az role assignment list --assignee "$PRINCIPAL_ID" --role "Storage Blob Data Contributor" --scope "$CONTAINER_SCOPE" --query "[0].id" -o tsv 2>>azurevpcb-setup.log)
+if [ -n "$EXISTING_ROLE" ]; then
+   echo $(date) "Managed identity already has this role assignment, skipping..." | tee -a azurevpcb-setup.log
+else
+   az role assignment create \
+       --assignee "$PRINCIPAL_ID" \
+       --role "Storage Blob Data Contributor" \
+       --scope "$CONTAINER_SCOPE" >> azurevpcb-setup.log 2>&1
+fi
+
+echo $(date) "Granting 'Storage Blob Data Contributor' role to $AZ_UID..." | tee -a azurevpcb-setup.log
+EXISTING_ROLE=$(az role assignment list --assignee-object-id "$AZ_UID_OBJECT_ID" --role "Storage Blob Data Contributor" --scope "$CONTAINER_SCOPE" --fill-principal-name false --query "[0].id" -o tsv 2>>azurevpcb-setup.log)
+if [ -n "$EXISTING_ROLE" ]; then
+   echo $(date) "$AZ_UID already has this role assignment, skipping..." | tee -a azurevpcb-setup.log
+else
+   az role assignment create \
+       --assignee-object-id "$AZ_UID_OBJECT_ID" \
+       --assignee-principal-type User \
+       --role "Storage Blob Data Contributor" \
+       --scope "$CONTAINER_SCOPE" >> azurevpcb-setup.log 2>&1
+fi
 
 echo $(date) "Creating Environment Variables for the Function App..." | tee -a azurevpcb-setup.log
 az functionapp config appsettings set \
@@ -248,7 +450,7 @@ az functionapp config appsettings delete --resource-group vpcbpermanent --name $
 
 
 # --- Deployment Preparation ---
-if [ $REDPLOY -eq 1 ]; then  
+if [ $REDEPLOY -eq 1 ]; then  
 # -------------------------------- START OF REDEPLOY BYPASS (when REDEPLOY = 0) ------------------------------
 ZIP_FILE=FunctionAppCode.zip
 PROJECT_DIR=FunctionAppCode
@@ -413,21 +615,33 @@ fi
 # ---------------------------------- END OF REDEPLOY BYPASS (when REDEPLOY = 0) ------------------------------
 
 # Look in Storage Account container for previous professor settings
+# The download errors out here on any genuine first run (nothing uploaded yet), so that
+# case is expected and shown plainly. But the exact same "nothing to load" outcome also
+# happens if the download failed for a REAL reason (e.g. a permissions problem, like the
+# role-assignment issue this masked previously) - capture stderr instead of discarding it
+# so that distinction is visible in the log instead of looking identical to "first run".
 rm settings.temp > /dev/null 2>&1
 az storage blob download --account-name $STG_NAME \
     --container-name $CONTAINER_NAME \
     --subscription "Azure for Students" \
     --name settings.temp \
     --file ./settings.temp \
-    --auth-mode login > /dev/null 2>&1
+    --auth-mode login > /dev/null 2> DL_bad.temp
 if [ -s settings.temp ]; then
    echo $(date) "Found previous settings in your container, loading them..." | tee -a azurevpcb-setup.log
    chmod 755 settings.temp
    . ./settings.temp
 else
-   echo $(date) "No previous settings found in container, moving on..." | tee -a azurevpcb-setup.log
+   BlobNotFound=`grep -i "BlobNotFound\|does not exist" DL_bad.temp | wc -l`
+   if [ $BlobNotFound -ge 1 -o ! -s DL_bad.temp ]; then
+      echo $(date) "No previous settings found in container, moving on..." | tee -a azurevpcb-setup.log
+   else
+      echo $(date) "No previous settings loaded - the download attempt hit an unexpected error (see azurevpcb-setup.log), continuing with fresh settings." | tee -a azurevpcb-setup.log
+      cat DL_bad.temp >> azurevpcb-setup.log
+   fi
 fi
-rm set*.temp
+rm -f DL_bad.temp
+rm -f set*.temp
 
 
 # Show previous information, if any and get information from the professor
@@ -546,6 +760,9 @@ az storage blob upload --account-name $STG_NAME \
     --file ./settings.temp \
     --overwrite \
     --auth-mode login >> azurevpcb-setup.log 2>&1
+if [ $? -ne 0 ]; then
+   echo $(date) "WARNING: saving your settings to the container failed - see azurevpcb-setup.log for the actual error. Your answers from this run were NOT saved for next time." | tee -a azurevpcb-setup.log
+fi
 
 
 # Create action group, action and alert for email when a log is uploaded by a student
@@ -581,7 +798,7 @@ if [ "$AZUREVPCB_REGISTRY_ADD" == "Y" ]; then
        --data-binary "@./azurevpcb-setup.log" >> /dev/null 2>&1
 fi
 
-rm set*.temp
+rm -f set*.temp
 
 echo $(date) "AzureVPCB-setup Completed!   " | tee -a azurevpcb-setup.log
 exit
