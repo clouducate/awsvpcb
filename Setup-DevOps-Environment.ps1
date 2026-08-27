@@ -934,7 +934,19 @@ else
     sudo python3 -m pip install $FALLBACK_PKGS -q
 fi
 rm -rf "$TMP_REPO"
-python3 -c "import flask, flask_sqlalchemy, pymysql, cryptography; print('Flask runtime deps: OK')"
+
+# The template repo is the Module 1 starting point, so PyMySQL, cryptography and
+# gunicorn are NOT in its requirements.txt - students add them in Module 5.
+# Install them here: the Control Node needs PyMySQL and cryptography for the
+# Module 7 integration tests that connect to staging MySQL.
+sudo python3 -m pip install PyMySQL cryptography gunicorn -q
+
+# Verify, but do not abort setup this late - everything else already succeeded.
+if python3 -c "import flask, flask_sqlalchemy, pymysql, cryptography" 2>/dev/null; then
+    echo "Flask runtime deps: OK"
+else
+    echo "WARN: one or more Flask runtime deps missing - review the pip output above"
+fi
 
 echo "=== FLASK_APP environment variable ==="
 # Set system-wide so Jenkins can run flask commands without extra env config.
