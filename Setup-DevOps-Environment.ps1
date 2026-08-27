@@ -911,17 +911,27 @@ sudo dnf install -y gcc libffi-devel openssl-devel python3-devel -q
 echo "Build deps: OK"
 
 echo "=== Flask app runtime dependencies (from requirements.txt) ==="
-# Clone the repo to a temp dir, install from requirements.txt, then remove.
-# This ensures the installed packages always match the repo, not a hardcoded list.
-REPO_URL="https://github.com/nmonfort577/NM-FSM-App.git"
+# Clone the COURSE TEMPLATE repo (the one students fork) and install from its
+# requirements.txt. Do NOT point this at a personal fork - whatever sits on that
+# branch gets installed on every student's Control Node.
+REPO_URL="https://github.com/ts0491/NM-FSM-App.git"
 TMP_REPO=$(mktemp -d)
-git clone --depth 1 --quiet "$REPO_URL" "$TMP_REPO"
-if [ -f "$TMP_REPO/requirements.txt" ]; then
-    sudo python3 -m pip install -r "$TMP_REPO/requirements.txt" -q
-    echo "requirements.txt installed: OK"
+FALLBACK_PKGS="Flask Flask-SQLAlchemy PyMySQL cryptography gunicorn python-dotenv"
+REQ_OK=0
+if git clone --depth 1 --quiet "$REPO_URL" "$TMP_REPO" 2>/dev/null; then
+    if [ -f "$TMP_REPO/requirements.txt" ]; then
+        if sudo python3 -m pip install -r "$TMP_REPO/requirements.txt" -q; then
+            REQ_OK=1
+        fi
+    fi
+fi
+if [ "$REQ_OK" -eq 1 ]; then
+    echo "requirements.txt installed from $REPO_URL: OK"
 else
-    echo "WARN: requirements.txt not found in repo root -- falling back to known packages"
-    sudo python3 -m pip install Flask Flask-SQLAlchemy PyMySQL cryptography gunicorn python-dotenv -q
+    # Reached if the clone fails, the file is missing, or a pinned version is not
+    # installable on the Control Node's Python. Fall back so setup still finishes.
+    echo "WARN: could not install from requirements.txt -- using known package list"
+    sudo python3 -m pip install $FALLBACK_PKGS -q
 fi
 rm -rf "$TMP_REPO"
 python3 -c "import flask, flask_sqlalchemy, pymysql, cryptography; print('Flask runtime deps: OK')"
