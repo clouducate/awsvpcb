@@ -6,6 +6,10 @@
 #             their Function URL / permissions / log groups, the SNS topic and
 #             the IAM role and policy they use.
 #
+#             Revised 2026-09-03 - distro independent prerequisite install, the
+#             DIAGLOG-UPLOAD resource policy is written to the log, and a failing
+#             end to end test now repairs an ineffective public invoke statement.
+#
 # Creating Log
 echo $(date) "Starting script awsvpcb-setup (v2)" >> awsvpcb-setup.log
 
@@ -25,11 +29,40 @@ bail_out () {
 
 
 # Verify whether the AWS CLI is installed or not
-echo $(date) "Updating packages and install prerequisites" | tee -a awsvpcb-setup.log
-sudo apt update  >> awsvpcb-setup.log 2>&1
-sudo apt install -y unzip curl >> awsvpcb-setup.log 2>&1
-sudo apt install -y zip >> awsvpcb-setup.log 2>&1
-sudo apt install -y wget >> awsvpcb-setup.log 2>&1
+# The professors are not all on Ubuntu - openSUSE (zypper), Amazon Linux / Fedora
+# (dnf) and CentOS (yum) are all in use - so pick whichever package manager exists
+# and only install what is actually missing.
+echo $(date) "Checking prerequisites" | tee -a awsvpcb-setup.log
+PKG_MISSING=""
+for CMD in unzip zip curl wget; do
+   command -v $CMD > /dev/null 2>&1
+   if [ $? -ne 0 ]; then PKG_MISSING="$PKG_MISSING $CMD"; fi
+done
+if [ "$PKG_MISSING" == "" ]; then
+   echo $(date) "All prerequisites (unzip zip curl wget) are already installed - moving on..." | tee -a awsvpcb-setup.log
+else
+   echo $(date) "Installing missing prerequisites:$PKG_MISSING" | tee -a awsvpcb-setup.log
+   if command -v apt-get > /dev/null 2>&1; then
+      sudo apt-get update >> awsvpcb-setup.log 2>&1
+      sudo apt-get install -y $PKG_MISSING >> awsvpcb-setup.log 2>&1
+   elif command -v zypper > /dev/null 2>&1; then
+      sudo zypper --non-interactive refresh >> awsvpcb-setup.log 2>&1
+      sudo zypper --non-interactive install $PKG_MISSING >> awsvpcb-setup.log 2>&1
+   elif command -v dnf > /dev/null 2>&1; then
+      sudo dnf install -y $PKG_MISSING >> awsvpcb-setup.log 2>&1
+   elif command -v yum > /dev/null 2>&1; then
+      sudo yum install -y $PKG_MISSING >> awsvpcb-setup.log 2>&1
+   else
+      echo $(date) "WARNING - no supported package manager found (apt-get, zypper, dnf, yum)." | tee -a awsvpcb-setup.log
+      echo $(date) "          Please install these yourself before re-running:$PKG_MISSING" | tee -a awsvpcb-setup.log
+   fi
+   for CMD in $PKG_MISSING; do
+      command -v $CMD > /dev/null 2>&1
+      if [ $? -ne 0 ]; then
+         echo $(date) "WARNING - $CMD is still not installed and the setup needs it." | tee -a awsvpcb-setup.log
+      fi
+   done
+fi
 aws --version > awscliout.temp 2> awsclierror.temp
 echo $(date) "Standard out of aws --version is as follows:" >> awsvpcb-setup.log
 cat awscliout.temp >> awsvpcb-setup.log
@@ -503,39 +536,67 @@ echo $(date) "The Function URL is $URL_Arn with AuthType $URL_AUTH" | tee -a aws
 # with 403 Forbidden, and add-permission is harmless when the statement is present.
 echo $(date) "Making sure the DIAGLOG-UPLOAD Function URL allows public invocation..." | tee -a awsvpcb-setup.log
 aws lambda add-permission --function-name DIAGLOG-UPLOAD --statement-id "FunctionURLAllowPublicAccess" --action "lambda:InvokeFunctionUrl" --principal "*" --function-url-auth-type NONE --region $REGION >> awsvpcb-setup.log 2>&1
-aws lambda get-policy --function-name DIAGLOG-UPLOAD --region $REGION --query Policy --output text 2>> awsvpcb-setup.log | grep "InvokeFunctionUrl" > /dev/null 2>&1
-if [ $? -ne 0 ]; then
-   echo $(date) "WARNING - the DIAGLOG-UPLOAD function does not have the public invoke permission." | tee -a awsvpcb-setup.log
-   echo $(date) "          Students will receive 403 Forbidden when they run AWSVPCB.DIAGLOG." | tee -a awsvpcb-setup.log
-else
-   echo $(date) "The public invoke permission is in place." | tee -a awsvpcb-setup.log
-fi
+echo $(date) "The DIAGLOG-UPLOAD resource policy is currently:" >> awsvpcb-setup.log
+aws lambda get-policy --function-name DIAGLOG-UPLOAD --region $REGION --query Policy --output text >> awsvpcb-setup.log 2>&1
+echo >> awsvpcb-setup.log
 
 
 # END TO END TEST - ask the Function URL for a presigned URL and then upload a file
 # with it, exactly the way procs/awsvpcb.diaglog.logfile does on the student side.
+# The live test is the only trustworthy check - a statement can be present in the
+# policy and still not grant access - so never judge this from the policy text.
+run_upload_test () {
+   rm -f presignedURL curlput.temp
+   echo "AWSVPCB setup verification $(date)" > setup-verify.temp
+   TEST_TS=`date +%s`
+   HTTP_CODE=`curl --silent --output presignedURL --write-out "%{http_code}" "$URL_Arn/?filename=setup-verification%2F$TEST_TS%2Fsetup-verify.txt"`
+   echo $(date) "The Function URL returned HTTP $HTTP_CODE" | tee -a awsvpcb-setup.log
+   TEST_URL=`cat presignedURL | sed 's/^.//' | sed 's/.$//'`
+   UPLOAD_OK=0
+   if [ "$HTTP_CODE" == "200" -a "$TEST_URL" != "" ]; then
+      PUT_CODE=`curl --silent --output curlput.temp --write-out "%{http_code}" -X PUT -H "Content-type : multipart/form-data" --data-binary "@setup-verify.temp" $TEST_URL`
+      echo $(date) "The presigned S3 upload returned HTTP $PUT_CODE" | tee -a awsvpcb-setup.log
+      cat curlput.temp >> awsvpcb-setup.log
+      if [ "$PUT_CODE" == "200" ]; then UPLOAD_OK=1; fi
+   else
+      echo $(date) "The Function URL did not return a presigned URL - here is what came back:" | tee -a awsvpcb-setup.log
+      cat presignedURL | tee -a awsvpcb-setup.log
+      echo | tee -a awsvpcb-setup.log
+   fi
+   rm -f presignedURL setup-verify.temp curlput.temp
+}
+
 echo $(date) "Testing the DIAGLOG upload end to end..." | tee -a awsvpcb-setup.log
-echo "AWSVPCB setup verification $(date)" > setup-verify.temp
-TEST_TS=`date +%s`
-HTTP_CODE=`curl --silent --output presignedURL --write-out "%{http_code}" "$URL_Arn/?filename=setup-verification%2F$TEST_TS%2Fsetup-verify.txt"`
-echo $(date) "The Function URL returned HTTP $HTTP_CODE" | tee -a awsvpcb-setup.log
-TEST_URL=`cat presignedURL | sed 's/^.//' | sed 's/.$//'`
-UPLOAD_OK=0
-if [ "$HTTP_CODE" == "200" -a "$TEST_URL" != "" ]; then
-   PUT_CODE=`curl --silent --output curlput.temp --write-out "%{http_code}" -X PUT -H "Content-type : multipart/form-data" --data-binary "@setup-verify.temp" $TEST_URL`
-   echo $(date) "The presigned S3 upload returned HTTP $PUT_CODE" | tee -a awsvpcb-setup.log
-   cat curlput.temp >> awsvpcb-setup.log
-   if [ "$PUT_CODE" == "200" ]; then UPLOAD_OK=1; fi
-else
-   echo $(date) "The Function URL did not return a presigned URL - here is what came back:" | tee -a awsvpcb-setup.log
-   cat presignedURL | tee -a awsvpcb-setup.log
+run_upload_test
+
+# A 403 while the Function URL is set to NONE means the statement that is supposed
+# to allow anonymous callers is present but not effective.  That happens when the
+# statement was first created while the URL was AWS_IAM: add-permission stamps the
+# lambda:FunctionUrlAuthType condition into the statement when it is created,
+# changing the URL afterwards does not rewrite it, and add-permission refuses to
+# touch a statement id that already exists (ResourceConflictException).  Adding a
+# second, correctly conditioned statement under a new id fixes it - any matching
+# Allow in the policy is enough - and it leaves the old statement alone.
+if [ $UPLOAD_OK -eq 0 -a "$HTTP_CODE" == "403" ]; then
+   echo $(date) "The endpoint returned 403 even though the Function URL AuthType is NONE." | tee -a awsvpcb-setup.log
+   echo $(date) "Adding a corrected public invoke statement (FunctionURLAllowPublicAccessV2)..." | tee -a awsvpcb-setup.log
+   aws lambda add-permission --function-name DIAGLOG-UPLOAD --statement-id "FunctionURLAllowPublicAccessV2" --action "lambda:InvokeFunctionUrl" --principal "*" --function-url-auth-type NONE --region $REGION >> awsvpcb-setup.log 2>&1
+   echo $(date) "The DIAGLOG-UPLOAD resource policy is now:" >> awsvpcb-setup.log
+   aws lambda get-policy --function-name DIAGLOG-UPLOAD --region $REGION --query Policy --output text >> awsvpcb-setup.log 2>&1
+   echo >> awsvpcb-setup.log
+   echo $(date) "Re-testing the DIAGLOG upload end to end..." | tee -a awsvpcb-setup.log
+   run_upload_test
 fi
-rm -f presignedURL setup-verify.temp curlput.temp
+
 if [ $UPLOAD_OK -eq 1 ]; then
    echo $(date) "DIAGLOG UPLOAD TEST PASSED - students will be able to send you their logs." | tee -a awsvpcb-setup.log
 else
    echo $(date) "*** DIAGLOG UPLOAD TEST FAILED ***" | tee -a awsvpcb-setup.log
    echo $(date) "    Your students AWSVPCB.DIAGLOG will not reach your S3 bucket." | tee -a awsvpcb-setup.log
+   echo $(date) "    The Function URL is $URL_Arn with AuthType $URL_AUTH." | tee -a awsvpcb-setup.log
+   echo $(date) "    The full resource policy has been written to awsvpcb-setup.log above." | tee -a awsvpcb-setup.log
+   echo $(date) "    If the policy looks correct, check whether an AWS Organizations service" | tee -a awsvpcb-setup.log
+   echo $(date) "    control policy or resource control policy is blocking anonymous access." | tee -a awsvpcb-setup.log
    echo $(date) "    The setup will finish, but please send awsvpcb-setup.log to nmonfort@fiu.edu." | tee -a awsvpcb-setup.log
 fi
 
