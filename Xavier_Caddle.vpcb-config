@@ -2,6 +2,7 @@
 export INSTITUTION="FIU"
 export PROFESSOR="Xavier_Caddle"
 export COURSE=DYNAMIC        # DYNAMIC value will use student selection to determine the course
+export SEMESTER="SEMESTER-UNDEFINED"     # Replaced by AWSVPCB.CONFIGURE with COURSE-SemesterYear
 export AVAILABLE_COURSES="CIS3080 CIS4651"
 export AWSVPCB_SEM=DYNAMIC    # DYNAMIC value will use the calendar to determine the semester in the form of COURSE-Fall2026
 export ERRORMSG="please run ./AWSVPCB.DIAGLOG and let the professor know to review...."
@@ -12,11 +13,11 @@ export ENABLE_AWS_LOGGING=no             # Forced to "no" when AWS_ACEDEMY=yes
 export MANIFEST_LOCATION=local           # Forced to "local" when AWS_ACADEMY=yes
 export AWS_REGION=us-east-1              # Only supported Region right now because AMI images are only located in US-EAST-1
 export PRIMARY_AWS_AZ=us-east-1a         # US-EAST-1B included in assignments as secondary AZ for WEB servers & ELBs, but primary can be in any other AZ in US-EAST-1
-export DIAGLOG_LAMBDA_URL=https://nxdrks7qbesfvrudru6p65qxpa0ffaix.lambda-url.us-east-1.on.aws/       # Unique per professor
-export DIAGLOG_SUPPORT=Y  # Determines whether to send logs to support URL 
+export DIAGLOG_LAMBDA_URL=https://fkl7mhglmhaqkhgtd72ec3ixhu0zayrd.lambda-url.us-east-1.on.aws       # Unique per professor
+export DIAGLOG_SUPPORT=Y  # Determines whether to send logs to support URL
 export DIAGLOG_LAMBDA_SUPPORT_URL=https://juxhn343davm6xxnhibsvalsje0rwnxx.lambda-url.us-east-2.on.aws   #Common support URL
 
-if [ "" == "yes" ]; then
+if [ "$AWS_ACADEMY" == "yes" ]; then
    export ENABLE_AWS_LOGGING=no
    export MANIFEST_LOCATION=local
 fi
