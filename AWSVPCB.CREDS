@@ -1,0 +1,16 @@
+#!/bin/bash
+# AWSVPCB.CREDS - refresh ~/.aws/credentials from the AWS Details panel
+echo "Lab page: AWS Details -> AWS CLI: Show. Copy the whole [default] block,"
+echo "paste it below, then press Ctrl+D on an empty line."
+NEW=$(cat)
+if ! grep -q "aws_session_token" <<< "$NEW"; then
+  echo "That doesn't look like the full block (no aws_session_token). Nothing changed."; exit 1
+fi
+chmod u+w ~/.aws/credentials 2>/dev/null
+printf '%s\n' "$NEW" > ~/.aws/credentials
+chmod 444 ~/.aws/credentials
+if aws sts get-caller-identity > /dev/null 2>&1; then
+  echo "Credentials updated and working."
+else
+  echo "Credentials saved but AWS rejected them - make sure the lab is started and recopy."; exit 1
+fi
