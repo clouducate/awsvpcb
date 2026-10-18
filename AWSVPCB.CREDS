@@ -1,16 +1,27 @@
 #!/bin/bash
 # AWSVPCB.CREDS - refresh ~/.aws/credentials from the AWS Details panel
+CREDS="$HOME/.aws/credentials"
 echo "Lab page: AWS Details -> AWS CLI: Show. Copy the whole [default] block,"
-echo "paste it below, then press Ctrl+D on an empty line."
+echo "paste it below, press Enter, then press Ctrl+D."
 NEW=$(cat)
 if ! grep -q "aws_session_token" <<< "$NEW"; then
   echo "That doesn't look like the full block (no aws_session_token). Nothing changed."; exit 1
 fi
-chmod u+w ~/.aws/credentials 2>/dev/null
-printf '%s\n' "$NEW" > ~/.aws/credentials
-chmod 444 ~/.aws/credentials
-if aws sts get-caller-identity > /dev/null 2>&1; then
-  echo "Credentials updated and working."
-else
-  echo "Credentials saved but AWS rejected them - make sure the lab is started and recopy."; exit 1
+mkdir -p "$HOME/.aws" 2>/dev/null
+chmod u+w "$HOME/.aws" 2>/dev/null
+[ -e "$CREDS" ] && chmod u+w "$CREDS" 2>/dev/null
+if ! printf '%s\n' "$NEW" > "$CREDS"; then
+  echo "ERROR: could not write $CREDS."
+  echo "Run: ls -ld ~/.aws ~/.aws/*   and send the output to your professor."; exit 1
 fi
+chmod 444 "$CREDS"
+ARN=$(aws sts get-caller-identity --query Arn --output text 2>/dev/null)
+case "$ARN" in
+  *assumed-role/voclabs/*)
+    echo "Credentials updated and working: $ARN" ;;
+  "")
+    echo "Credentials saved but AWS rejected them - make sure the lab is started, recopy and rerun."; exit 1 ;;
+  *)
+    echo "ERROR: the AWS CLI is not using your lab credentials. Current identity: $ARN"
+    echo "Expected an assumed-role/voclabs identity. Send this output to your professor."; exit 1 ;;
+esac
